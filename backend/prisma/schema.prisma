@@ -1,3 +1,7 @@
+// REFERENCE/DEPRECATED: this is not the active Prisma schema.
+// The Phase 01 source of truth is apps/api/prisma/schema.prisma.
+// Keep this file unchanged apart from this notice until later domain phases.
+
 generator client {
   provider = "prisma-client-js"
 }

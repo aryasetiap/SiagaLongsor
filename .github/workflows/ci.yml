@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: siagalongsor
+          POSTGRES_PASSWORD: ${{ format('ci-{0}-{1}', github.run_id, github.run_attempt) }}
+          POSTGRES_DB: siagalongsor
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U siagalongsor -d siagalongsor"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: ${{ format('postgresql://siagalongsor:ci-{0}-{1}@localhost:5432/siagalongsor?schema=public', github.run_id, github.run_attempt) }}
+      SEED_ORGANIZATION_NAME: SiagaLongsor CI
+      SEED_ORGANIZATION_SLUG: siagalongsor-ci
+      SEED_SITE_NAME: SMAN 17 Bandar Lampung
+      SEED_SITE_SLUG: sman-17-bandar-lampung
+      SEED_PROJECT_OWNER_NAME: CI Project Owner
+      SEED_PROJECT_OWNER_EMAIL: owner@ci.example.invalid
+      SEED_SCHOOL_ADMIN_NAME: CI School Admin
+      SEED_SCHOOL_ADMIN_EMAIL: admin@ci.example.invalid
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.5
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm prisma:generate
+      - name: Create ephemeral seed passwords
+        shell: bash
+        run: |
+          echo "SEED_PROJECT_OWNER_PASSWORD=$(openssl rand -base64 24)" >> "$GITHUB_ENV"
+          echo "SEED_SCHOOL_ADMIN_PASSWORD=$(openssl rand -base64 24)" >> "$GITHUB_ENV"
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm typecheck
+      - run: pnpm test
+      - run: pnpm build
+      - run: pnpm prisma:validate
+      - run: pnpm prisma:migrate:deploy
+      - run: pnpm prisma:seed
+      - run: pnpm prisma:seed

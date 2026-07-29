@@ -1,0 +1,33 @@
+{
+  "name": "siagalongsor",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "pnpm": ">=10.34.5 <11"
+  },
+  "scripts": {
+    "build": "corepack pnpm -r --if-present build",
+    "dev": "corepack pnpm -r --parallel --if-present dev",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,json,css}\" \"packages/**/*.{json,jsonc}\" \"*.{json,yaml,yml,mjs,ts}\" \".github/**/*.{yml,yaml}\" \"docs/adr/**/*.md\" \"docs/migrations/**/*.md\"",
+    "format:check": "prettier --check \"apps/**/*.{ts,tsx,json,css}\" \"packages/**/*.{json,jsonc}\" \"*.{json,yaml,yml,mjs,ts}\" \".github/**/*.{yml,yaml}\" \"docs/adr/**/*.md\" \"docs/migrations/**/*.md\"",
+    "lint": "eslint . --max-warnings=0",
+    "typecheck": "corepack pnpm -r --if-present typecheck",
+    "test": "corepack pnpm -r --if-present test",
+    "prisma:generate": "corepack pnpm --filter @siagalongsor/api prisma:generate",
+    "prisma:validate": "corepack pnpm --filter @siagalongsor/api prisma:validate",
+    "prisma:migrate:deploy": "corepack pnpm --filter @siagalongsor/api prisma:migrate:deploy",
+    "prisma:seed": "corepack pnpm --filter @siagalongsor/api prisma:seed"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "@types/node": "24.13.3",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.2.12",
+    "globals": "17.8.0",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.65.0"
+  }
+}
