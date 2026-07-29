@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://siagalongsor.local/schemas/telemetry-payload.schema.json",
+  "title": "SiagaLongsor Telemetry Payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "messageId",
+    "deviceId",
+    "sequence",
+    "timestamp",
+    "firmwareVersion",
+    "readings",
+    "deviceAssessment"
+  ],
+  "properties": {
+    "messageId": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 64
+    },
+    "deviceId": {
+      "type": "string",
+      "pattern": "^[A-Z0-9][A-Z0-9_-]{2,63}$"
+    },
+    "bootId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "firmwareVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32
+    },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "WIFI",
+            "CELLULAR",
+            "UNKNOWN"
+          ]
+        },
+        "signalRssi": {
+          "type": "number",
+          "minimum": -150,
+          "maximum": 0
+        }
+      }
+    },
+    "readings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tiltMagnitudeDeg",
+        "soilMoisturePct",
+        "rainfallMmHour",
+        "batteryVoltage"
+      ],
+      "properties": {
+        "tiltXDeg": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "tiltYDeg": {
+          "type": "number",
+          "minimum": -180,
+          "maximum": 180
+        },
+        "tiltMagnitudeDeg": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 180
+        },
+        "soilMoisturePct": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "rainfallMmHour": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1000
+        },
+        "batteryVoltage": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 30
+        }
+      }
+    },
+    "deviceAssessment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "riskLevel",
+        "sirenActive"
+      ],
+      "properties": {
+        "riskLevel": {
+          "type": "string",
+          "enum": [
+            "SAFE",
+            "WATCH",
+            "DANGER",
+            "UNKNOWN"
+          ]
+        },
+        "sirenActive": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

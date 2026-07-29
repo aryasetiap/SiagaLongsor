@@ -1,0 +1,114 @@
+{
+  "project": "SiagaLongsor",
+  "version": "0.1.0",
+  "files": [
+    {
+      "path": "AGENTS.md",
+      "bytes": 5592
+    },
+    {
+      "path": "README.md",
+      "bytes": 3580
+    },
+    {
+      "path": "assets/ui-reference-dashboard.png",
+      "bytes": 735490
+    },
+    {
+      "path": "backend/.env.example",
+      "bytes": 1278
+    },
+    {
+      "path": "backend/prisma/schema.prisma",
+      "bytes": 11669
+    },
+    {
+      "path": "docs/01_PRD.md",
+      "bytes": 5805
+    },
+    {
+      "path": "docs/02_SYSTEM_ARCHITECTURE.md",
+      "bytes": 4617
+    },
+    {
+      "path": "docs/03_DOMAIN_DATA_MODEL.md",
+      "bytes": 2605
+    },
+    {
+      "path": "docs/04_API_CONTRACT.md",
+      "bytes": 4277
+    },
+    {
+      "path": "docs/05_RISK_ENGINE_SPEC.md",
+      "bytes": 4417
+    },
+    {
+      "path": "docs/06_UI_UX_SPEC.md",
+      "bytes": 3926
+    },
+    {
+      "path": "docs/07_SECURITY_OPERATIONS.md",
+      "bytes": 3362
+    },
+    {
+      "path": "docs/08_IMPLEMENTATION_ROADMAP.md",
+      "bytes": 2785
+    },
+    {
+      "path": "docs/09_TEST_ACCEPTANCE_PLAN.md",
+      "bytes": 3196
+    },
+    {
+      "path": "docs/10_FIRMWARE_CONNECTIVITY.md",
+      "bytes": 3396
+    },
+    {
+      "path": "docs/11_DECISIONS_ASSUMPTIONS.md",
+      "bytes": 2673
+    },
+    {
+      "path": "infra/docker-compose.reference.yml",
+      "bytes": 1297
+    },
+    {
+      "path": "infra/mosquitto.conf",
+      "bytes": 155
+    },
+    {
+      "path": "prompts/codex-master-prompt.md",
+      "bytes": 1263
+    },
+    {
+      "path": "prompts/phase-01-foundation.md",
+      "bytes": 772
+    },
+    {
+      "path": "prompts/phase-02-ingestion.md",
+      "bytes": 892
+    },
+    {
+      "path": "prompts/phase-03-risk-alerts.md",
+      "bytes": 616
+    },
+    {
+      "path": "prompts/phase-04-dashboard.md",
+      "bytes": 717
+    },
+    {
+      "path": "references/Proposal_PKM_SMAN17.pdf",
+      "bytes": 1299361
+    },
+    {
+      "path": "references/Spesifikasi_Alat_Longsor.docx",
+      "bytes": 3340494
+    },
+    {
+      "path": "specs/openapi.yaml",
+      "bytes": 9860
+    },
+    {
+      "path": "specs/telemetry-payload.schema.json",
+      "bytes": 2700
+    }
+  ]
+}

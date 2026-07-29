@@ -1,0 +1,298 @@
+# ============================================================
+# SiagaLongsor - .gitignore
+# Stack: Next.js / React, NestJS, TypeScript, Prisma,
+# PostgreSQL, Redis, Docker, Playwright, PlatformIO/ESP32
+# ============================================================
+
+# ------------------------------------------------------------
+# Dependencies
+# ------------------------------------------------------------
+node_modules/
+.pnpm-store/
+.yarn/
+.yarn-cache/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ------------------------------------------------------------
+# Build outputs and framework caches
+# ------------------------------------------------------------
+dist/
+build/
+out/
+.next/
+.nuxt/
+.output/
+.vercel/
+.netlify/
+.turbo/
+.nx/
+.cache/
+.parcel-cache/
+.eslintcache
+*.tsbuildinfo
+
+# ------------------------------------------------------------
+# Environment variables and secrets
+# Keep example/template files in Git.
+# ------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!**/.env.example
+!.env.template
+!**/.env.template
+!.env.sample
+!**/.env.sample
+
+secrets/
+.secret/
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.mobileprovision
+service-account*.json
+firebase-adminsdk*.json
+
+# ------------------------------------------------------------
+# Runtime data, local databases, uploads, and generated files
+# ------------------------------------------------------------
+data/
+storage/
+uploads/
+tmp/
+temp/
+.cache-data/
+local-data/
+docker-data/
+volumes/
+postgres-data/
+redis-data/
+
+*.sqlite
+*.sqlite3
+*.db
+*.db-journal
+
+generated/
+exports/
+reports/generated/
+public/generated/
+public/uploads/
+
+# ------------------------------------------------------------
+# Logs, monitoring, and process files
+# ------------------------------------------------------------
+logs/
+*.log
+*.log.*
+*.pid
+*.pid.lock
+pids/
+dump.rdb
+appendonly.aof
+*.rdb
+*.aof
+
+# ------------------------------------------------------------
+# Tests and coverage
+# ------------------------------------------------------------
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+blob-report/
+allure-results/
+allure-report/
+junit.xml
+*.lcov
+*.coverage
+
+# k6 / performance-test results
+k6-results/
+performance-results/
+load-test-results/
+benchmark-results/
+
+# ------------------------------------------------------------
+# Prisma
+# IMPORTANT: commit prisma/schema.prisma and prisma/migrations/
+# ------------------------------------------------------------
+prisma/dev.db
+prisma/dev.db-journal
+prisma/*.sqlite
+prisma/*.sqlite3
+
+# ------------------------------------------------------------
+# Docker local overrides
+# ------------------------------------------------------------
+docker-compose.override.yml
+docker-compose.local.yml
+compose.override.yml
+compose.local.yml
+.docker/
+
+# ------------------------------------------------------------
+# IDE and editor files
+# ------------------------------------------------------------
+.idea/
+*.iml
+*.ipr
+*.iws
+
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+!.vscode/tasks.json
+
+.history/
+.project
+.classpath
+.settings/
+
+# ------------------------------------------------------------
+# Operating-system files
+# ------------------------------------------------------------
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ------------------------------------------------------------
+# Temporary and backup files
+# ------------------------------------------------------------
+*.tmp
+*.temp
+*.swp
+*.swo
+*.bak
+*.backup
+*.old
+*.orig
+*.rej
+*~
+.#*
+.lock-wscript
+
+# ------------------------------------------------------------
+# Internal documentation and Codex scratch files
+#
+# Do NOT ignore all *.md files. Keep README.md, AGENTS.md,
+# architecture docs, API docs, and contributor documentation.
+# Use these naming conventions for non-public notes.
+# ------------------------------------------------------------
+notes/
+private/
+internal/
+scratch/
+drafts/
+research/
+references/private/
+codex-scratch/
+.codex/
+.ai/
+.claude/
+.cursor/
+
+*.local.md
+*.private.md
+*.internal.md
+*.scratch.md
+*_DRAFT.md
+*_draft.md
+*_NOTES.md
+*_notes.md
+*_TEMP.md
+*_temp.md
+
+# Keep important repository documentation even if a broad rule
+# is added later.
+!README.md
+!AGENTS.md
+!CONTRIBUTING.md
+!CHANGELOG.md
+!SECURITY.md
+!CODE_OF_CONDUCT.md
+!LICENSE.md
+!docs/**/*.md
+
+# ------------------------------------------------------------
+# Uploaded proposal/reference assets that should stay local
+# Adjust these paths if you intentionally want them in Git.
+# ------------------------------------------------------------
+references/source-files/
+references/raw/
+references/ui-samples/
+docs/source-files/
+docs/raw-assets/
+*.local.pdf
+*.private.pdf
+*.local.docx
+*.private.docx
+
+# ------------------------------------------------------------
+# Firmware / ESP32 / PlatformIO
+# ------------------------------------------------------------
+.pio/
+.pioenvs/
+.piolibdeps/
+platformio_override.ini
+firmware/.vscode/
+firmware/build/
+firmware/.cache/
+
+# ------------------------------------------------------------
+# Package-manager artifacts not meant for source control
+# Lockfiles SHOULD be committed, so they are not ignored.
+# ------------------------------------------------------------
+package-lock.json.lerna_backup
+.yarn-integrity
+
+# ------------------------------------------------------------
+# Miscellaneous
+# ------------------------------------------------------------
+*.tgz
+*.tar.gz
+*.zip
+archive/
+backups/
+
+# ------------------------------------------------------------
+# Codex / AI prompt files
+# ------------------------------------------------------------
+prompts/
+prompt/
+codex-prompts/
+ai-prompts/
+prompt-library/
+.codex/
+.ai/
+.claude/
+.cursor/
+
+*.prompt.md
+*_PROMPT.md
+*_prompt.md
+*-prompt.md
+*.codex.md
+*_CODEX.md
+*_codex.md
+
+# Keep repository-level AI instructions
+!AGENTS.md
+!**/AGENTS.md

@@ -1,0 +1,366 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  PROJECT_OWNER
+  SCHOOL_ADMIN
+}
+
+enum RiskLevel {
+  SAFE
+  WATCH
+  DANGER
+  UNKNOWN
+}
+
+enum DeviceStatus {
+  ONLINE
+  DELAYED
+  OFFLINE
+  MAINTENANCE
+  DISABLED
+}
+
+enum NetworkType {
+  WIFI
+  CELLULAR
+  UNKNOWN
+}
+
+enum AlertType {
+  RISK_WATCH
+  RISK_DANGER
+  DEVICE_DELAYED
+  DEVICE_OFFLINE
+  INVALID_SENSOR
+  LOW_BATTERY
+  WEAK_SIGNAL
+  DEVICE_SERVER_MISMATCH
+  CONFIG_CHANGED
+  MAINTENANCE
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  FALSE_ALARM
+}
+
+enum DocumentType {
+  SOP
+  RISK_MAP
+  EVACUATION_MAP
+  EDUCATION
+  OTHER
+}
+
+model Organization {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  sites       Site[]
+  memberships Membership[]
+  auditLogs   AuditLog[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model User {
+  id                    String             @id @default(cuid())
+  email                 String             @unique
+  name                  String
+  passwordHash          String
+  isActive              Boolean            @default(true)
+  memberships           Membership[]
+  createdThresholds     ThresholdProfile[] @relation("ThresholdCreatedBy")
+  alertEvents           AlertEvent[]       @relation("AlertEventActor")
+  maintenanceLogs       MaintenanceLog[]   @relation("MaintenanceActor")
+  auditLogs             AuditLog[]         @relation("AuditActor")
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+}
+
+model Membership {
+  id             String       @id @default(cuid())
+  organizationId String
+  userId         String
+  role           Role
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+}
+
+model Site {
+  id                  String             @id @default(cuid())
+  organizationId      String
+  name                String
+  slug                String
+  address             String?
+  timezone            String             @default("Asia/Jakarta")
+  latitude            Decimal?           @db.Decimal(10, 7)
+  longitude           Decimal?           @db.Decimal(10, 7)
+  organization        Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  monitoringPoints    MonitoringPoint[]
+  thresholdProfiles   ThresholdProfile[]
+  alerts              Alert[]
+  documents           Document[]
+  auditLogs           AuditLog[]
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+}
+
+model MonitoringPoint {
+  id                 String           @id @default(cuid())
+  siteId             String
+  code               String
+  name               String
+  description        String?
+  latitude           Decimal?         @db.Decimal(10, 7)
+  longitude          Decimal?         @db.Decimal(10, 7)
+  isActive           Boolean          @default(true)
+  currentRisk        RiskLevel        @default(UNKNOWN)
+  lastRiskChangedAt  DateTime?
+  site               Site             @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  device             Device?
+  riskAssessments    RiskAssessment[]
+  alerts             Alert[]
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@unique([siteId, code])
+  @@index([siteId, currentRisk])
+}
+
+model Device {
+  id                 String              @id @default(cuid())
+  monitoringPointId  String              @unique
+  hardwareId         String              @unique
+  name               String
+  firmwareVersion    String?
+  status             DeviceStatus        @default(OFFLINE)
+  lastSeenAt         DateTime?
+  lastDeviceTime     DateTime?
+  lastNetworkType    NetworkType         @default(UNKNOWN)
+  lastSignalRssi     Decimal?            @db.Decimal(6, 2)
+  lastBatteryVoltage Decimal?            @db.Decimal(6, 3)
+  isEnabled          Boolean             @default(true)
+  monitoringPoint    MonitoringPoint     @relation(fields: [monitoringPointId], references: [id], onDelete: Restrict)
+  credentials        DeviceCredential[]
+  telemetry          Telemetry[]
+  statusEvents       DeviceStatusEvent[]
+  alerts             Alert[]
+  maintenanceLogs    MaintenanceLog[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  @@index([status, lastSeenAt])
+}
+
+model DeviceCredential {
+  id         String    @id @default(cuid())
+  deviceId   String
+  secretHash String
+  secretHint String
+  isActive   Boolean   @default(true)
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  device     Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+
+  @@index([deviceId, isActive])
+}
+
+model Telemetry {
+  id                  String       @id @default(cuid())
+  deviceId            String
+  messageId           String
+  bootId              String?
+  sequence            BigInt
+  deviceTimestamp     DateTime
+  receivedAt          DateTime     @default(now())
+  firmwareVersion     String
+  networkType         NetworkType  @default(UNKNOWN)
+  signalRssi          Decimal?     @db.Decimal(6, 2)
+  tiltXDeg            Decimal?     @db.Decimal(8, 4)
+  tiltYDeg            Decimal?     @db.Decimal(8, 4)
+  tiltMagnitudeDeg    Decimal      @db.Decimal(8, 4)
+  soilMoisturePct     Decimal      @db.Decimal(6, 3)
+  rainfallMmHour      Decimal      @db.Decimal(10, 3)
+  batteryVoltage      Decimal      @db.Decimal(6, 3)
+  deviceRisk          RiskLevel
+  sirenActive         Boolean
+  payloadHash         String
+  rawPayload          Json
+  device              Device       @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  riskAssessment      RiskAssessment?
+  createdAt           DateTime      @default(now())
+
+  @@unique([deviceId, messageId])
+  @@unique([deviceId, sequence])
+  @@index([deviceId, deviceTimestamp(sort: Desc)])
+  @@index([receivedAt(sort: Desc)])
+}
+
+model ThresholdProfile {
+  id                   String           @id @default(cuid())
+  siteId               String
+  version              Int
+  name                 String
+  description          String?
+  rules                Json
+  isActive             Boolean          @default(false)
+  effectiveAt          DateTime?
+  createdById          String
+  site                 Site             @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  createdBy            User             @relation("ThresholdCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  riskAssessments      RiskAssessment[]
+  createdAt            DateTime         @default(now())
+
+  @@unique([siteId, version])
+  @@index([siteId, isActive])
+}
+
+model RiskAssessment {
+  id                   String           @id @default(cuid())
+  telemetryId          String           @unique
+  monitoringPointId    String
+  thresholdProfileId   String
+  serverRisk           RiskLevel
+  reasons              Json
+  isFresh              Boolean
+  evaluatedAt          DateTime         @default(now())
+  telemetry            Telemetry        @relation(fields: [telemetryId], references: [id], onDelete: Cascade)
+  monitoringPoint      MonitoringPoint  @relation(fields: [monitoringPointId], references: [id], onDelete: Cascade)
+  thresholdProfile     ThresholdProfile @relation(fields: [thresholdProfileId], references: [id], onDelete: Restrict)
+
+  @@index([monitoringPointId, evaluatedAt(sort: Desc)])
+  @@index([serverRisk, evaluatedAt(sort: Desc)])
+}
+
+model Alert {
+  id                 String         @id @default(cuid())
+  siteId             String
+  monitoringPointId  String?
+  deviceId           String?
+  type               AlertType
+  severity           AlertSeverity
+  status             AlertStatus    @default(OPEN)
+  title              String
+  message            String
+  dedupKey           String
+  openedAt           DateTime       @default(now())
+  lastObservedAt     DateTime       @default(now())
+  acknowledgedAt     DateTime?
+  resolvedAt         DateTime?
+  site               Site           @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  monitoringPoint    MonitoringPoint? @relation(fields: [monitoringPointId], references: [id], onDelete: SetNull)
+  device             Device?        @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+  events             AlertEvent[]
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  @@index([siteId, status, openedAt(sort: Desc)])
+  @@index([dedupKey, status])
+}
+
+model AlertEvent {
+  id            String       @id @default(cuid())
+  alertId       String
+  actorUserId   String?
+  fromStatus    AlertStatus?
+  toStatus      AlertStatus?
+  eventType     String
+  note          String?
+  metadata      Json?
+  alert         Alert        @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  actorUser     User?        @relation("AlertEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
+
+  @@index([alertId, createdAt])
+}
+
+model DeviceStatusEvent {
+  id         String       @id @default(cuid())
+  deviceId   String
+  fromStatus DeviceStatus?
+  toStatus   DeviceStatus
+  reason     String
+  metadata   Json?
+  device     Device       @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  createdAt  DateTime     @default(now())
+
+  @@index([deviceId, createdAt(sort: Desc)])
+}
+
+model MaintenanceLog {
+  id          String    @id @default(cuid())
+  deviceId    String
+  actorUserId String?
+  startedAt   DateTime
+  endedAt     DateTime?
+  reason      String
+  notes       String?
+  device      Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  actorUser   User?     @relation("MaintenanceActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime  @default(now())
+
+  @@index([deviceId, startedAt(sort: Desc)])
+}
+
+model Document {
+  id         String       @id @default(cuid())
+  siteId     String
+  type       DocumentType
+  title      String
+  objectKey  String
+  mimeType   String
+  sizeBytes  Int
+  checksum   String?
+  isActive   Boolean      @default(true)
+  site       Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([siteId, type, isActive])
+}
+
+model AuditLog {
+  id             String        @id @default(cuid())
+  organizationId String
+  siteId         String?
+  actorUserId    String?
+  action         String
+  entityType     String
+  entityId       String?
+  beforeData     Json?
+  afterData      Json?
+  requestId      String?
+  ipAddress      String?
+  userAgent      String?
+  organization   Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  site           Site?         @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  actorUser      User?         @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
+
+  @@index([organizationId, createdAt(sort: Desc)])
+  @@index([entityType, entityId])
+}
