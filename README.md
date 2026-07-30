@@ -5,13 +5,14 @@ Monorepo website dan backend Sistem Deteksi Dini Tanah Longsor untuk implementas
 
 ## Status implementasi
 
-Checkpoint aktif: **Phase 01 Task 01–02**.
+Checkpoint aktif: **Phase 01 Task 03–04**.
 
 - Skeleton Next.js tersedia di `apps/web`.
-- Skeleton NestJS tersedia di `apps/api`.
+- NestJS API menyediakan health check, authentication, dan authorization guard.
 - Schema Prisma aktif berada di `apps/api/prisma/schema.prisma`.
 - PostgreSQL dan Redis development berada di `compose.yaml`.
-- Authentication endpoint belum diimplementasikan.
+- Authentication memakai access JWT singkat dan rotating refresh token dalam cookie `httpOnly`.
+- RBAC backend mendukung `PROJECT_OWNER` dan `SCHOOL_ADMIN` dalam organization scope.
 - Ingestion, risk engine, alert, SSE, dan dashboard operasional belum diimplementasikan.
 
 ## Menjalankan foundation
@@ -19,6 +20,8 @@ Checkpoint aktif: **Phase 01 Task 01–02**.
 Prasyarat: Node.js 24, Corepack, dan Docker.
 
 1. Salin `.env.example` menjadi `.env`, kemudian ganti seluruh placeholder credential.
+   NestJS, integration test, dan Prisma CLI memuat file root ini otomatis tanpa memerlukan
+   `apps/api/.env`. Environment yang sudah diinjeksi shell/CI tetap memiliki prioritas.
 2. Aktifkan package manager: `corepack enable`. Bila instalasi Node tidak mengizinkan pembuatan
    shim global, gunakan bentuk `corepack pnpm <command>`.
 3. Install dependency: `pnpm install` atau `corepack pnpm install`.
@@ -26,10 +29,25 @@ Prasyarat: Node.js 24, Corepack, dan Docker.
 5. Generate Prisma Client: `pnpm prisma:generate`.
 6. Terapkan migration: `pnpm prisma:migrate:deploy`.
 7. Jalankan seed: `pnpm prisma:seed`.
-8. Verifikasi dengan `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, dan `pnpm test`.
+8. Jalankan API: `pnpm --filter @siagalongsor/api dev`.
+9. Verifikasi dengan `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, dan `pnpm test`.
+
+API tersedia pada `http://localhost:3001/api/v1`. Health check publik berada di
+`GET /api/v1/health`. Endpoint authentication:
+
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/refresh`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/auth/me`
+
+Login dan refresh mengembalikan access token di response body. Refresh token hanya dikirim sebagai
+cookie `httpOnly`, `SameSite=Lax`, dan menggunakan `Secure` ketika `NODE_ENV=production`.
 
 Seed membutuhkan email dan password dari environment. Tidak ada credential seed yang ditanam di
 source code.
+
+`AUTH_ACCESS_TOKEN_SECRET` wajib diisi nilai acak minimal 32 karakter. Credential seed hanya untuk
+development/bootstrap dan tidak menjadi fallback authentication runtime.
 
 PostgreSQL container tetap mendengarkan port `5432` di dalam jaringan Docker, tetapi dipublikasikan
 ke host melalui port `55432` secara default. Pemisahan ini mencegah benturan dengan instalasi

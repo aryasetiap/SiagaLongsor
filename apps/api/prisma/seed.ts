@@ -125,8 +125,9 @@ async function runSeed(): Promise<void> {
             userId: user.id,
           },
         },
-        update: { role: seedUser.role },
+        update: { isActive: true, role: seedUser.role },
         create: {
+          isActive: true,
           organizationId: organization.id,
           role: seedUser.role,
           userId: user.id,
