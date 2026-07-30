@@ -1,19 +1,424 @@
 import SwaggerParser from '@apidevtools/swagger-parser';
+import { readFile, readdir } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath, URL } from 'node:url';
 
 const specificationPath = fileURLToPath(new URL('../specs/openapi.yaml', import.meta.url));
+const specificationsDirectory = dirname(specificationPath);
+const telemetrySchemaPath = join(specificationsDirectory, 'telemetry-payload.schema.json');
+const examplesDirectory = join(specificationsDirectory, 'examples', 'phase-02');
 
-try {
-  const specification = await SwaggerParser.validate(specificationPath);
+const expectedExampleFiles = [
+  'device-register.request.json',
+  'device-register.response.json',
+  'error-validation.response.json',
+  'monitoring-point-create.request.json',
+  'monitoring-point-list.response.json',
+  'telemetry-accepted.response.json',
+  'telemetry-duplicate.response.json',
+  'telemetry.request.json',
+];
 
-  if (specification.openapi !== '3.1.0') {
-    throw new Error(`Unsupported OpenAPI version: ${specification.openapi ?? 'missing'}`);
+function assert(condition, message) {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
+
+function valueType(value) {
+  if (value === null) {
+    return 'null';
   }
 
-  process.stdout.write('OpenAPI specification is valid.\n');
+  if (Array.isArray(value)) {
+    return 'array';
+  }
+
+  if (Number.isInteger(value)) {
+    return 'integer';
+  }
+
+  return typeof value;
+}
+
+function matchesType(value, type) {
+  if (type === 'number') {
+    return typeof value === 'number' && Number.isFinite(value);
+  }
+
+  if (type === 'integer') {
+    return Number.isInteger(value);
+  }
+
+  if (type === 'object') {
+    return value !== null && typeof value === 'object' && !Array.isArray(value);
+  }
+
+  if (type === 'array') {
+    return Array.isArray(value);
+  }
+
+  if (type === 'null') {
+    return value === null;
+  }
+
+  return typeof value === type;
+}
+
+function validateExample(value, schema, path = '$') {
+  assert(schema && typeof schema === 'object', `${path}: schema is missing or invalid.`);
+  assert(!('$ref' in schema), `${path}: unresolved $ref remains in example schema.`);
+
+  if (schema.oneOf) {
+    const results = schema.oneOf.map((candidate) => {
+      try {
+        validateExample(value, candidate, path);
+        return true;
+      } catch {
+        return false;
+      }
+    });
+    assert(results.filter(Boolean).length === 1, `${path}: must match exactly one oneOf branch.`);
+    return;
+  }
+
+  if ('const' in schema) {
+    assert(Object.is(value, schema.const), `${path}: must equal ${JSON.stringify(schema.const)}.`);
+  }
+
+  if (schema.enum) {
+    assert(
+      schema.enum.some((entry) => Object.is(entry, value)),
+      `${path}: value is not in enum.`,
+    );
+  }
+
+  if (schema.type) {
+    const allowedTypes = Array.isArray(schema.type) ? schema.type : [schema.type];
+    assert(
+      allowedTypes.some((type) => matchesType(value, type)),
+      `${path}: expected ${allowedTypes.join('|')}, received ${valueType(value)}.`,
+    );
+  }
+
+  if (value === null) {
+    return;
+  }
+
+  if (typeof value === 'string') {
+    if (schema.minLength !== undefined) {
+      assert(value.length >= schema.minLength, `${path}: shorter than minLength.`);
+    }
+    if (schema.maxLength !== undefined) {
+      assert(value.length <= schema.maxLength, `${path}: longer than maxLength.`);
+    }
+    if (schema.pattern) {
+      assert(new RegExp(schema.pattern).test(value), `${path}: does not match pattern.`);
+    }
+    if (schema.format === 'date-time') {
+      assert(
+        /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(value) &&
+          !Number.isNaN(Date.parse(value)),
+        `${path}: must be an ISO 8601 UTC date-time.`,
+      );
+    }
+  }
+
+  if (typeof value === 'number') {
+    assert(Number.isFinite(value), `${path}: must be finite.`);
+    if (schema.minimum !== undefined) {
+      assert(value >= schema.minimum, `${path}: below minimum.`);
+    }
+    if (schema.maximum !== undefined) {
+      assert(value <= schema.maximum, `${path}: above maximum.`);
+    }
+  }
+
+  if (Array.isArray(value)) {
+    if (schema.minItems !== undefined) {
+      assert(value.length >= schema.minItems, `${path}: fewer than minItems.`);
+    }
+    if (schema.items) {
+      value.forEach((item, index) => validateExample(item, schema.items, `${path}[${index}]`));
+    }
+    return;
+  }
+
+  if (typeof value === 'object') {
+    const properties = schema.properties ?? {};
+    for (const requiredProperty of schema.required ?? []) {
+      assert(
+        Object.hasOwn(value, requiredProperty),
+        `${path}.${requiredProperty}: required property is missing.`,
+      );
+    }
+    if (schema.minProperties !== undefined) {
+      assert(
+        Object.keys(value).length >= schema.minProperties,
+        `${path}: fewer than minProperties.`,
+      );
+    }
+    if (schema.additionalProperties === false) {
+      for (const property of Object.keys(value)) {
+        assert(Object.hasOwn(properties, property), `${path}.${property}: additional property.`);
+      }
+    }
+    for (const [property, propertyValue] of Object.entries(value)) {
+      if (properties[property]) {
+        validateExample(propertyValue, properties[property], `${path}.${property}`);
+      }
+    }
+  }
+}
+
+function assertJsonSchemaShape(schema, path = '$') {
+  assert(schema && typeof schema === 'object', `${path}: JSON Schema node must be an object.`);
+  if (schema.type) {
+    const supportedTypes = new Set([
+      'array',
+      'boolean',
+      'integer',
+      'null',
+      'number',
+      'object',
+      'string',
+    ]);
+    const types = Array.isArray(schema.type) ? schema.type : [schema.type];
+    assert(
+      types.every((type) => supportedTypes.has(type)),
+      `${path}: invalid JSON Schema type.`,
+    );
+  }
+  if (schema.required) {
+    assert(
+      Array.isArray(schema.required) &&
+        schema.required.every((property) => typeof property === 'string'),
+      `${path}.required must be an array of strings.`,
+    );
+  }
+  if (schema.properties) {
+    assert(
+      schema.properties &&
+        typeof schema.properties === 'object' &&
+        !Array.isArray(schema.properties),
+      `${path}.properties must be an object.`,
+    );
+    for (const [property, childSchema] of Object.entries(schema.properties)) {
+      assertJsonSchemaShape(childSchema, `${path}.properties.${property}`);
+    }
+  }
+  if (schema.items) {
+    assertJsonSchemaShape(schema.items, `${path}.items`);
+  }
+  for (const keyword of ['allOf', 'anyOf', 'oneOf']) {
+    if (schema[keyword]) {
+      assert(Array.isArray(schema[keyword]), `${path}.${keyword} must be an array.`);
+      schema[keyword].forEach((child, index) =>
+        assertJsonSchemaShape(child, `${path}.${keyword}[${index}]`),
+      );
+    }
+  }
+}
+
+function containsProperty(value, forbiddenProperty) {
+  if (Array.isArray(value)) {
+    return value.some((entry) => containsProperty(entry, forbiddenProperty));
+  }
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+  return (
+    Object.hasOwn(value, forbiddenProperty) ||
+    Object.values(value).some((entry) => containsProperty(entry, forbiddenProperty))
+  );
+}
+
+function hasParameterReference(operation, reference) {
+  return operation.parameters?.some((parameter) => parameter.$ref === reference) ?? false;
+}
+
+function responseHasRequestId(specification, response) {
+  if (response.$ref) {
+    const responseName = response.$ref.split('/').at(-1);
+    return Boolean(specification.components.responses[responseName]?.headers?.['x-request-id']);
+  }
+  return Boolean(response.headers?.['x-request-id']);
+}
+
+async function readJson(path) {
+  return JSON.parse(await readFile(path, 'utf8'));
+}
+
+try {
+  const [rawSpecification, telemetrySchema, exampleFileNames] = await Promise.all([
+    SwaggerParser.parse(specificationPath),
+    readJson(telemetrySchemaPath),
+    readdir(examplesDirectory),
+  ]);
+
+  assert(rawSpecification.openapi === '3.1.0', 'OpenAPI version must be 3.1.0.');
+  assert(
+    rawSpecification.paths['/iot/telemetry'].post.requestBody.content['application/json'].schema
+      .$ref === './telemetry-payload.schema.json',
+    'Telemetry request must reference the canonical external JSON Schema.',
+  );
+  assert(
+    !Object.hasOwn(rawSpecification.components.schemas, 'TelemetryPayload'),
+    'OpenAPI must not duplicate TelemetryPayload in components.',
+  );
+  assert(!Object.hasOwn(rawSpecification.paths, '/iot/heartbeat'), 'Heartbeat is not in Phase 02.');
+  assert(
+    rawSpecification.components.securitySchemes.deviceAuth.type === 'apiKey' &&
+      rawSpecification.components.securitySchemes.deviceAuth.in === 'header' &&
+      rawSpecification.components.securitySchemes.deviceAuth.name === 'Authorization',
+    'Device authentication must be an apiKey scheme in the Authorization header.',
+  );
+  assert(
+    rawSpecification.components.parameters.OrganizationId.name === 'X-Organization-Id' &&
+      rawSpecification.components.parameters.OrganizationId.required === true,
+    'Required X-Organization-Id parameter is missing.',
+  );
+
+  const expectedUserOperations = {
+    '/monitoring-points': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+      post: ['PROJECT_OWNER'],
+    },
+    '/monitoring-points/{monitoringPointId}': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+      patch: ['PROJECT_OWNER'],
+    },
+    '/devices': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+      post: ['PROJECT_OWNER'],
+    },
+    '/devices/{deviceId}': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+      patch: ['PROJECT_OWNER'],
+    },
+    '/devices/{deviceId}/rotate-credential': {
+      post: ['PROJECT_OWNER'],
+    },
+    '/devices/{deviceId}/disable': {
+      post: ['PROJECT_OWNER'],
+    },
+  };
+  for (const [path, methods] of Object.entries(expectedUserOperations)) {
+    for (const [method, expectedRoles] of Object.entries(methods)) {
+      const operation = rawSpecification.paths[path]?.[method];
+      assert(operation, `Required Phase 02 operation is missing: ${method.toUpperCase()} ${path}`);
+      assert(
+        hasParameterReference(operation, '#/components/parameters/OrganizationId'),
+        `${method.toUpperCase()} ${path} must require X-Organization-Id.`,
+      );
+      assert(
+        JSON.stringify(operation['x-required-roles']) === JSON.stringify(expectedRoles),
+        `${method.toUpperCase()} ${path} has an incorrect permission matrix.`,
+      );
+      for (const [status, response] of Object.entries(operation.responses)) {
+        assert(
+          responseHasRequestId(rawSpecification, response),
+          `${method.toUpperCase()} ${path} response ${status} must declare x-request-id.`,
+        );
+      }
+    }
+  }
+
+  assert(
+    telemetrySchema.$schema === 'https://json-schema.org/draft/2020-12/schema',
+    'Telemetry schema must declare JSON Schema draft 2020-12.',
+  );
+  assertJsonSchemaShape(telemetrySchema);
+  assert(telemetrySchema.additionalProperties === false, 'Telemetry root must be strict.');
+  assert(telemetrySchema.required.includes('bootId'), 'bootId must be required.');
+  assert(
+    !Object.hasOwn(telemetrySchema.properties, 'deviceId') &&
+      !Object.hasOwn(telemetrySchema.properties, 'hardwareId'),
+    'Telemetry body must not contain deviceId or hardwareId.',
+  );
+  assert(
+    !Object.hasOwn(telemetrySchema.properties.readings.properties.rainfallMmHour, 'maximum'),
+    'rainfallMmHour must not define a static maximum.',
+  );
+
+  const sortedExamples = exampleFileNames.filter((name) => name.endsWith('.json')).sort();
+  assert(
+    JSON.stringify(sortedExamples) === JSON.stringify(expectedExampleFiles),
+    `Phase 02 example set differs from the expected files: ${sortedExamples.join(', ')}`,
+  );
+
+  await SwaggerParser.validate(specificationPath);
+  const dereferenced = await SwaggerParser.dereference(specificationPath);
+  const schemas = dereferenced.components.schemas;
+  const examples = Object.fromEntries(
+    await Promise.all(
+      expectedExampleFiles.map(async (name) => [
+        name,
+        await readJson(join(examplesDirectory, name)),
+      ]),
+    ),
+  );
+
+  const telemetryRequestSchema =
+    dereferenced.paths['/iot/telemetry'].post.requestBody.content['application/json'].schema;
+  assert(
+    JSON.stringify(telemetryRequestSchema) === JSON.stringify(telemetrySchema),
+    'Resolved telemetry request schema drifted from the canonical JSON Schema.',
+  );
+  assert(
+    !containsProperty(schemas.Device, 'secret') &&
+      !containsProperty(schemas.DeviceSummary, 'secret'),
+    'Device read schemas must not expose a secret.',
+  );
+  validateExample(examples['error-validation.response.json'], schemas.ErrorResponse);
+  validateExample(
+    examples['monitoring-point-list.response.json'],
+    schemas.MonitoringPointListResponse,
+  );
+  validateExample(
+    examples['monitoring-point-create.request.json'],
+    schemas.CreateMonitoringPointRequest,
+  );
+  validateExample(examples['device-register.request.json'], schemas.RegisterDeviceRequest);
+  validateExample(examples['device-register.response.json'], schemas.DeviceCredentialResponse);
+  validateExample(examples['telemetry.request.json'], telemetryRequestSchema);
+  validateExample(examples['telemetry-accepted.response.json'], schemas.TelemetryAccepted);
+  validateExample(examples['telemetry-duplicate.response.json'], schemas.TelemetryAccepted);
+
+  assert(
+    examples['telemetry-accepted.response.json'].duplicate === false &&
+      examples['telemetry-duplicate.response.json'].duplicate === true,
+    'Telemetry acknowledgement examples must distinguish new and duplicate payloads.',
+  );
+  assert(
+    !containsProperty(rawSpecification, 'serverRisk') &&
+      !expectedExampleFiles.some((name) => containsProperty(examples[name], 'serverRisk')),
+    'serverRisk must not appear in the Phase 02 contract.',
+  );
+  assert(
+    !containsProperty(examples['telemetry.request.json'], 'deviceId') &&
+      !containsProperty(examples['telemetry.request.json'], 'hardwareId'),
+    'Telemetry example must not contain device identity.',
+  );
+  assert(
+    examples['device-register.response.json'].data.credential.secret ===
+      'EXAMPLE_ONLY_NOT_A_REAL_CREDENTIAL_000000',
+    'Credential example must use the approved non-secret placeholder.',
+  );
+  for (const name of [
+    'monitoring-point-list.response.json',
+    'telemetry-accepted.response.json',
+    'telemetry-duplicate.response.json',
+  ]) {
+    assert(!containsProperty(examples[name], 'secret'), `${name} must not expose a device secret.`);
+  }
+
+  process.stdout.write(
+    `OpenAPI, external telemetry schema, and ${expectedExampleFiles.length} Phase 02 examples are valid.\n`,
+  );
 } catch (error) {
-  process.stderr.write('OpenAPI specification validation failed.\n');
+  process.stderr.write('OpenAPI contract validation failed.\n');
   process.stderr.write(`${error instanceof Error ? error.message : 'Unknown validation error.'}\n`);
   process.exitCode = 1;
 }

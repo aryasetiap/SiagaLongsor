@@ -2,11 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://siagalongsor.local/schemas/telemetry-payload.schema.json",
   "title": "SiagaLongsor Telemetry Payload",
+  "description": "Canonical Phase 02 telemetry request body. Device identity is established by the Authorization header, not duplicated in this payload.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "messageId",
-    "deviceId",
+    "bootId",
     "sequence",
     "timestamp",
     "firmwareVersion",
@@ -19,22 +20,21 @@
       "minLength": 8,
       "maxLength": 64
     },
-    "deviceId": {
-      "type": "string",
-      "pattern": "^[A-Z0-9][A-Z0-9_-]{2,63}$"
-    },
     "bootId": {
       "type": "string",
       "minLength": 1,
-      "maxLength": 64
+      "maxLength": 64,
+      "description": "Changes on every device boot and remains stable for one boot session."
     },
     "sequence": {
       "type": "integer",
-      "minimum": 0
+      "minimum": 0,
+      "description": "Sequence uniqueness is scoped to the authenticated device and bootId."
     },
     "timestamp": {
       "type": "string",
-      "format": "date-time"
+      "format": "date-time",
+      "description": "Device timestamp in ISO 8601 UTC. Runtime rejects timestamps beyond the configurable future-skew limit, default 300 seconds."
     },
     "firmwareVersion": {
       "type": "string",
@@ -44,6 +44,7 @@
     "network": {
       "type": "object",
       "additionalProperties": false,
+      "required": ["type"],
       "properties": {
         "type": {
           "type": "string",
@@ -52,7 +53,8 @@
         "signalRssi": {
           "type": "number",
           "minimum": -150,
-          "maximum": 0
+          "maximum": 0,
+          "description": "Signal strength in dBm."
         }
       }
     },
@@ -84,7 +86,7 @@
         "rainfallMmHour": {
           "type": "number",
           "minimum": 0,
-          "maximum": 1000
+          "description": "Rainfall intensity in millimetres per hour. No static maximum is defined before sensor datasheet review and field calibration."
         },
         "batteryVoltage": {
           "type": "number",
@@ -97,6 +99,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["riskLevel", "sirenActive"],
+      "description": "Firmware-reported comparison and audit data. It is not serverRisk and is not a server-authoritative safety decision.",
       "properties": {
         "riskLevel": {
           "type": "string",

@@ -2,18 +2,28 @@
 
 ## 1. Keputusan yang dikunci
 
-| ID | Keputusan | Status |
-|---|---|---|
-| D-001 | Implementasi awal 1 alat, model mendukung banyak alat | Accepted |
-| D-002 | Wi-Fi primary dan modem seluler fallback | Accepted |
-| D-003 | Role aktif: Project Owner dan School Admin | Accepted |
-| D-004 | HTTPS ingestion untuk MVP | Accepted |
-| D-005 | SSE untuk dashboard realtime | Accepted |
-| D-006 | Tidak ada remote siren control pada MVP | Accepted |
-| D-007 | Offline/stale = UNKNOWN, bukan SAFE | Accepted |
-| D-008 | Threshold configurable dan versioned | Accepted |
-| D-009 | Server dan firmware sama-sama menghitung risk | Accepted |
-| D-010 | UI mengikuti gaya dashboard referensi | Accepted |
+| ID    | Keputusan                                                                                                                                 | Status   |
+| ----- | ----------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| D-001 | Implementasi awal 1 alat, model mendukung banyak alat                                                                                     | Accepted |
+| D-002 | Wi-Fi primary dan modem seluler fallback                                                                                                  | Accepted |
+| D-003 | Role aktif: Project Owner dan School Admin                                                                                                | Accepted |
+| D-004 | HTTPS ingestion untuk MVP                                                                                                                 | Accepted |
+| D-005 | SSE untuk dashboard realtime                                                                                                              | Accepted |
+| D-006 | Tidak ada remote siren control pada MVP                                                                                                   | Accepted |
+| D-007 | Offline/stale = UNKNOWN, bukan SAFE                                                                                                       | Accepted |
+| D-008 | Threshold configurable dan versioned                                                                                                      | Accepted |
+| D-009 | Firmware menghitung risk lokal; server menghitung independen mulai Phase 03 dan tidak mempercayai hasil firmware sebagai keputusan safety | Accepted |
+| D-010 | UI mengikuti gaya dashboard referensi                                                                                                     | Accepted |
+| D-011 | User endpoint MonitoringPoint/Device wajib memakai `X-Organization-Id`; telemetry menurunkan organisasi dari authenticated device         | Accepted |
+| D-012 | Cursor opaque, stable sort, default limit 25, dan maximum limit 100                                                                       | Accepted |
+| D-013 | Lifecycle device Phase 02 hanya `ENABLED`/`DISABLED`; tidak tersedia enable endpoint                                                      | Accepted |
+| D-014 | Secret device one-time display saat register/rotate; persistence hanya hash dan secret lama langsung invalid                              | Accepted |
+| D-015 | Primary telemetry idempotency `(deviceId, messageId)` dan sequence uniqueness `(deviceId, bootId, sequence)`                              | Accepted |
+| D-016 | `bootId` wajib, panjang 1–64, berubah per boot, dan stabil selama boot session                                                            | Accepted |
+| D-017 | `rainfallMmHour` minimum 0 tanpa static maximum sampai datasheet dan kalibrasi tersedia                                                   | Accepted |
+| D-018 | Future timestamp skew configurable dengan default 300 detik; data lama historis tidak memundurkan latest state                            | Accepted |
+| D-019 | `deviceAssessment` hanya data firmware pembanding/audit, bukan keputusan safety server atau `serverRisk`                                  | Accepted |
+| D-020 | Canonical telemetry request adalah external JSON Schema draft 2020-12 yang direferensikan OpenAPI                                         | Accepted |
 
 ## 2. Asumsi awal
 
@@ -36,18 +46,20 @@
 - Apakah perlu akses publik terbatas?
 - Apakah battery percentage dapat dihitung atau hanya voltage?
 - Apakah firmware mampu menyimpan queue lokal dan berapa kapasitasnya?
+- Berapa batas atas teknis rainfall yang disetujui setelah datasheet sensor dan kalibrasi lapangan?
+- Apakah default future skew 300 detik perlu disesuaikan setelah pengukuran drift clock perangkat?
 
 ## 4. Risiko proyek
 
-| Risiko | Dampak | Mitigasi |
-|---|---|---|
-| Sensor murah tidak stabil | False alert/missed signal | Kalibrasi, filtering, redundancy rule, maintenance |
-| Internet putus | Dashboard kehilangan data live | Local siren, buffer, dual connectivity |
-| Threshold belum tervalidasi | Status tidak akurat | Versioning dan persetujuan ahli |
-| Power budget kurang | Device offline | Uji daya lapangan, battery monitoring |
-| Modem meningkatkan konsumsi | Durasi baterai turun | Network policy, sleep, router option evaluation |
-| Operator tidak merespons | Alert tidak ditindaklanjuti | SOP, pelatihan, escalation notification |
-| Credential bocor | Data palsu | Secret unik, rotate, rate limit, HMAC future |
+| Risiko                      | Dampak                         | Mitigasi                                           |
+| --------------------------- | ------------------------------ | -------------------------------------------------- |
+| Sensor murah tidak stabil   | False alert/missed signal      | Kalibrasi, filtering, redundancy rule, maintenance |
+| Internet putus              | Dashboard kehilangan data live | Local siren, buffer, dual connectivity             |
+| Threshold belum tervalidasi | Status tidak akurat            | Versioning dan persetujuan ahli                    |
+| Power budget kurang         | Device offline                 | Uji daya lapangan, battery monitoring              |
+| Modem meningkatkan konsumsi | Durasi baterai turun           | Network policy, sleep, router option evaluation    |
+| Operator tidak merespons    | Alert tidak ditindaklanjuti    | SOP, pelatihan, escalation notification            |
+| Credential bocor            | Data palsu                     | Secret unik, rotate, rate limit, HMAC future       |
 
 ## 5. Change control
 

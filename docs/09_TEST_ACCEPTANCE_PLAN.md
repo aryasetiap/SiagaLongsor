@@ -16,7 +16,8 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
 
 ### Direncanakan untuk Phase 02
 
-- Contract validation untuk MonitoringPoint, Device, credential, dan telemetry.
+- Contract validation untuk error envelope, organization context, pagination, MonitoringPoint,
+  Device, one-time credential, dan telemetry.
 - Migration test dari database bersih.
 - API integration test untuk permission, CRUD, credential lifecycle, ingestion, validation,
   idempotency, raw payload, dan rate limiting.
@@ -45,13 +46,62 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
 
 1. Credential valid + payload valid -> 201.
 2. Payload yang sama -> 200 duplicate, row tetap satu.
-3. MessageId sama tetapi body berbeda -> 409.
-4. Credential salah -> 401.
-5. Device disabled -> 403.
-6. Sensor di luar range -> 400/invalid policy.
-7. Timestamp lama -> tersimpan historis tetapi tidak mengganti live state.
-8. Sequence mundur -> ditangani sesuai policy dan dicatat.
-9. Wi-Fi retry dan cellular retry payload sama -> tidak duplikat.
+3. Duplicate mengembalikan `telemetryId` dan `receivedAt` asli.
+4. `messageId` sama tetapi canonical payload hash berbeda -> 409 `IDEMPOTENCY_CONFLICT`.
+5. `Idempotency-Key` berbeda dari body `messageId` -> 400.
+6. Body memiliki `deviceId`, `hardwareId`, atau property asing -> 400.
+7. `bootId` tidak ada, kosong, atau lebih dari 64 karakter -> 400.
+8. `(deviceId, bootId, sequence)` sama dengan message berbeda -> 409 `SEQUENCE_CONFLICT`.
+9. Sequence yang sama setelah `bootId` berubah tidak dianggap conflict.
+10. Credential salah -> 401.
+11. Device disabled -> 403.
+12. Sensor di luar range -> 400/invalid policy.
+13. `rainfallMmHour` negatif, NaN, atau infinite -> 400; tidak ada static upper bound.
+14. Timestamp lebih jauh dari configurable future skew (default 300 detik) -> 400.
+15. Timestamp lama -> tersimpan historis tetapi tidak mengganti latest state yang lebih baru.
+16. Wi-Fi retry dan cellular retry payload sama -> tidak duplikat.
+17. Raw payload tidak menyimpan Authorization header atau credential.
+18. Response tidak memiliki `serverRisk`; tidak tersedia `/iot/heartbeat`.
+19. `deviceAssessment` tersimpan sebagai data pembanding/audit, bukan keputusan safety server.
+
+### Contract foundation
+
+1. Semua error sesuai `ErrorResponse`, memakai stable error code, ISO UTC timestamp, dan request ID.
+2. Semua response menyertakan header `x-request-id`.
+3. Validation error memiliki detail `{ field, messages[] }` bila relevan.
+4. Resource response user dibungkus `data`; list juga memiliki `page`.
+5. Limit default 25, maksimum 100, cursor opaque, dan sorting stabil.
+6. Missing `X-Organization-Id` -> 400 `ORGANIZATION_CONTEXT_REQUIRED`.
+7. Membership aktif tidak tersedia -> 403 `ORGANIZATION_ACCESS_DENIED`.
+8. Cross-organization resource -> 404 resource-specific not found.
+9. Site dari organisasi lain ditolak.
+10. Runtime CORS mengizinkan header `X-Organization-Id`.
+
+### MonitoringPoint
+
+1. PROJECT_OWNER dapat list, detail, create, dan update.
+2. SCHOOL_ADMIN dapat list/detail dalam organization sendiri.
+3. SCHOOL_ADMIN tidak dapat create/update.
+4. Cross-organization detail disamarkan sebagai 404.
+5. List filter, stable sort, cursor, default limit, dan maximum limit mengikuti contract.
+6. Create menolak site di luar organization aktif.
+7. PATCH menolak body kosong dan property asing.
+8. Monitoring point dengan enabled device tidak dapat dinonaktifkan.
+9. Response nullable `currentDevice` tidak memuat credential.
+10. Tidak tersedia delete, map, risk, telemetry history, alert, atau KPI endpoint.
+
+### Device dan credential
+
+1. PROJECT_OWNER dapat register, update, rotate credential, dan disable.
+2. SCHOOL_ADMIN hanya dapat list/detail dalam organization sendiri.
+3. `hardwareId` unik global dan immutable.
+4. Hanya satu enabled device dapat ditautkan ke satu MonitoringPoint.
+5. Lifecycle response hanya `ENABLED` atau `DISABLED`.
+6. Register dan rotate mengembalikan raw secret tepat sekali dengan `displayOnce: true`.
+7. GET/list tidak memuat secret atau hash.
+8. Secret lama langsung invalid setelah rotation berhasil.
+9. Disable ulang idempotent; disabled device ditolak saat ingestion.
+10. Tidak tersedia enable atau maintenance endpoint Phase 02.
 
 ### Risk engine
 
@@ -87,6 +137,7 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
 - School Admin tidak dapat rotate credential.
 - Project Owner dapat melakukan keduanya.
 - User dari organization lain tidak dapat membaca data.
+- Header organisasi tidak menggantikan pemeriksaan membership aktif.
 
 ### UI
 

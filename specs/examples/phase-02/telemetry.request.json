@@ -1,0 +1,23 @@
+{
+  "messageId": "msg_01K1B6M5SCN0Q2R6W8Y1A3B5DE",
+  "bootId": "boot-20260730-001",
+  "sequence": 18423,
+  "timestamp": "2026-07-30T07:59:00.000Z",
+  "firmwareVersion": "1.0.0",
+  "network": {
+    "type": "WIFI",
+    "signalRssi": -67
+  },
+  "readings": {
+    "tiltXDeg": 0.8,
+    "tiltYDeg": -0.4,
+    "tiltMagnitudeDeg": 0.9,
+    "soilMoisturePct": 62.5,
+    "rainfallMmHour": 12.4,
+    "batteryVoltage": 12.7
+  },
+  "deviceAssessment": {
+    "riskLevel": "SAFE",
+    "sirenActive": false
+  }
+}

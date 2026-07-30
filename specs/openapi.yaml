@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
   title: SiagaLongsor API
-  version: 0.1.0
+  version: 0.2.0
   description: >-
-    API contract for the landslide early-warning monitoring dashboard. Authentication and health
-    paths are implemented in Phase 01; the remaining domain paths are planned contracts for later
-    phases.
+    API contract for SiagaLongsor. Authentication and health paths are implemented in Phase 01.
+    MonitoringPoint, Device, credential, and telemetry paths are the approved Phase 02 contract;
+    implementation follows in separate backend and frontend pull requests.
 servers:
   - url: /api/v1
 paths:
@@ -16,11 +16,15 @@ paths:
       responses:
         '200':
           description: Dependencies are healthy
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/HealthResponse' }
         '503':
           description: At least one dependency is unavailable
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -43,6 +47,7 @@ paths:
         '200':
           description: Access token returned; rotating refresh token set as an httpOnly cookie
           headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
             Set-Cookie:
               schema: { type: string }
           content:
@@ -50,11 +55,7 @@ paths:
               schema: { $ref: '#/components/schemas/AuthResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '429':
-          description: Login rate limited
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '429': { $ref: '#/components/responses/RateLimited' }
   /auth/refresh:
     post:
       tags: [Authentication]
@@ -67,6 +68,7 @@ paths:
         '200':
           description: Token pair rotated
           headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
             Set-Cookie:
               schema: { type: string }
           content:
@@ -86,6 +88,8 @@ paths:
       responses:
         '204':
           description: Logout completed idempotently
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
         '403': { $ref: '#/components/responses/Forbidden' }
   /auth/me:
     get:
@@ -96,52 +100,395 @@ paths:
       responses:
         '200':
           description: Current principal
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
           content:
             application/json:
               schema: { $ref: '#/components/schemas/UserPrincipal' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /monitoring-points:
+    get:
+      operationId: listMonitoringPoints
+      tags: [Monitoring]
+      summary: List monitoring points in the active organization
+      description: Available to PROJECT_OWNER and SCHOOL_ADMIN.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/MonitoringPointSort'
+        - name: siteId
+          in: query
+          schema: { type: string, minLength: 1 }
+        - name: isActive
+          in: query
+          schema: { type: boolean }
+        - name: search
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '200':
+          description: Monitoring point page
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MonitoringPointListResponse' }
+              examples:
+                page:
+                  externalValue: ./examples/phase-02/monitoring-point-list.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: createMonitoringPoint
+      tags: [Monitoring]
+      summary: Create a monitoring point
+      description: PROJECT_OWNER only. A new monitoring point is active by default.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateMonitoringPointRequest' }
+            examples:
+              create:
+                externalValue: ./examples/phase-02/monitoring-point-create.request.json
+      responses:
+        '201':
+          description: Monitoring point created
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MonitoringPointResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /monitoring-points/{monitoringPointId}:
+    get:
+      operationId: getMonitoringPoint
+      tags: [Monitoring]
+      summary: Get a monitoring point
+      description: >-
+        Available to PROJECT_OWNER and SCHOOL_ADMIN. A resource outside the active organization is
+        reported as not found.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/MonitoringPointId'
+      responses:
+        '200':
+          description: Monitoring point
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MonitoringPointResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      operationId: updateMonitoringPoint
+      tags: [Monitoring]
+      summary: Update a monitoring point
+      description: >-
+        PROJECT_OWNER only. siteId and organizationId are immutable. Deactivation is rejected while
+        an enabled device remains assigned.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/MonitoringPointId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateMonitoringPointRequest' }
+      responses:
+        '200':
+          description: Monitoring point updated
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MonitoringPointResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /devices:
+    get:
+      operationId: listDevices
+      tags: [Devices]
+      summary: List devices in the active organization
+      description: Available to PROJECT_OWNER and SCHOOL_ADMIN. Credentials are never returned.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/DeviceSort'
+        - name: siteId
+          in: query
+          schema: { type: string, minLength: 1 }
+        - name: monitoringPointId
+          in: query
+          schema: { type: string, minLength: 1 }
+        - name: lifecycleStatus
+          in: query
+          schema: { $ref: '#/components/schemas/DeviceLifecycleStatus' }
+        - name: search
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '200':
+          description: Device page
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceListResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: registerDevice
+      tags: [Devices]
+      summary: Register a device and issue its first credential
+      description: >-
+        PROJECT_OWNER only. The raw secret is returned once and must not be persisted by the
+        frontend.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterDeviceRequest' }
+            examples:
+              register:
+                externalValue: ./examples/phase-02/device-register.request.json
+      responses:
+        '201':
+          description: Device registered and credential issued for one-time display
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceCredentialResponse' }
+              examples:
+                registered:
+                  externalValue: ./examples/phase-02/device-register.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /devices/{deviceId}:
+    get:
+      operationId: getDevice
+      tags: [Devices]
+      summary: Get a device
+      description: >-
+        Available to PROJECT_OWNER and SCHOOL_ADMIN. A resource outside the active organization is
+        reported as not found. Credentials are never returned.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '200':
+          description: Device
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    patch:
+      operationId: updateDevice
+      tags: [Devices]
+      summary: Update device metadata or assignment
+      description: PROJECT_OWNER only. hardwareId and lifecycle fields are immutable.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/DeviceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateDeviceRequest' }
+      responses:
+        '200':
+          description: Device updated
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /devices/{deviceId}/rotate-credential:
+    post:
+      operationId: rotateDeviceCredential
+      tags: [Devices]
+      summary: Rotate a device credential
+      description: >-
+        PROJECT_OWNER only. The previous secret becomes invalid immediately after commit, and the
+        new raw secret is returned once.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '200':
+          description: Credential rotated and issued for one-time display
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceCredentialResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /devices/{deviceId}/disable:
+    post:
+      operationId: disableDevice
+      tags: [Devices]
+      summary: Disable a device
+      description: >-
+        PROJECT_OWNER only. Disabling is idempotent, blocks telemetry immediately, and has no
+        corresponding enable endpoint in Phase 02.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/DeviceId'
+      responses:
+        '200':
+          description: Current disabled device state
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DeviceResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /iot/telemetry:
     post:
+      operationId: ingestTelemetry
       tags: [IoT]
       summary: Ingest device telemetry
+      description: >-
+        Device identity and organization are resolved from the custom Authorization credential.
+        Idempotency-Key must exactly equal body messageId. Raw payload storage must exclude the
+        Authorization header and credential.
       security:
         - deviceAuth: []
       parameters:
-        - name: Idempotency-Key
-          in: header
-          required: true
-          schema:
-            type: string
+        - $ref: '#/components/parameters/IdempotencyKey'
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TelemetryPayload'
+              $ref: ./telemetry-payload.schema.json
+            examples:
+              telemetry:
+                externalValue: ./examples/phase-02/telemetry.request.json
       responses:
         '201':
-          description: New telemetry accepted
+          description: New append-only telemetry accepted
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/TelemetryAccepted'
+              schema: { $ref: '#/components/schemas/TelemetryAccepted' }
+              examples:
+                accepted:
+                  externalValue: ./examples/phase-02/telemetry-accepted.response.json
         '200':
-          description: Duplicate telemetry already accepted
+          description: >-
+            Exact duplicate already accepted. telemetryId and receivedAt are those of the original
+            stored telemetry.
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/TelemetryAccepted'
+              schema: { $ref: '#/components/schemas/TelemetryAccepted' }
+              examples:
+                duplicate:
+                  externalValue: ./examples/phase-02/telemetry-duplicate.response.json
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
-        '409':
-          description: Idempotency or sequence conflict
-        '429':
-          description: Rate limited
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /dashboard/summary:
     get:
       tags: [Dashboard]
       summary: Get dashboard summary
+      description: Planned for a later phase.
       security:
         - bearerAuth: []
       responses:
@@ -149,28 +496,12 @@ paths:
           description: Dashboard summary
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/DashboardSummaryResponse'
-  /monitoring-points:
-    get:
-      tags: [Monitoring]
-      summary: List monitoring points
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/Cursor'
-        - name: risk
-          in: query
-          schema:
-            $ref: '#/components/schemas/RiskLevel'
-      responses:
-        '200':
-          description: Monitoring point list
+              schema: { $ref: '#/components/schemas/DashboardSummaryResponse' }
   /alerts:
     get:
       tags: [Alerts]
       summary: List alerts
+      description: Planned for a later phase.
       security:
         - bearerAuth: []
       parameters:
@@ -178,8 +509,7 @@ paths:
         - $ref: '#/components/parameters/Cursor'
         - name: status
           in: query
-          schema:
-            $ref: '#/components/schemas/AlertStatus'
+          schema: { $ref: '#/components/schemas/AlertStatus' }
       responses:
         '200':
           description: Alert list
@@ -187,6 +517,7 @@ paths:
     post:
       tags: [Alerts]
       summary: Acknowledge an alert
+      description: Planned for a later phase.
       security:
         - bearerAuth: []
       parameters:
@@ -212,6 +543,7 @@ paths:
     post:
       tags: [Alerts]
       summary: Resolve an alert
+      description: Planned for a later phase.
       security:
         - bearerAuth: []
       parameters:
@@ -232,39 +564,11 @@ paths:
           description: Alert resolved
         '409':
           description: Invalid alert transition
-  /devices:
-    get:
-      tags: [Devices]
-      summary: List devices
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Device list
-    post:
-      tags: [Devices]
-      summary: Register a device
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [hardwareId, name, monitoringPointId]
-              properties:
-                hardwareId: { type: string, minLength: 3, maxLength: 64 }
-                name: { type: string, minLength: 3, maxLength: 120 }
-                monitoringPointId: { type: string }
-      responses:
-        '201':
-          description: Device created; credential secret is returned once
   /threshold-profiles/{profileId}/activate:
     post:
       tags: [Thresholds]
       summary: Activate threshold profile
+      description: Planned for a later phase.
       security:
         - bearerAuth: []
       parameters:
@@ -288,9 +592,16 @@ components:
       in: cookie
       name: siagalongsor_refresh
     deviceAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: DeviceCredential
+      type: apiKey
+      in: header
+      name: Authorization
+      description: >-
+        Custom device credential syntax: `Device <hardwareId>.<secret>`. hardwareId is public; the
+        secret is opaque and must never be logged or persisted in raw telemetry.
+  headers:
+    XRequestId:
+      description: Opaque request correlation identifier.
+      schema: { type: string, minLength: 1 }
   parameters:
     BrowserOrigin:
       name: Origin
@@ -302,9 +613,19 @@ components:
       schema:
         type: string
         format: uri
+    OrganizationId:
+      name: X-Organization-Id
+      in: header
+      required: true
+      description: >-
+        Active organization context for Phase 02 user endpoints. Runtime CORS configuration must
+        allow this header. Missing header returns ORGANIZATION_CONTEXT_REQUIRED; inactive or absent
+        membership returns ORGANIZATION_ACCESS_DENIED.
+      schema: { type: string, minLength: 1 }
     Limit:
       name: limit
       in: query
+      required: false
       schema:
         type: integer
         minimum: 1
@@ -313,7 +634,52 @@ components:
     Cursor:
       name: cursor
       in: query
-      schema: { type: string }
+      required: false
+      description: >-
+        Opaque cursor bound to organization, filters, sort, last sort value, and stable id
+        tie-breaker. Clients must not parse it.
+      schema: { type: string, minLength: 1 }
+    MonitoringPointSort:
+      name: sort
+      in: query
+      required: false
+      schema:
+        type: string
+        default: createdAt:desc
+        enum: [createdAt:desc, createdAt:asc, updatedAt:desc, name:asc, name:desc]
+    DeviceSort:
+      name: sort
+      in: query
+      required: false
+      schema:
+        type: string
+        default: createdAt:desc
+        enum:
+          [
+            createdAt:desc,
+            createdAt:asc,
+            updatedAt:desc,
+            displayName:asc,
+            displayName:desc,
+            lastSeenAt:desc,
+          ]
+    MonitoringPointId:
+      name: monitoringPointId
+      in: path
+      required: true
+      schema: { type: string, minLength: 1 }
+    DeviceId:
+      name: deviceId
+      in: path
+      required: true
+      description: Opaque API resource id, not hardwareId.
+      schema: { type: string, minLength: 1 }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Must exactly equal body messageId.
+      schema: { type: string, minLength: 8, maxLength: 64 }
     AlertId:
       name: alertId
       in: path
@@ -321,17 +687,71 @@ components:
       schema: { type: string }
   responses:
     BadRequest:
-      description: Validation error
+      description: Invalid request, validation failure, missing organization context, or invalid cursor
+      headers:
+        x-request-id: { $ref: '#/components/headers/XRequestId' }
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
+          examples:
+            validation:
+              externalValue: ./examples/phase-02/error-validation.response.json
     Unauthorized:
-      description: Authentication required or invalid
+      description: User access token or device credential is missing or invalid
+      headers:
+        x-request-id: { $ref: '#/components/headers/XRequestId' }
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     Forbidden:
-      description: Action forbidden, including an untrusted browser Origin
+      description: Organization, role, Origin, or disabled-device policy denied the request
+      headers:
+        x-request-id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFound:
+      description: Resource not found, including a resource outside the active organization
+      headers:
+        x-request-id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Conflict:
+      description: Resource assignment, idempotency, hardwareId, or boot-scoped sequence conflict
+      headers:
+        x-request-id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    PayloadTooLarge:
+      description: JSON request body exceeds the configured size limit
+      headers:
+        x-request-id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    UnsupportedMediaType:
+      description: Content-Type must be application/json
+      headers:
+        x-request-id: { $ref: '#/components/headers/XRequestId' }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    RateLimited:
+      description: Request rate limit exceeded
+      headers:
+        x-request-id: { $ref: '#/components/headers/XRequestId' }
+        Retry-After:
+          description: Seconds until the caller should retry.
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    InternalError:
+      description: Safe internal error response without stack trace
+      headers:
+        x-request-id: { $ref: '#/components/headers/XRequestId' }
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
@@ -375,63 +795,294 @@ components:
         tokenType: { type: string, const: Bearer }
         expiresIn: { type: integer, minimum: 60 }
         user: { $ref: '#/components/schemas/UserPrincipal' }
+    ValidationDetail:
+      type: object
+      additionalProperties: false
+      required: [field, messages]
+      properties:
+        field: { type: string, minLength: 1 }
+        messages:
+          type: array
+          minItems: 1
+          items: { type: string, minLength: 1 }
+    ErrorCode:
+      type: string
+      enum:
+        - ACCESS_TOKEN_INVALID
+        - ACCESS_TOKEN_REQUIRED
+        - AUTHENTICATION_REQUIRED
+        - BAD_REQUEST
+        - CONFLICT
+        - DEPENDENCY_UNAVAILABLE
+        - DEVICE_CREDENTIAL_INVALID
+        - DEVICE_DISABLED
+        - DEVICE_NOT_FOUND
+        - FORBIDDEN
+        - HARDWARE_ID_CONFLICT
+        - IDEMPOTENCY_CONFLICT
+        - IDEMPOTENCY_KEY_MISMATCH
+        - INTERNAL_ERROR
+        - INVALID_CREDENTIALS
+        - INVALID_CURSOR
+        - MONITORING_POINT_ACTIVE_DEVICE_CONFLICT
+        - MONITORING_POINT_NOT_FOUND
+        - ORGANIZATION_ACCESS_DENIED
+        - ORGANIZATION_CONTEXT_REQUIRED
+        - ORIGIN_NOT_ALLOWED
+        - PAYLOAD_TOO_LARGE
+        - RATE_LIMITED
+        - REFRESH_TOKEN_INVALID
+        - REFRESH_TOKEN_REQUIRED
+        - ROLE_ACCESS_DENIED
+        - SEQUENCE_CONFLICT
+        - SESSION_INVALID
+        - SITE_NOT_FOUND
+        - UNAUTHORIZED
+        - UNSUPPORTED_MEDIA_TYPE
+        - VALIDATION_ERROR
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error, requestId, timestamp]
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          required: [code, message]
+          properties:
+            code: { $ref: '#/components/schemas/ErrorCode' }
+            message: { type: string, minLength: 1 }
+            details:
+              type: array
+              items: { $ref: '#/components/schemas/ValidationDetail' }
+        requestId: { type: string, minLength: 1 }
+        timestamp: { type: string, format: date-time }
+    PageInfo:
+      type: object
+      additionalProperties: false
+      required: [nextCursor, hasMore]
+      properties:
+        nextCursor: { type: [string, 'null'] }
+        hasMore: { type: boolean }
+    DeviceLifecycleStatus:
+      type: string
+      enum: [ENABLED, DISABLED]
+    NetworkType:
+      type: string
+      enum: [WIFI, CELLULAR, UNKNOWN]
+    DeviceSummary:
+      type: object
+      additionalProperties: false
+      required: [id, hardwareId, displayName, lifecycleStatus, lastSeenAt]
+      properties:
+        id: { type: string, minLength: 1 }
+        hardwareId:
+          type: string
+          pattern: ^[A-Z0-9][A-Z0-9_-]{2,63}$
+        displayName: { type: string, minLength: 1, maxLength: 120 }
+        lifecycleStatus: { $ref: '#/components/schemas/DeviceLifecycleStatus' }
+        lastSeenAt: { type: [string, 'null'], format: date-time }
+    MonitoringPoint:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          organizationId,
+          siteId,
+          name,
+          description,
+          locationDescription,
+          isActive,
+          currentDevice,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string, minLength: 1 }
+        organizationId: { type: string, minLength: 1 }
+        siteId: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 2000 }
+        locationDescription: { type: [string, 'null'], maxLength: 500 }
+        isActive: { type: boolean }
+        currentDevice:
+          oneOf:
+            - $ref: '#/components/schemas/DeviceSummary'
+            - type: 'null'
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    CreateMonitoringPointRequest:
+      type: object
+      additionalProperties: false
+      required: [siteId, name]
+      properties:
+        siteId: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 2000 }
+        locationDescription: { type: [string, 'null'], maxLength: 500 }
+    UpdateMonitoringPointRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        description: { type: [string, 'null'], maxLength: 2000 }
+        locationDescription: { type: [string, 'null'], maxLength: 500 }
+        isActive: { type: boolean }
+    MonitoringPointResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/MonitoringPoint' }
+    MonitoringPointListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/MonitoringPoint' }
+        page: { $ref: '#/components/schemas/PageInfo' }
+    LastNetwork:
+      type: object
+      additionalProperties: false
+      required: [type, signalRssi]
+      properties:
+        type: { $ref: '#/components/schemas/NetworkType' }
+        signalRssi: { type: [number, 'null'], minimum: -150, maximum: 0 }
+    Device:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          organizationId,
+          siteId,
+          monitoringPointId,
+          hardwareId,
+          displayName,
+          lifecycleStatus,
+          firmwareVersion,
+          lastSeenAt,
+          lastTelemetryAt,
+          lastNetwork,
+          disabledAt,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id:
+          type: string
+          minLength: 1
+          description: Opaque API resource id.
+        organizationId: { type: string, minLength: 1 }
+        siteId: { type: string, minLength: 1 }
+        monitoringPointId: { type: string, minLength: 1 }
+        hardwareId:
+          type: string
+          pattern: ^[A-Z0-9][A-Z0-9_-]{2,63}$
+          description: Public globally unique immutable device identifier.
+        displayName: { type: string, minLength: 1, maxLength: 120 }
+        lifecycleStatus: { $ref: '#/components/schemas/DeviceLifecycleStatus' }
+        firmwareVersion: { type: [string, 'null'], minLength: 1, maxLength: 32 }
+        lastSeenAt:
+          type: [string, 'null']
+          format: date-time
+          description: Server receipt time of the latest newly accepted valid telemetry.
+        lastTelemetryAt:
+          type: [string, 'null']
+          format: date-time
+          description: Latest device timestamp selected as current; late telemetry never moves it backward.
+        lastNetwork:
+          oneOf:
+            - $ref: '#/components/schemas/LastNetwork'
+            - type: 'null'
+        disabledAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    RegisterDeviceRequest:
+      type: object
+      additionalProperties: false
+      required: [hardwareId, displayName, monitoringPointId]
+      properties:
+        hardwareId:
+          type: string
+          pattern: ^[A-Z0-9][A-Z0-9_-]{2,63}$
+        displayName: { type: string, minLength: 1, maxLength: 120 }
+        monitoringPointId: { type: string, minLength: 1 }
+    UpdateDeviceRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        displayName: { type: string, minLength: 1, maxLength: 120 }
+        monitoringPointId: { type: string, minLength: 1 }
+    IssuedDeviceCredential:
+      type: object
+      additionalProperties: false
+      required: [scheme, hardwareId, secret, issuedAt, displayOnce]
+      description: >-
+        Response-only one-time credential. It is never returned by Device GET or list endpoints,
+        persisted by the frontend, logged, or included in URLs.
+      properties:
+        scheme: { type: string, const: Device }
+        hardwareId:
+          type: string
+          pattern: ^[A-Z0-9][A-Z0-9_-]{2,63}$
+        secret:
+          type: string
+          minLength: 32
+          description: Opaque raw secret returned only at register or rotation.
+        issuedAt: { type: string, format: date-time }
+        displayOnce: { type: boolean, const: true }
+    DeviceResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Device' }
+    DeviceListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Device' }
+        page: { $ref: '#/components/schemas/PageInfo' }
+    DeviceCredentialData:
+      type: object
+      additionalProperties: false
+      required: [device, credential]
+      properties:
+        device: { $ref: '#/components/schemas/Device' }
+        credential: { $ref: '#/components/schemas/IssuedDeviceCredential' }
+    DeviceCredentialResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/DeviceCredentialData' }
+    TelemetryAccepted:
+      type: object
+      additionalProperties: false
+      required: [accepted, duplicate, telemetryId, receivedAt]
+      properties:
+        accepted: { type: boolean, const: true }
+        duplicate: { type: boolean }
+        telemetryId: { type: string, minLength: 1 }
+        receivedAt:
+          type: string
+          format: date-time
+          description: Original server receipt timestamp for both new and duplicate acknowledgements.
     RiskLevel:
       type: string
       enum: [SAFE, WATCH, DANGER, UNKNOWN]
     AlertStatus:
       type: string
       enum: [OPEN, ACKNOWLEDGED, RESOLVED, FALSE_ALARM]
-    TelemetryPayload:
-      type: object
-      additionalProperties: false
-      required:
-        - messageId
-        - deviceId
-        - sequence
-        - timestamp
-        - firmwareVersion
-        - readings
-        - deviceAssessment
-      properties:
-        messageId: { type: string, minLength: 8, maxLength: 64 }
-        deviceId: { type: string, minLength: 3, maxLength: 64 }
-        bootId: { type: string, maxLength: 64 }
-        sequence: { type: integer, minimum: 0 }
-        timestamp: { type: string, format: date-time }
-        firmwareVersion: { type: string, maxLength: 32 }
-        network:
-          type: object
-          additionalProperties: false
-          properties:
-            type: { type: string, enum: [WIFI, CELLULAR, UNKNOWN] }
-            signalRssi: { type: number, minimum: -150, maximum: 0 }
-        readings:
-          type: object
-          additionalProperties: false
-          required: [tiltMagnitudeDeg, soilMoisturePct, rainfallMmHour, batteryVoltage]
-          properties:
-            tiltXDeg: { type: number, minimum: -180, maximum: 180 }
-            tiltYDeg: { type: number, minimum: -180, maximum: 180 }
-            tiltMagnitudeDeg: { type: number, minimum: 0, maximum: 180 }
-            soilMoisturePct: { type: number, minimum: 0, maximum: 100 }
-            rainfallMmHour: { type: number, minimum: 0, maximum: 1000 }
-            batteryVoltage: { type: number, minimum: 0, maximum: 30 }
-        deviceAssessment:
-          type: object
-          additionalProperties: false
-          required: [riskLevel, sirenActive]
-          properties:
-            riskLevel: { $ref: '#/components/schemas/RiskLevel' }
-            sirenActive: { type: boolean }
-    TelemetryAccepted:
-      type: object
-      required: [accepted, duplicate, telemetryId, serverRisk, receivedAt]
-      properties:
-        accepted: { type: boolean, const: true }
-        duplicate: { type: boolean }
-        telemetryId: { type: string }
-        serverRisk: { $ref: '#/components/schemas/RiskLevel' }
-        receivedAt: { type: string, format: date-time }
     DashboardSummaryResponse:
       type: object
       required: [data]
@@ -460,16 +1111,3 @@ components:
                 danger: { type: integer, minimum: 0 }
                 unknown: { type: integer, minimum: 0 }
             generatedAt: { type: string, format: date-time }
-    ErrorResponse:
-      type: object
-      required: [error, requestId, timestamp]
-      properties:
-        error:
-          type: object
-          required: [code, message]
-          properties:
-            code: { type: string }
-            message: { type: string }
-            details: {}
-        requestId: { type: string }
-        timestamp: { type: string, format: date-time }

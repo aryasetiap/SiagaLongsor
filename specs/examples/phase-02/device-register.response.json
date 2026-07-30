@@ -1,0 +1,27 @@
+{
+  "data": {
+    "device": {
+      "id": "dev_01K1B6K4RBM9P1Q5V7X0Z2A4CD",
+      "organizationId": "org_01K1B6G2PZJ7K9M3T5V8X0Y2AB",
+      "siteId": "site_01K1B6H3QAK8N0P4U6W9Y1Z3BC",
+      "monitoringPointId": "mp_01K1B6JZTHB7M8Q9K2R4V6W8XY",
+      "hardwareId": "SMAN17-LS-001",
+      "displayName": "Perangkat Lereng Utara",
+      "lifecycleStatus": "ENABLED",
+      "firmwareVersion": null,
+      "lastSeenAt": null,
+      "lastTelemetryAt": null,
+      "lastNetwork": null,
+      "disabledAt": null,
+      "createdAt": "2026-07-30T08:00:00.000Z",
+      "updatedAt": "2026-07-30T08:00:00.000Z"
+    },
+    "credential": {
+      "scheme": "Device",
+      "hardwareId": "SMAN17-LS-001",
+      "secret": "EXAMPLE_ONLY_NOT_A_REAL_CREDENTIAL_000000",
+      "issuedAt": "2026-07-30T08:00:00.000Z",
+      "displayOnce": true
+    }
+  }
+}

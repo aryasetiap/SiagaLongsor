@@ -16,7 +16,9 @@ Titik fisik pemantauan di dalam site. Device dapat diganti tanpa menghilangkan i
 
 ### Device
 
-Perangkat IoT yang mengirim telemetry. Satu monitoring point memiliki maksimal satu device aktif pada MVP.
+Perangkat IoT yang mengirim telemetry. API resource memiliki opaque internal `id`, sedangkan
+`hardwareId` adalah identifier publik yang unik global dan immutable. Lifecycle Phase 02 hanya
+`ENABLED` dan `DISABLED`. Satu monitoring point memiliki maksimal satu enabled device.
 
 ### Telemetry
 
@@ -45,14 +47,20 @@ Catatan aksi sensitif pada sistem.
 ## 2. Invariant penting
 
 - `device.hardwareId` unik global.
-- `(deviceId, messageId)` unik.
-- `(deviceId, sequence)` unik bila sequence tersedia.
+- `(deviceId, messageId)` unik sebagai primary idempotency key.
+- `(deviceId, bootId, sequence)` unik. `bootId` wajib berubah setiap boot dan tetap sama selama satu
+  boot session; sequence tidak boleh diberi uniqueness global lintas boot.
 - Telemetry tidak boleh diubah oleh pengguna biasa.
 - RiskAssessment memiliki referensi ke profile yang digunakan.
 - Alert transition harus menghasilkan AlertEvent.
 - Satu dedupKey hanya memiliki satu active alert.
 - School Admin tidak boleh mengaktifkan threshold profile.
 - Device disabled tidak boleh menerima telemetry sukses.
+- Credential mentah hanya boleh dikembalikan sekali saat register/rotate; persistence hanya
+  menyimpan hash dan secret lama invalid segera setelah rotation.
+- Raw telemetry tidak menyimpan Authorization header atau credential.
+- Device organization diturunkan dari device yang berhasil diautentikasi, bukan dari body
+  telemetry.
 - Monitoring point tanpa data segar berstatus UNKNOWN.
 
 ## 3. Status domain
@@ -64,13 +72,13 @@ Catatan aksi sensitif pada sistem.
 - `DANGER`
 - `UNKNOWN`
 
-### DeviceStatus
+### DeviceLifecycleStatus (Phase 02)
 
-- `ONLINE`
-- `DELAYED`
-- `OFFLINE`
-- `MAINTENANCE`
+- `ENABLED`
 - `DISABLED`
+
+Konektivitas (`ONLINE`, `DELAYED`, `OFFLINE`) dan maintenance adalah konsep terpisah yang belum
+diimplementasikan pada Phase 02 dan tidak boleh dimasukkan ke lifecycle.
 
 ### AlertStatus
 
@@ -100,9 +108,11 @@ Retensi final perlu disesuaikan dengan kebijakan institusi.
 
 - Telemetry: `(deviceId, deviceTimestamp DESC)`.
 - Telemetry: `(receivedAt DESC)`.
+- Telemetry unique: `(deviceId, messageId)`.
+- Telemetry unique: `(deviceId, bootId, sequence)`.
 - RiskAssessment: `(monitoringPointId, evaluatedAt DESC)`.
 - Alert: `(siteId, status, openedAt DESC)`.
-- Device: `(siteId, status)`.
+- Device: `(monitoringPointId, lifecycleStatus)` untuk menegakkan maksimal satu enabled device.
 - AuditLog: `(organizationId, createdAt DESC)`.
 
 ## 6. Skema awal
