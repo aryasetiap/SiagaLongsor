@@ -29,6 +29,7 @@ if (!parsedEnvironment.success) {
 const environment = parsedEnvironment.data;
 const adapter = new PrismaPg({ connectionString: environment.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
+const developmentMonitoringPointId = 'seed_sman17_primary_monitoring_point';
 
 interface SeedUser {
   readonly email: string;
@@ -65,6 +66,27 @@ async function runSeed(): Promise<void> {
         organizationId: organization.id,
         slug: environment.SEED_SITE_SLUG,
         timezone: 'Asia/Jakarta',
+      },
+    });
+
+    const monitoringPoint = await transaction.monitoringPoint.upsert({
+      where: { id: developmentMonitoringPointId },
+      update: {
+        description: 'Titik pemantauan development awal.',
+        isActive: true,
+        locationDescription: 'Lereng belakang gedung utama.',
+        name: 'Lereng Belakang Gedung Utama',
+        organizationId: organization.id,
+        siteId: site.id,
+      },
+      create: {
+        description: 'Titik pemantauan development awal.',
+        id: developmentMonitoringPointId,
+        isActive: true,
+        locationDescription: 'Lereng belakang gedung utama.',
+        name: 'Lereng Belakang Gedung Utama',
+        organizationId: organization.id,
+        siteId: site.id,
       },
     });
 
@@ -136,6 +158,7 @@ async function runSeed(): Promise<void> {
     }
 
     return {
+      monitoringPointId: monitoringPoint.id,
       organizationId: organization.id,
       siteId: site.id,
     };
@@ -144,6 +167,7 @@ async function runSeed(): Promise<void> {
   const counts = await prisma.$transaction([
     prisma.organization.count(),
     prisma.site.count(),
+    prisma.monitoringPoint.count(),
     prisma.user.count(),
     prisma.membership.count(),
   ]);
@@ -153,10 +177,11 @@ async function runSeed(): Promise<void> {
       event: 'development_seed_completed',
       ids: result,
       counts: {
-        memberships: counts[3],
+        memberships: counts[4],
+        monitoringPoints: counts[2],
         organizations: counts[0],
         sites: counts[1],
-        users: counts[2],
+        users: counts[3],
       },
     }),
   );

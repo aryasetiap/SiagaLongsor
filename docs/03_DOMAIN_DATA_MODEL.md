@@ -120,3 +120,16 @@ Retensi final perlu disesuaikan dengan kebijakan institusi.
 Source of truth schema aktif berada di `apps/api/prisma/schema.prisma` dan dikembangkan secara
 bertahap sesuai fase. `backend/prisma/schema.prisma` hanya referensi domain lama/deprecated dan
 tidak boleh digunakan sebagai schema aktif atau sumber migration.
+
+## 7. Implementasi persistence Phase 02
+
+- Composite foreign key menegakkan konsistensi Organization, Site, MonitoringPoint, dan Device.
+- Partial unique index PostgreSQL menegakkan maksimal satu Device `ENABLED` per MonitoringPoint;
+  Device `DISABLED` tetap tersedia sebagai histori.
+- Device hanya menyimpan `credentialHash` dan waktu rotasi. Tidak ada kolom raw credential.
+- Sensor telemetry menggunakan Decimal, sequence menggunakan BigInt, dan timestamp domain baru
+  menggunakan `timestamptz(3)`.
+- Telemetry tidak memiliki `updatedAt`, seluruh foreign key historinya memakai delete restriction,
+  dan raw payload mendapat defense-in-depth constraint untuk menolak property credential/header.
+- `serverReceivedAt` juga menjadi waktu pembuatan row telemetry sehingga tidak ditambahkan
+  `createdAt` yang redundan.
