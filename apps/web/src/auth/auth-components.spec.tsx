@@ -1,0 +1,204 @@
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { ApplicationShell } from '../components/application-shell';
+import { AuthProvider, type AuthClient, useAuth } from './auth-context';
+import type { Principal, Role } from './auth-types';
+import { ProtectedRoute } from './protected-route';
+
+const navigationMocks = vi.hoisted(() => ({
+  replace: vi.fn(),
+}));
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace: navigationMocks.replace }),
+}));
+
+describe('AuthProvider and protected content', () => {
+  beforeEach(() => {
+    navigationMocks.replace.mockReset();
+  });
+
+  it('hides protected content until refresh bootstrap resolves', async () => {
+    let finishBootstrap: ((principal: Principal) => void) | undefined;
+    const client = createClient({
+      bootstrapSession: () =>
+        new Promise<Principal>((resolve) => {
+          finishBootstrap = resolve;
+        }),
+    });
+    render(
+      <AuthProvider client={client}>
+        <ProtectedRoute>{(current) => <p>Konten untuk {current.name}</p>}</ProtectedRoute>
+      </AuthProvider>,
+    );
+
+    expect(screen.queryByText(/Konten untuk/)).not.toBeInTheDocument();
+    expect(screen.getByText('Memeriksa sesi aman…')).toBeInTheDocument();
+    finishBootstrap?.(createPrincipal('SCHOOL_ADMIN'));
+    expect(await screen.findByText('Konten untuk Admin Sekolah')).toBeInTheDocument();
+  });
+
+  it('redirects when refresh bootstrap finds no valid session', async () => {
+    const client = createClient({ bootstrapSession: vi.fn().mockResolvedValue(null) });
+    render(
+      <AuthProvider client={client}>
+        <ProtectedRoute>{() => <p>Rahasia protected</p>}</ProtectedRoute>
+      </AuthProvider>,
+    );
+
+    await vi.waitFor(() => expect(navigationMocks.replace).toHaveBeenCalledWith('/login'));
+    expect(screen.queryByText('Rahasia protected')).not.toBeInTheDocument();
+    expect(screen.queryByText(/Layanan autentikasi sedang tidak tersedia/)).not.toBeInTheDocument();
+  });
+
+  it('exposes an availability message when session bootstrap cannot reach the API', async () => {
+    const client = createClient({
+      bootstrapSession: vi.fn().mockRejectedValue(new Error('offline')),
+    });
+    render(
+      <AuthProvider client={client}>
+        <AuthStateProbe />
+      </AuthProvider>,
+    );
+
+    expect(
+      await screen.findByText('Layanan autentikasi sedang tidak tersedia. Silakan coba kembali.'),
+    ).toBeInTheDocument();
+  });
+
+  it('clears a stale bootstrap availability message when a new login starts', async () => {
+    const user = userEvent.setup();
+    let finishLogin: ((principal: Principal) => void) | undefined;
+    const client = createClient({
+      bootstrapSession: vi.fn().mockRejectedValue(new Error('offline')),
+      login: vi.fn(
+        () =>
+          new Promise<Principal>((resolve) => {
+            finishLogin = resolve;
+          }),
+      ),
+    });
+    render(
+      <AuthProvider client={client}>
+        <AuthLoginProbe />
+      </AuthProvider>,
+    );
+
+    expect(
+      await screen.findByText('Layanan autentikasi sedang tidak tersedia. Silakan coba kembali.'),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Mulai login' }));
+
+    expect(
+      screen.queryByText('Layanan autentikasi sedang tidak tersedia. Silakan coba kembali.'),
+    ).not.toBeInTheDocument();
+    expect(client.login).toHaveBeenCalledOnce();
+    finishLogin?.(createPrincipal('SCHOOL_ADMIN'));
+  });
+
+  it.each([
+    ['PROJECT_OWNER' as const, true],
+    ['SCHOOL_ADMIN' as const, false],
+  ])('renders the expected menu structure for %s', async (role, seesOwnerMenu) => {
+    const principal = createPrincipal(role);
+    render(
+      <AuthProvider
+        client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
+      >
+        <ApplicationShell principal={principal} />
+      </AuthProvider>,
+    );
+
+    expect(screen.getByRole('link', { name: /Overview/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Monitoring/ })).toBeDisabled();
+    if (seesOwnerMenu) {
+      expect(screen.getByRole('button', { name: /Perangkat/ })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /Pengaturan/ })).toBeDisabled();
+    } else {
+      expect(screen.queryByRole('button', { name: /Perangkat/ })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Pengaturan/ })).not.toBeInTheDocument();
+    }
+    expect(
+      screen.getAllByText(role === 'PROJECT_OWNER' ? 'Project Owner' : 'Admin Sekolah').length,
+    ).toBeGreaterThan(0);
+  });
+
+  it('clears local auth state and redirects even when server logout fails', async () => {
+    const user = userEvent.setup();
+    const principal = createPrincipal('SCHOOL_ADMIN');
+    const logout = vi.fn().mockRejectedValue(new Error('offline'));
+    render(
+      <AuthProvider
+        client={createClient({
+          bootstrapSession: vi.fn().mockResolvedValue(principal),
+          logout,
+        })}
+      >
+        <ApplicationShell principal={principal} />
+        <AuthStateProbe />
+      </AuthProvider>,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Keluar' }));
+
+    expect(logout).toHaveBeenCalledOnce();
+    expect(navigationMocks.replace).toHaveBeenCalledWith('/login');
+    expect(
+      await screen.findByText(/Sesi lokal telah diakhiri, tetapi server tidak dapat dikonfirmasi/),
+    ).toBeInTheDocument();
+  });
+});
+
+function AuthStateProbe() {
+  const auth = useAuth();
+  return (
+    <div>
+      <p>{auth.status}</p>
+      {auth.message !== null && <p>{auth.message}</p>}
+    </div>
+  );
+}
+
+function AuthLoginProbe() {
+  const auth = useAuth();
+  return (
+    <div>
+      {auth.message !== null && <p>{auth.message}</p>}
+      <button
+        type="button"
+        onClick={() => {
+          void auth.login({ email: 'admin@example.invalid', password: 'test-password' });
+        }}
+      >
+        Mulai login
+      </button>
+    </div>
+  );
+}
+
+function createClient(overrides: Partial<AuthClient> = {}): AuthClient {
+  const principal = createPrincipal('SCHOOL_ADMIN');
+  return {
+    bootstrapSession: vi.fn().mockResolvedValue(principal),
+    login: vi.fn().mockResolvedValue(principal),
+    logout: vi.fn().mockResolvedValue(undefined),
+    ...overrides,
+  };
+}
+
+function createPrincipal(role: Role): Principal {
+  return {
+    id: `user-${role}`,
+    email: `${role.toLowerCase()}@example.invalid`,
+    name: role === 'PROJECT_OWNER' ? 'Pemilik Proyek' : 'Admin Sekolah',
+    memberships: [
+      {
+        organizationId: 'org-1',
+        organizationName: 'SMAN 17 Bandar Lampung',
+        role,
+      },
+    ],
+  };
+}

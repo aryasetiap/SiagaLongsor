@@ -40,6 +40,7 @@ jobs:
       DATABASE_URL: ${{ format('postgresql://siagalongsor:ci-{0}-{1}@localhost:5432/siagalongsor?schema=public', github.run_id, github.run_attempt) }}
       REDIS_URL: redis://localhost:6379
       WEB_URL: http://localhost:3000
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:3001/api/v1
       AUTH_ACCESS_TOKEN_SECRET: ${{ format('ci-access-token-secret-{0}-{1}-not-for-production', github.run_id, github.run_attempt) }}
       AUTH_JWT_ISSUER: siagalongsor-api-ci
       AUTH_JWT_AUDIENCE: siagalongsor-web-ci
