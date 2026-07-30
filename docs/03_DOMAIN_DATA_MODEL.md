@@ -107,4 +107,6 @@ Retensi final perlu disesuaikan dengan kebijakan institusi.
 
 ## 6. Skema awal
 
-Lihat `backend/prisma/schema.prisma`. Skema tersebut adalah starting point dan harus dimigrasikan secara bertahap, bukan langsung dianggap final.
+Source of truth schema aktif berada di `apps/api/prisma/schema.prisma` dan dikembangkan secara
+bertahap sesuai fase. `backend/prisma/schema.prisma` hanya referensi domain lama/deprecated dan
+tidak boleh digunakan sebagai schema aktif atau sumber migration.

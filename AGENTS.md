@@ -43,6 +43,20 @@ Sebelum implementasi, tuliskan:
 
 Untuk perubahan besar, buat rencana bertahap dan tunggu persetujuan sebelum coding.
 
+### 4.1 Koordinasi frontend dan backend
+
+- Perubahan API wajib mengikuti contract-first workflow. Contract harus ditinjau frontend dan
+  backend serta digabung sebelum implementation PR yang bergantung padanya.
+- Frontend dan backend tidak boleh membuat request, response, error, atau tipe API sendiri-sendiri
+  yang menyimpang dari OpenAPI.
+- Perubahan shared files wajib dikoordinasikan dan secara normal memerlukan review silang.
+  Documented Team Lead bypass mengikuti kebijakan pada `docs/12_TEAM_WORKFLOW.md` dan bukan
+  self-approval.
+- Prisma schema dan migration hanya dikelola Backend Engineer. Migration yang sudah masuk `main`
+  tidak boleh diedit.
+- Ikuti panduan operasional pada `CONTRIBUTING.md` dan rincian ownership serta checkpoint pada
+  `docs/12_TEAM_WORKFLOW.md`.
+
 ## 5. Aturan implementasi
 
 - Gunakan strict TypeScript; hindari `any` kecuali ada alasan tertulis.

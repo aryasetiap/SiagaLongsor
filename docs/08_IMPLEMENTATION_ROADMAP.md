@@ -2,7 +2,7 @@
 
 Jangan mengerjakan semua fase sekaligus. Setiap fase harus memiliki pull request/commit yang dapat ditinjau.
 
-## Phase 0 — Repository and decisions
+## Phase 0 — Repository and decisions — selesai
 
 Output:
 
@@ -17,7 +17,9 @@ Exit criteria:
 
 - `pnpm lint`, `pnpm typecheck`, dan test kosong berhasil.
 
-## Phase 1 — Foundation
+Status: selesai dan telah digabung ke `main`.
+
+## Phase 1 — Foundation — selesai
 
 Output:
 
@@ -36,7 +38,12 @@ Exit criteria:
 - RBAC backend diuji.
 - Migration dan seed dapat dijalankan dari kosong.
 
-## Phase 2 — Device management and ingestion
+Status: selesai dan telah digabung ke `main`.
+
+## Phase 2 — Device management and ingestion — coordination/contract planning
+
+Implementasi belum dimulai. Backend dan frontend baru mulai bekerja paralel setelah contract
+checkpoint terkait disepakati dan digabung.
 
 Output:
 
@@ -53,6 +60,41 @@ Exit criteria:
 - Satu device simulator dapat mengirim data.
 - Retry payload sama tidak membuat row baru.
 - Credential invalid ditolak.
+
+### Parallel workstream
+
+- **Shared/contract**: permission matrix, error envelope, pagination, MonitoringPoint contract,
+  Device/credential contract, telemetry authentication/idempotency contract, typed mock
+  agreement, dan acceptance criteria.
+- **Backend**: Prisma model dan migration, MonitoringPoint/Device endpoint, credential hashing dan
+  rotation, telemetry authentication/validation/idempotency, raw payload, rate limiting,
+  simulator CLI, dan integration test.
+- **Frontend**: MonitoringPoint dan Device management UI, one-time credential display,
+  rotate/disable confirmation, loading/error/empty states, role visibility, typed contract mocks,
+  component test, dan Chromium browser test.
+
+### Integration checkpoints
+
+| Checkpoint | Output                                                                      |
+| ---------- | --------------------------------------------------------------------------- |
+| C1         | Shared permission matrix, error envelope, dan pagination disetujui          |
+| C2a        | MonitoringPoint contract disetujui                                          |
+| C2b        | Device dan one-time credential contract disetujui                           |
+| C2c        | Telemetry authentication dan idempotency contract disetujui                 |
+| A          | MonitoringPoint API dan frontend terintegrasi                               |
+| B          | Device/credential API dan frontend terintegrasi                             |
+| C3         | Full contract validation, API integration, dan Chromium browser smoke lulus |
+
+### Keputusan batas Phase 2
+
+- Authorization tetap organization-scoped; `siteId` hanya resource relation dan filter.
+- Device authentication diarahkan ke `Authorization: Device <hardwareId>.<secret>`, dengan
+  `hardwareId` sebagai identifier publik. Detail final masuk contract PR.
+- Response Phase 2 tidak memiliki `serverRisk`; risk engine dimulai pada Phase 3.
+- `POST /iot/heartbeat` ditunda dan hanya dibuat bila kebutuhan lapangan membuktikannya perlu.
+- Generated OpenAPI types dan Playwright dibuat melalui PR tooling/testing terpisah.
+- Risk engine, alert, dashboard KPI, sensor chart, SSE, map, reports, remote siren, firmware, dan
+  heartbeat tetap di luar scope.
 
 ## Phase 3 — Risk engine and alerts
 

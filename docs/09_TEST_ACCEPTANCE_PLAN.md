@@ -1,6 +1,36 @@
 # Test and Acceptance Plan
 
-## 1. Test pyramid
+## 1. Status test per fase
+
+### Tersedia pada Phase 01
+
+- Unit test konfigurasi, refresh token, API client, login form, dan auth state.
+- API integration test untuk health, authentication, refresh rotation/replay, Origin protection,
+  logout, rate limiting, organization-scoped RBAC, user/membership state, dan session revocation.
+- Frontend component test untuk login, session bootstrap, protected content, retry/single-flight
+  refresh, logout, role display, dan larangan browser token storage.
+- Prisma validation, migration deploy dari database CI bersih, dan seed dua kali.
+- API dan web production build serta OpenAPI validation dalam full monorepo CI.
+
+Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah dibuat.
+
+### Direncanakan untuk Phase 02
+
+- Contract validation untuk MonitoringPoint, Device, credential, dan telemetry.
+- Migration test dari database bersih.
+- API integration test untuk permission, CRUD, credential lifecycle, ingestion, validation,
+  idempotency, raw payload, dan rate limiting.
+- Frontend component test dengan typed contract mocks.
+- Chromium browser smoke pada checkpoint integrasi sebelum management UI pertama digabung.
+- Full monorepo CI pada setiap pull request.
+
+### Fase mendatang
+
+- Risk engine, alert, offline detector, dashboard, realtime, map, report, performance, dan
+  resilience test dijalankan ketika implementasi fasenya tersedia.
+- k6 ingestion dan dashboard wajib sebelum produksi, bukan pada coordination stage.
+
+## 2. Test pyramid
 
 - Unit: risk engine, dedup key, permission helpers, aggregations.
 - Integration: Prisma repositories, ingestion transaction, alert transitions.
@@ -9,7 +39,7 @@
 - Performance: k6 ingestion and dashboard.
 - Resilience: network retry, Redis unavailable, delayed data, duplicate payload.
 
-## 2. Critical test cases
+## 3. Critical test cases
 
 ### Telemetry ingestion
 
@@ -36,8 +66,8 @@
 ### Offline detector
 
 - <=20 menit ONLINE.
-- >20 sampai <=35 DELAYED.
-- >35 OFFLINE.
+- > 20 sampai <=35 DELAYED.
+- > 35 OFFLINE.
 - OFFLINE dashboard risk UNKNOWN.
 - Kembali online mencatat status event.
 
@@ -68,7 +98,7 @@
 - Critical alert accessible via keyboard.
 - Mobile view tidak menyembunyikan aksi penting.
 
-## 3. Performance target awal
+## 4. Performance target awal
 
 ### Ingestion
 
@@ -83,7 +113,7 @@
 - p95 summary < 500 ms.
 - p95 telemetry chart query < 1 detik untuk rentang 24 jam dengan agregasi.
 
-## 4. Resilience scenarios
+## 5. Resilience scenarios
 
 - Server tidak tersedia 30 menit; device queue lalu retry.
 - Wi-Fi gagal dan cellular aktif.
@@ -93,7 +123,7 @@
 - Device clock meleset.
 - Firmware mengirim NaN/string invalid.
 
-## 5. UAT School Admin
+## 6. UAT School Admin
 
 Admin sekolah harus dapat:
 
@@ -105,7 +135,7 @@ Admin sekolah harus dapat:
 - Menambahkan kondisi lapangan.
 - Mengunduh laporan sederhana.
 
-## 6. Definition of Done per feature
+## 7. Definition of Done per feature
 
 - Acceptance criteria tertulis.
 - Unit/integration test lulus.
