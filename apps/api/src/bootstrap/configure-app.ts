@@ -29,6 +29,13 @@ export function configureApp(app: NestExpressApplication): void {
     origin: config.webUrl,
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'],
+    allowedHeaders: [
+      'Authorization',
+      'Content-Type',
+      'Idempotency-Key',
+      'X-Organization-Id',
+      'X-Request-Id',
+    ],
   });
   app.useBodyParser('json', { limit: '64kb' });
   app.useBodyParser('urlencoded', { extended: false, limit: '64kb' });

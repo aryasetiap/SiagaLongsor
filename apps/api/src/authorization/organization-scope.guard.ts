@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   CanActivate,
   ExecutionContext,
   ForbiddenException,
@@ -37,12 +38,24 @@ export class OrganizationScopeGuard implements CanActivate {
       });
     }
 
-    const organizationId = request.params[scope.parameter];
+    const organizationId =
+      scope.source === 'header' ? request.get(scope.key)?.trim() : request.params[scope.key];
+
+    if (
+      scope.source === 'header' &&
+      (organizationId === undefined || organizationId.length === 0)
+    ) {
+      throw new BadRequestException({
+        code: 'ORGANIZATION_CONTEXT_REQUIRED',
+        message: 'X-Organization-Id diperlukan.',
+      });
+    }
+
     const membership = principal.memberships.find(
       (candidate) => candidate.organizationId === organizationId,
     );
 
-    if (organizationId === undefined || membership === undefined) {
+    if (membership === undefined) {
       throw new ForbiddenException({
         code: 'ORGANIZATION_ACCESS_DENIED',
         message: 'Akses ke organization ditolak.',

@@ -5,6 +5,7 @@ import { AuthorizationModule } from './authorization/authorization.module.js';
 import { AppConfigModule } from './config/app-config.module.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthModule } from './health/health.module.js';
+import { MonitoringPointsModule } from './monitoring-points/monitoring-points.module.js';
 import { RateLimitModule } from './rate-limit/rate-limit.module.js';
 import { RedisModule } from './redis/redis.module.js';
 
@@ -17,6 +18,7 @@ import { RedisModule } from './redis/redis.module.js';
     AuthModule,
     AuthorizationModule,
     HealthModule,
+    MonitoringPointsModule,
   ],
 })
 export class AppModule {}
