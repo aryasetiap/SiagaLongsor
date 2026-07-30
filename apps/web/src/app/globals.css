@@ -2,6 +2,12 @@
 
 :root {
   color-scheme: light;
+  --app-bg: #eef2f5;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --primary: #0b82f0;
   font-family:
     Inter,
     ui-sans-serif,
@@ -15,6 +21,85 @@
 body {
   min-height: 100vh;
   margin: 0;
-  background: #eef2f5;
-  color: #111827;
+  background: var(--app-bg);
+  color: var(--text-primary);
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+summary,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.login-canvas {
+  background:
+    radial-gradient(circle at 15% 10%, rgb(59 130 246 / 10%), transparent 28rem),
+    radial-gradient(circle at 90% 90%, rgb(14 165 233 / 8%), transparent 24rem), var(--app-bg);
+}
+
+.auth-input {
+  min-height: 3rem;
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid #cbd5e1;
+  background: white;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  color: #0f172a;
+  outline: none;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+
+.auth-input::placeholder {
+  color: #94a3b8;
+}
+
+.auth-input:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgb(37 99 235 / 14%);
+}
+
+.auth-input[aria-invalid='true'] {
+  border-color: #dc2626;
+}
+
+.shell-nav-item {
+  display: flex;
+  min-height: 2.75rem;
+  align-items: center;
+  gap: 0.65rem;
+  border-radius: 0.9rem;
+  padding: 0.5rem 0.65rem;
+  color: #475569;
+  font-size: 0.82rem;
+  font-weight: 650;
+  transition:
+    color 150ms ease,
+    background-color 150ms ease;
+}
+
+.shell-nav-item-active {
+  background: #0f172a;
+  color: white;
+  box-shadow: 0 8px 20px rgb(15 23 42 / 12%);
+}
+
+.shell-nav-item-active span {
+  background: rgb(255 255 255 / 12%);
+  color: white;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

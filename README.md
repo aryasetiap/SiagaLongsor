@@ -5,9 +5,9 @@ Monorepo website dan backend Sistem Deteksi Dini Tanah Longsor untuk implementas
 
 ## Status implementasi
 
-Checkpoint aktif: **Phase 01 Task 03–04**.
+Checkpoint aktif: **Phase 01 Task 05**.
 
-- Skeleton Next.js tersedia di `apps/web`.
+- Next.js menyediakan login, bootstrap session, dan protected application shell.
 - NestJS API menyediakan health check, authentication, dan authorization guard.
 - Schema Prisma aktif berada di `apps/api/prisma/schema.prisma`.
 - PostgreSQL dan Redis development berada di `compose.yaml`.
@@ -19,18 +19,25 @@ Checkpoint aktif: **Phase 01 Task 03–04**.
 
 Prasyarat: Node.js 24, Corepack, dan Docker.
 
-1. Salin `.env.example` menjadi `.env`, kemudian ganti seluruh placeholder credential.
-   NestJS, integration test, dan Prisma CLI memuat file root ini otomatis tanpa memerlukan
-   `apps/api/.env`. Environment yang sudah diinjeksi shell/CI tetap memiliki prioritas.
-2. Aktifkan package manager: `corepack enable`. Bila instalasi Node tidak mengizinkan pembuatan
+1. Buat environment backend dengan `cp .env.example .env`, kemudian ganti seluruh placeholder
+   credential server lokal. NestJS, integration test, dan Prisma CLI memuat file root ini otomatis
+   tanpa memerlukan `apps/api/.env`. Environment yang sudah diinjeksi shell/CI tetap memiliki
+   prioritas.
+2. Buat environment frontend dengan
+   `cp apps/web/.env.example apps/web/.env.local`. File tersebut hanya boleh berisi konfigurasi
+   publik yang aman tersedia dalam browser. Nilai development-nya adalah
+   `NEXT_PUBLIC_API_BASE_URL=http://localhost:3001/api/v1`.
+3. Aktifkan package manager: `corepack enable`. Bila instalasi Node tidak mengizinkan pembuatan
    shim global, gunakan bentuk `corepack pnpm <command>`.
-3. Install dependency: `pnpm install` atau `corepack pnpm install`.
-4. Jalankan dependensi: `docker compose up -d postgres redis`.
-5. Generate Prisma Client: `pnpm prisma:generate`.
-6. Terapkan migration: `pnpm prisma:migrate:deploy`.
-7. Jalankan seed: `pnpm prisma:seed`.
-8. Jalankan API: `pnpm --filter @siagalongsor/api dev`.
-9. Verifikasi dengan `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, dan `pnpm test`.
+4. Install dependency: `corepack pnpm install`.
+5. Jalankan dependensi: `docker compose up -d postgres redis`.
+6. Generate Prisma Client: `corepack pnpm prisma:generate`.
+7. Terapkan migration: `corepack pnpm prisma:migrate:deploy`.
+8. Jalankan seed: `corepack pnpm prisma:seed`.
+9. Jalankan API: `corepack pnpm --filter @siagalongsor/api dev`.
+10. Jalankan web: `corepack pnpm --filter @siagalongsor/web dev`.
+11. Verifikasi dengan `corepack pnpm lint`, `corepack pnpm format:check`,
+    `corepack pnpm typecheck`, dan `corepack pnpm test`.
 
 API tersedia pada `http://localhost:3001/api/v1`. Health check publik berada di
 `GET /api/v1/health`. Endpoint authentication:
@@ -42,6 +49,13 @@ API tersedia pada `http://localhost:3001/api/v1`. Health check publik berada di
 
 Login dan refresh mengembalikan access token di response body. Refresh token hanya dikirim sebagai
 cookie `httpOnly`, `SameSite=Lax`, dan menggunakan `Secure` ketika `NODE_ENV=production`.
+
+Web membaca `NEXT_PUBLIC_API_BASE_URL` dari `apps/web/.env.local`. Next.js menyertakan variabel
+`NEXT_PUBLIC_*` ke browser bundle pada saat development server atau production build dimulai;
+restart Next.js setelah nilainya berubah. Jangan pernah menaruh database URL, JWT secret, seed
+credential, token, atau credential lain dalam variabel frontend. Access token disimpan hanya dalam
+memory aplikasi dan hilang saat halaman direload. Web kemudian mencoba memulihkan sesi melalui
+refresh cookie `httpOnly`.
 
 Seed membutuhkan email dan password dari environment. Tidak ada credential seed yang ditanam di
 source code.
@@ -84,7 +98,8 @@ bersamaan bila port host perlu disesuaikan.
 
 - `apps/api/prisma/schema.prisma` — schema Prisma aktif dan bertahap.
 - `backend/prisma/schema.prisma` — referensi domain lama; deprecated dan bukan source of truth aktif.
-- `.env.example` — environment aktif untuk development dan seed.
+- `.env.example` — environment server untuk development dan seed.
+- `apps/web/.env.example` — template environment publik untuk Next.js.
 - `backend/.env.example` — referensi konfigurasi lengkap fase mendatang.
 - `specs/openapi.yaml` — spesifikasi awal OpenAPI.
 - `specs/telemetry-payload.schema.json` — JSON Schema payload telemetri.
