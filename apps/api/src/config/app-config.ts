@@ -20,6 +20,9 @@ const environmentSchema = z.object({
   AUTH_REFRESH_COOKIE_NAME: z.string().min(1).default('siagalongsor_refresh'),
   AUTH_LOGIN_RATE_LIMIT_TTL_MS: z.coerce.number().int().min(1_000).default(60_000),
   AUTH_LOGIN_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(5),
+  TELEMETRY_MAX_FUTURE_SKEW_SECONDS: z.coerce.number().int().min(0).max(3_600).default(300),
+  TELEMETRY_RATE_LIMIT_TTL_MS: z.coerce.number().int().min(1_000).default(60_000),
+  TELEMETRY_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(120),
 });
 
 export interface AppConfig {
@@ -38,6 +41,11 @@ export interface AppConfig {
     readonly refreshCookieName: string;
     readonly loginRateLimitTtlMs: number;
     readonly loginRateLimitMax: number;
+  };
+  readonly telemetry: {
+    readonly maxFutureSkewSeconds: number;
+    readonly rateLimitTtlMs: number;
+    readonly rateLimitMax: number;
   };
 }
 
@@ -69,6 +77,11 @@ export function parseAppConfig(environment: NodeJS.ProcessEnv): AppConfig {
       refreshCookieName: value.AUTH_REFRESH_COOKIE_NAME,
       loginRateLimitTtlMs: value.AUTH_LOGIN_RATE_LIMIT_TTL_MS,
       loginRateLimitMax: value.AUTH_LOGIN_RATE_LIMIT_MAX,
+    }),
+    telemetry: Object.freeze({
+      maxFutureSkewSeconds: value.TELEMETRY_MAX_FUTURE_SKEW_SECONDS,
+      rateLimitTtlMs: value.TELEMETRY_RATE_LIMIT_TTL_MS,
+      rateLimitMax: value.TELEMETRY_RATE_LIMIT_MAX,
     }),
   });
 }
