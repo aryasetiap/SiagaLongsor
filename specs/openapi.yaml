@@ -2,10 +2,104 @@ openapi: 3.1.0
 info:
   title: SiagaLongsor API
   version: 0.1.0
-  description: Initial API contract for the landslide early-warning monitoring dashboard.
+  description: >-
+    API contract for the landslide early-warning monitoring dashboard. Authentication and health
+    paths are implemented in Phase 01; the remaining domain paths are planned contracts for later
+    phases.
 servers:
   - url: /api/v1
 paths:
+  /health:
+    get:
+      tags: [Operations]
+      summary: Check PostgreSQL and Redis connectivity
+      responses:
+        '200':
+          description: Dependencies are healthy
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/HealthResponse' }
+        '503':
+          description: At least one dependency is unavailable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Authenticate with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, password]
+              properties:
+                email: { type: string, format: email, maxLength: 320 }
+                password: { type: string, minLength: 1, maxLength: 256 }
+      responses:
+        '200':
+          description: Access token returned; rotating refresh token set as an httpOnly cookie
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '429':
+          description: Login rate limited
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Rotate a refresh token and issue a new access token
+      security:
+        - refreshCookie: []
+      parameters:
+        - $ref: '#/components/parameters/BrowserOrigin'
+      responses:
+        '200':
+          description: Token pair rotated
+          headers:
+            Set-Cookie:
+              schema: { type: string }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Revoke the server-side session family and clear the refresh cookie
+      security:
+        - refreshCookie: []
+        - {}
+      parameters:
+        - $ref: '#/components/parameters/BrowserOrigin'
+      responses:
+        '204':
+          description: Logout completed idempotently
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /auth/me:
+    get:
+      tags: [Authentication]
+      summary: Return the authenticated user and current organization memberships
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current principal
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserPrincipal' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /iot/telemetry:
     post:
       tags: [IoT]
@@ -189,11 +283,25 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    refreshCookie:
+      type: apiKey
+      in: cookie
+      name: siagalongsor_refresh
     deviceAuth:
       type: http
       scheme: bearer
       bearerFormat: DeviceCredential
   parameters:
+    BrowserOrigin:
+      name: Origin
+      in: header
+      required: false
+      description: >-
+        Browser requests must match WEB_URL. Absence is allowed for development CLI and
+        server-to-server clients.
+      schema:
+        type: string
+        format: uri
     Limit:
       name: limit
       in: query
@@ -223,11 +331,50 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     Forbidden:
-      description: Action forbidden
+      description: Action forbidden, including an untrusted browser Origin
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status, database, redis]
+      properties:
+        status: { type: string, const: ok }
+        database: { type: string, const: up }
+        redis: { type: string, const: up }
+    Role:
+      type: string
+      enum: [PROJECT_OWNER, SCHOOL_ADMIN]
+    Membership:
+      type: object
+      additionalProperties: false
+      required: [organizationId, organizationName, role]
+      properties:
+        organizationId: { type: string }
+        organizationName: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+    UserPrincipal:
+      type: object
+      additionalProperties: false
+      required: [id, email, name, memberships]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
+        memberships:
+          type: array
+          items: { $ref: '#/components/schemas/Membership' }
+    AuthResponse:
+      type: object
+      additionalProperties: false
+      required: [accessToken, tokenType, expiresIn, user]
+      properties:
+        accessToken: { type: string }
+        tokenType: { type: string, const: Bearer }
+        expiresIn: { type: integer, minimum: 60 }
+        user: { $ref: '#/components/schemas/UserPrincipal' }
     RiskLevel:
       type: string
       enum: [SAFE, WATCH, DANGER, UNKNOWN]
@@ -291,7 +438,15 @@ components:
       properties:
         data:
           type: object
-          required: [monitoringPoints, criticalAlerts, devicesOffline, newAlerts24h, riskDistribution, generatedAt]
+          required:
+            [
+              monitoringPoints,
+              criticalAlerts,
+              devicesOffline,
+              newAlerts24h,
+              riskDistribution,
+              generatedAt,
+            ]
           properties:
             monitoringPoints: { type: integer, minimum: 0 }
             criticalAlerts: { type: integer, minimum: 0 }
@@ -307,13 +462,14 @@ components:
             generatedAt: { type: string, format: date-time }
     ErrorResponse:
       type: object
-      required: [error]
+      required: [error, requestId, timestamp]
       properties:
         error:
           type: object
-          required: [code, message, requestId]
+          required: [code, message]
           properties:
             code: { type: string }
             message: { type: string }
-            details: { type: array, items: { type: object } }
-            requestId: { type: string }
+            details: {}
+        requestId: { type: string }
+        timestamp: { type: string, format: date-time }

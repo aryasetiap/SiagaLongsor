@@ -10,17 +10,20 @@
   "scripts": {
     "build": "corepack pnpm -r --if-present build",
     "dev": "corepack pnpm -r --parallel --if-present dev",
-    "format": "prettier --write \"apps/**/*.{ts,tsx,json,css}\" \"packages/**/*.{json,jsonc}\" \"*.{json,yaml,yml,mjs,ts}\" \".github/**/*.{yml,yaml}\" \"docs/adr/**/*.md\" \"docs/migrations/**/*.md\"",
-    "format:check": "prettier --check \"apps/**/*.{ts,tsx,json,css}\" \"packages/**/*.{json,jsonc}\" \"*.{json,yaml,yml,mjs,ts}\" \".github/**/*.{yml,yaml}\" \"docs/adr/**/*.md\" \"docs/migrations/**/*.md\"",
+    "format": "prettier --write \"apps/**/*.{ts,tsx,json,css}\" \"packages/**/*.{json,jsonc}\" \"scripts/**/*.{mjs,js,ts}\" \"specs/**/*.{yaml,yml,json}\" \"*.{json,yaml,yml,mjs,ts}\" \".github/**/*.{yml,yaml}\" \"docs/adr/**/*.md\" \"docs/migrations/**/*.md\"",
+    "format:check": "prettier --check \"apps/**/*.{ts,tsx,json,css}\" \"packages/**/*.{json,jsonc}\" \"scripts/**/*.{mjs,js,ts}\" \"specs/**/*.{yaml,yml,json}\" \"*.{json,yaml,yml,mjs,ts}\" \".github/**/*.{yml,yaml}\" \"docs/adr/**/*.md\" \"docs/migrations/**/*.md\"",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "corepack pnpm -r --if-present typecheck",
     "test": "corepack pnpm -r --if-present test",
+    "test:integration": "corepack pnpm -r --if-present test:integration",
+    "openapi:validate": "node scripts/validate-openapi.mjs",
     "prisma:generate": "corepack pnpm --filter @siagalongsor/api prisma:generate",
     "prisma:validate": "corepack pnpm --filter @siagalongsor/api prisma:validate",
     "prisma:migrate:deploy": "corepack pnpm --filter @siagalongsor/api prisma:migrate:deploy",
     "prisma:seed": "corepack pnpm --filter @siagalongsor/api prisma:seed"
   },
   "devDependencies": {
+    "@apidevtools/swagger-parser": "12.1.0",
     "@eslint/js": "9.39.5",
     "@types/node": "24.13.3",
     "eslint": "9.39.5",

@@ -47,11 +47,7 @@
       "properties": {
         "type": {
           "type": "string",
-          "enum": [
-            "WIFI",
-            "CELLULAR",
-            "UNKNOWN"
-          ]
+          "enum": ["WIFI", "CELLULAR", "UNKNOWN"]
         },
         "signalRssi": {
           "type": "number",
@@ -63,12 +59,7 @@
     "readings": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "tiltMagnitudeDeg",
-        "soilMoisturePct",
-        "rainfallMmHour",
-        "batteryVoltage"
-      ],
+      "required": ["tiltMagnitudeDeg", "soilMoisturePct", "rainfallMmHour", "batteryVoltage"],
       "properties": {
         "tiltXDeg": {
           "type": "number",
@@ -105,19 +96,11 @@
     "deviceAssessment": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "riskLevel",
-        "sirenActive"
-      ],
+      "required": ["riskLevel", "sirenActive"],
       "properties": {
         "riskLevel": {
           "type": "string",
-          "enum": [
-            "SAFE",
-            "WATCH",
-            "DANGER",
-            "UNKNOWN"
-          ]
+          "enum": ["SAFE", "WATCH", "DANGER", "UNKNOWN"]
         },
         "sirenActive": {
           "type": "boolean"

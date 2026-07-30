@@ -38,6 +38,11 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: ${{ format('postgresql://siagalongsor:ci-{0}-{1}@localhost:5432/siagalongsor?schema=public', github.run_id, github.run_attempt) }}
+      REDIS_URL: redis://localhost:6379
+      WEB_URL: http://localhost:3000
+      AUTH_ACCESS_TOKEN_SECRET: ${{ format('ci-access-token-secret-{0}-{1}-not-for-production', github.run_id, github.run_attempt) }}
+      AUTH_JWT_ISSUER: siagalongsor-api-ci
+      AUTH_JWT_AUDIENCE: siagalongsor-web-ci
       SEED_ORGANIZATION_NAME: SiagaLongsor CI
       SEED_ORGANIZATION_SLUG: siagalongsor-ci
       SEED_SITE_NAME: SMAN 17 Bandar Lampung
@@ -68,7 +73,9 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
+      - run: pnpm openapi:validate
       - run: pnpm prisma:validate
       - run: pnpm prisma:migrate:deploy
+      - run: pnpm test:integration
       - run: pnpm prisma:seed
       - run: pnpm prisma:seed

@@ -11,15 +11,50 @@ Semua timestamp menggunakan ISO 8601 UTC. Frontend menampilkan WIB.
   "error": {
     "code": "VALIDATION_ERROR",
     "message": "Payload tidak valid",
-    "details": [
-      { "field": "readings.soilMoisturePct", "message": "must be between 0 and 100" }
-    ],
-    "requestId": "req_01..."
-  }
+    "details": [{ "field": "readings.soilMoisturePct", "messages": ["must be between 0 and 100"] }]
+  },
+  "requestId": "req_01...",
+  "timestamp": "2026-07-30T08:00:00.000Z"
 }
 ```
 
-## 2. Pagination
+Setiap response juga mengembalikan header `x-request-id`. Internal stack trace tidak dikirim ke
+client.
+
+## 2. Authentication
+
+### POST `/auth/login`
+
+Menerima email dan password. Response `200` berisi access JWT singkat, masa berlaku dalam detik,
+dan principal. Rotating refresh token tidak pernah berada di JSON; token dikirim melalui cookie
+`httpOnly`, `SameSite=Lax`, path `/api/v1/auth`, dan `Secure` pada production.
+
+### POST `/auth/refresh`
+
+Membutuhkan refresh cookie. Token lama dirotasi sekali pakai. Pemakaian kembali token lama mencabut
+seluruh session family dan menghasilkan audit event.
+
+### POST `/auth/logout`
+
+Idempotent, menghapus cookie, dan mencabut session family di server. Access JWT yang terkait langsung
+ditolak setelah revocation.
+
+### GET `/auth/me`
+
+Membutuhkan `Authorization: Bearer <access JWT>` dan mengembalikan user serta membership
+organization terbaru dari database.
+
+Access JWT menyimpan identitas user dan session, tetapi backend tetap memvalidasi session, status
+user, dan membership di database pada setiap request. Endpoint login dibatasi per source IP.
+
+## 3. Authorization
+
+Role aktif adalah `PROJECT_OWNER` dan `SCHOOL_ADMIN`. Authorization dijalankan oleh guard backend:
+authentication terlebih dahulu, lalu organization scope, lalu role. `SCHOOL_ADMIN` bersifat
+organization-scoped pada MVP. Struktur metadata guard dapat diperluas dengan site scope tanpa
+mengubah strategi token.
+
+## 4. Pagination
 
 Request:
 
@@ -39,7 +74,7 @@ Response:
 
 Gunakan cursor pagination untuk list besar.
 
-## 3. Device ingestion
+## 5. Device ingestion
 
 ### POST `/iot/telemetry`
 
@@ -102,7 +137,7 @@ Untuk heartbeat ringan bila telemetry tidak dikirim sering.
 }
 ```
 
-## 4. Dashboard
+## 6. Dashboard
 
 ### GET `/dashboard/summary`
 
@@ -128,7 +163,7 @@ Untuk heartbeat ringan bila telemetry tidak dikirim sering.
 
 Mengembalikan alert terbaru sesuai permission user.
 
-## 5. Monitoring points
+## 7. Monitoring points
 
 - `GET /monitoring-points`
 - `GET /monitoring-points/:id`
@@ -145,7 +180,7 @@ Resolution:
 
 Backend dapat menolak `raw` untuk rentang terlalu panjang.
 
-## 6. Alerts
+## 8. Alerts
 
 - `GET /alerts`
 - `GET /alerts/:id`
@@ -172,7 +207,7 @@ Resolve body:
 }
 ```
 
-## 7. Devices
+## 9. Devices
 
 Project Owner:
 
@@ -192,7 +227,7 @@ Semua user terotorisasi:
 
 Credential hanya ditampilkan satu kali saat dibuat/dirotasi.
 
-## 8. Threshold profiles
+## 10. Threshold profiles
 
 - `GET /threshold-profiles`
 - `POST /threshold-profiles` — Project Owner.
@@ -206,7 +241,7 @@ Activation harus transaction:
 3. Tulis audit log.
 4. Publish config-changed event.
 
-## 9. Users
+## 11. Users
 
 - `GET /users`
 - `POST /users/invite`
@@ -215,7 +250,7 @@ Activation harus transaction:
 
 Project Owner tidak boleh menghapus role PROJECT_OWNER terakhir.
 
-## 10. Reports
+## 12. Reports
 
 - `POST /reports` membuat job.
 - `GET /reports/:id` melihat status.
@@ -228,7 +263,7 @@ Jenis awal:
 - `DEVICE_UPTIME_CSV`
 - `INCIDENT_REPORT_PDF`
 
-## 11. SSE
+## 13. SSE
 
 Endpoint:
 

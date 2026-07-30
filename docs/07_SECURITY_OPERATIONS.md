@@ -27,9 +27,20 @@ Ancaman:
 
 ### User
 
-- Password hash Argon2id atau bcrypt dengan konfigurasi kuat.
-- Session cookie httpOnly secure atau access/refresh token dengan rotasi.
-- Rate limit login.
+- Password di-hash dengan Argon2id.
+- Access JWT berumur pendek dan terikat pada server-side refresh session.
+- Refresh token opaque 256-bit, single-use, dan hanya hash SHA-256 yang disimpan.
+- Refresh token dikirim melalui cookie `httpOnly`, `SameSite=Lax`, dan `Secure` pada production.
+- Endpoint refresh dan logout menolak header `Origin` yang tidak sama dengan `WEB_URL`. Request tanpa
+  header `Origin` diizinkan untuk development CLI dan integrasi server-to-server; browser tetap
+  dilindungi oleh pemeriksaan Origin eksplisit dan cookie `SameSite=Lax`. Reverse proxy tidak boleh
+  menghapus atau menulis ulang header `Origin` browser.
+- Reuse refresh token mencabut seluruh session family.
+- Logout mencabut session family di server sehingga access JWT terkait langsung ditolak.
+- Rate limit login diterapkan per source IP. Penyimpanan counter saat ini in-memory dan harus
+  dipindahkan ke shared store sebelum menjalankan banyak instance API.
+- Di belakang reverse proxy, set `API_TRUST_PROXY_HOPS` ke jumlah hop yang tepat agar IP client
+  terbaca tanpa mempercayai header forwarding dari sumber langsung.
 - Lockout bertahap, bukan permanen otomatis.
 - MFA disiapkan untuk Project Owner pada fase berikutnya.
 
@@ -44,7 +55,9 @@ Ancaman:
 
 ## 3. Authorization
 
-Backend wajib memeriksa organization/site membership.
+Backend wajib memeriksa organization membership aktif pada setiap request terproteksi. Site scope belum
+aktif karena MVP baru memiliki satu site, tetapi organization guard dibuat agar metadata scope dapat
+diperluas pada fase berikutnya.
 
 School Admin:
 

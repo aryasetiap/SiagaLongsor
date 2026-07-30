@@ -1,10 +1,22 @@
 import { Module } from '@nestjs/common';
 
-import { AppController } from './app.controller.js';
-import { AppService } from './app.service.js';
+import { AuthModule } from './auth/auth.module.js';
+import { AuthorizationModule } from './authorization/authorization.module.js';
+import { AppConfigModule } from './config/app-config.module.js';
+import { DatabaseModule } from './database/database.module.js';
+import { HealthModule } from './health/health.module.js';
+import { RateLimitModule } from './rate-limit/rate-limit.module.js';
+import { RedisModule } from './redis/redis.module.js';
 
 @Module({
-  controllers: [AppController],
-  providers: [AppService],
+  imports: [
+    AppConfigModule,
+    DatabaseModule,
+    RedisModule,
+    RateLimitModule,
+    AuthModule,
+    AuthorizationModule,
+    HealthModule,
+  ],
 })
 export class AppModule {}
