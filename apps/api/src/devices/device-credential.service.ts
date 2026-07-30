@@ -19,6 +19,8 @@ export interface IssuedDeviceSecret {
 
 @Injectable()
 export class DeviceCredentialService {
+  private readonly dummyHash = argon2.hash(randomBytes(32), ARGON2_OPTIONS);
+
   async issue(): Promise<IssuedDeviceSecret> {
     const raw = randomBytes(32).toString('base64url');
     return {
@@ -28,9 +30,10 @@ export class DeviceCredentialService {
     };
   }
 
-  async verify(raw: string, hash: string): Promise<boolean> {
+  async verify(raw: string, hash?: string): Promise<boolean> {
     try {
-      return await argon2.verify(hash, raw);
+      const valid = await argon2.verify(hash ?? (await this.dummyHash), raw);
+      return hash === undefined ? false : valid;
     } catch {
       return false;
     }

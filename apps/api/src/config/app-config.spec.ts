@@ -15,6 +15,9 @@ describe('parseAppConfig', () => {
     expect(config.auth.accessTokenTtlSeconds).toBe(900);
     expect(config.auth.refreshTokenTtlSeconds).toBe(2_592_000);
     expect(config.auth.loginRateLimitMax).toBe(5);
+    expect(config.telemetry.maxFutureSkewSeconds).toBe(300);
+    expect(config.telemetry.rateLimitTtlMs).toBe(60_000);
+    expect(config.telemetry.rateLimitMax).toBe(120);
   });
 
   it('rejects an access-token secret shorter than 32 characters without echoing it', () => {
