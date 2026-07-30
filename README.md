@@ -5,7 +5,8 @@ Monorepo website dan backend Sistem Deteksi Dini Tanah Longsor untuk implementas
 
 ## Status implementasi
 
-Checkpoint aktif: **Phase 01 Task 05**.
+**Phase 00 selesai. Phase 01 selesai. Phase 02 masih berada pada tahap coordination dan
+contract planning; implementasi Phase 02 belum dimulai.**
 
 - Next.js menyediakan login, bootstrap session, dan protected application shell.
 - NestJS API menyediakan health check, authentication, dan authorization guard.
@@ -14,6 +15,10 @@ Checkpoint aktif: **Phase 01 Task 05**.
 - Authentication memakai access JWT singkat dan rotating refresh token dalam cookie `httpOnly`.
 - RBAC backend mendukung `PROJECT_OWNER` dan `SCHOOL_ADMIN` dalam organization scope.
 - Ingestion, risk engine, alert, SSE, dan dashboard operasional belum diimplementasikan.
+
+Backend Engineer dan Frontend Engineer akan bekerja paralel setelah contract checkpoint terkait
+disepakati dan digabung. Panduan kontribusi ringkas tersedia di `CONTRIBUTING.md`; ownership,
+contract-first workflow, dan checkpoint integrasi dijelaskan di `docs/12_TEAM_WORKFLOW.md`.
 
 ## Menjalankan foundation
 
@@ -93,6 +98,9 @@ bersamaan bila port host perlu disesuaikan.
 10. `docs/09_TEST_ACCEPTANCE_PLAN.md` — test plan dan acceptance criteria.
 11. `docs/10_FIRMWARE_CONNECTIVITY.md` — integrasi perangkat dan dual connectivity.
 12. `docs/11_DECISIONS_ASSUMPTIONS.md` — keputusan, asumsi, dan pertanyaan terbuka.
+
+13. `CONTRIBUTING.md` — aturan branch, pull request, review, dan Definition of Done.
+14. `docs/12_TEAM_WORKFLOW.md` — ownership dan workflow paralel Backend/Frontend.
 
 ## Berkas teknis siap pakai
 

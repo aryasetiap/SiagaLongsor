@@ -1,0 +1,22 @@
+# Backend and database
+/apps/api/ @aryasetiap @habibzzzzzz
+/docs/migrations/ @aryasetiap @habibzzzzzz
+
+# Frontend
+/apps/web/ @habibzzzzzz @aryasetiap
+
+# API contracts and shared infrastructure
+/specs/ @aryasetiap @habibzzzzzz
+/.github/ @aryasetiap @habibzzzzzz
+/AGENTS.md @aryasetiap @habibzzzzzz
+/CONTRIBUTING.md @aryasetiap @habibzzzzzz
+/README.md @aryasetiap @habibzzzzzz
+/package.json @aryasetiap @habibzzzzzz
+/pnpm-lock.yaml @aryasetiap @habibzzzzzz
+/pnpm-workspace.yaml @aryasetiap @habibzzzzzz
+/compose.yaml @aryasetiap @habibzzzzzz
+/.env.example @aryasetiap @habibzzzzzz
+/docs/04_API_CONTRACT.md @aryasetiap @habibzzzzzz
+/docs/08_IMPLEMENTATION_ROADMAP.md @aryasetiap @habibzzzzzz
+/docs/09_TEST_ACCEPTANCE_PLAN.md @aryasetiap @habibzzzzzz
+/docs/12_TEAM_WORKFLOW.md @aryasetiap @habibzzzzzz
