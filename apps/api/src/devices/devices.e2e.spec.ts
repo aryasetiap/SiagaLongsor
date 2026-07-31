@@ -84,6 +84,9 @@ describe('Device and credential API', () => {
         where: { organizationId: { in: [organizationAId, organizationBId] } },
       });
       await prisma.refreshSession.deleteMany({ where: { userId: { in: [ownerId, adminId] } } });
+      await prisma.currentMonitoringPointState.deleteMany({
+        where: { organizationId: { in: [organizationAId, organizationBId] } },
+      });
       await prisma.telemetry.deleteMany({
         where: { device: { organizationId: { in: [organizationAId, organizationBId] } } },
       });
@@ -448,6 +451,18 @@ describe('Device and credential API', () => {
 
   it('disables a device idempotently with exactly one audit event', async () => {
     const device = await directDevice((await directPoint()).id, DeviceLifecycleStatus.ENABLED);
+    await prisma.currentMonitoringPointState.create({
+      data: {
+        monitoringPointId: device.monitoringPointId,
+        organizationId: device.organizationId,
+        siteId: device.siteId,
+        deviceId: device.id,
+        serverRisk: 'DANGER',
+        connectivityStatus: 'ONLINE',
+        reasons: ['DANGER_TILT'],
+        evaluatedAt: new Date(),
+      },
+    });
     const first = await disable(ownerToken, device.id);
     const second = await disable(ownerToken, device.id);
 
@@ -456,6 +471,15 @@ describe('Device and credential API', () => {
     expect(first.body.data.disabledAt).toEqual(expect.any(String));
     expect(second.status).toBe(200);
     expect(second.body.data.disabledAt).toBe(first.body.data.disabledAt);
+    expect(
+      await prisma.currentMonitoringPointState.findUniqueOrThrow({
+        where: { monitoringPointId: device.monitoringPointId },
+      }),
+    ).toMatchObject({
+      serverRisk: 'UNKNOWN',
+      connectivityStatus: 'UNKNOWN',
+      reasons: ['DEVICE_DISABLED'],
+    });
     expect(
       await prisma.auditLog.count({
         where: { entityId: device.id, eventType: 'DEVICE_DISABLED' },

@@ -30,6 +30,7 @@ const environment = parsedEnvironment.data;
 const adapter = new PrismaPg({ connectionString: environment.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 const developmentMonitoringPointId = 'seed_sman17_primary_monitoring_point';
+const developmentRiskProfileId = 'seed_sman17_risk_profile_v1';
 
 interface SeedUser {
   readonly email: string;
@@ -89,6 +90,49 @@ async function runSeed(): Promise<void> {
         siteId: site.id,
       },
     });
+
+    const existingRiskProfile = await transaction.riskProfile.findUnique({
+      where: { siteId_version: { siteId: site.id, version: 1 } },
+    });
+    const riskProfile =
+      existingRiskProfile ??
+      (await transaction.riskProfile.create({
+        data: {
+          id: developmentRiskProfileId,
+          organizationId: organization.id,
+          siteId: site.id,
+          version: 1,
+          isActive: true,
+          calibrationStatus: 'PROVISIONAL',
+          notes: 'Profil provisional development; wajib dikalibrasi sebelum penggunaan lapangan.',
+          safeTiltMagnitudeDegLt: 3,
+          safeSoilMoisturePctLt: 65,
+          safeRainfallMmHourLt: 20,
+          dangerTiltMagnitudeDegGt: 8,
+          dangerRainfallMmHourGt: 50,
+          dangerSoilMoisturePctGt: 85,
+          technicalTiltXDegMin: -180,
+          technicalTiltXDegMax: 180,
+          technicalTiltYDegMin: -180,
+          technicalTiltYDegMax: 180,
+          technicalTiltMagnitudeMin: 0,
+          technicalTiltMagnitudeMax: 180,
+          technicalSoilMoistureMin: 0,
+          technicalSoilMoistureMax: 100,
+          technicalRainfallMin: 0,
+          technicalRainfallMax: 1000,
+          technicalBatteryVoltageMin: 0,
+          technicalBatteryVoltageMax: 30,
+          technicalSignalRssiMin: -150,
+          technicalSignalRssiMax: 0,
+          onlineWithinMinutes: 20,
+          offlineAfterMinutes: 35,
+          watchConsecutiveSamples: 2,
+          dangerConsecutiveSamples: 1,
+          downgradeStableMinutes: 10,
+          mismatchConsecutiveSamples: 3,
+        },
+      }));
 
     const seedUsers: readonly SeedUser[] = [
       {
@@ -160,6 +204,7 @@ async function runSeed(): Promise<void> {
     return {
       monitoringPointId: monitoringPoint.id,
       organizationId: organization.id,
+      riskProfileId: riskProfile.id,
       siteId: site.id,
     };
   });
@@ -170,6 +215,7 @@ async function runSeed(): Promise<void> {
     prisma.monitoringPoint.count(),
     prisma.user.count(),
     prisma.membership.count(),
+    prisma.riskProfile.count(),
   ]);
 
   console.info(
@@ -180,6 +226,7 @@ async function runSeed(): Promise<void> {
         memberships: counts[4],
         monitoringPoints: counts[2],
         organizations: counts[0],
+        riskProfiles: counts[5],
         sites: counts[1],
         users: counts[3],
       },
