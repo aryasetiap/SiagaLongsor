@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
+import { type ReactNode, useState } from 'react';
 
 import { useAuth } from '../auth/auth-context';
 import type { Principal, Role } from '../auth/auth-types';
@@ -11,6 +11,9 @@ import { BrandMark } from './brand-mark';
 
 interface ApplicationShellProps {
   readonly principal: Principal;
+  readonly title: string;
+  readonly subtitle?: string;
+  readonly children: ReactNode;
 }
 
 interface NavigationItem {
@@ -20,12 +23,12 @@ interface NavigationItem {
 }
 
 const navigation: readonly NavigationItem[] = [
+  { label: 'Overview', href: '/overview', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
   {
-    label: 'Overview',
-    href: '/overview',
+    label: 'Monitoring',
+    href: '/monitoring-points',
     roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
   },
-  { label: 'Monitoring', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
   { label: 'Peringatan', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
   { label: 'Peta & Evakuasi', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
   { label: 'Perangkat', roles: ['PROJECT_OWNER'] },
@@ -33,8 +36,9 @@ const navigation: readonly NavigationItem[] = [
   { label: 'Pengaturan', roles: ['PROJECT_OWNER'] },
 ];
 
-export function ApplicationShell({ principal }: ApplicationShellProps) {
+export function ApplicationShell({ principal, title, subtitle, children }: ApplicationShellProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const auth = useAuth();
   const organization = useOrganization();
   const [loggingOut, setLoggingOut] = useState(false);
@@ -68,8 +72,13 @@ export function ApplicationShell({ principal }: ApplicationShellProps) {
           className="mt-5 flex gap-2 overflow-x-auto pb-1 md:mt-10 md:block md:space-y-1"
           aria-label="Navigasi utama"
         >
-          {visibleNavigation.map((item) =>
-            item.href === undefined ? (
+          {visibleNavigation.map((item) => {
+            const active =
+              item.href !== undefined &&
+              (pathname === item.href ||
+                (item.href !== '/overview' && pathname.startsWith(`${item.href}/`)));
+
+            return item.href === undefined ? (
               <button
                 key={item.label}
                 type="button"
@@ -87,14 +96,14 @@ export function ApplicationShell({ principal }: ApplicationShellProps) {
               <Link
                 key={item.label}
                 href={item.href}
-                className="shell-nav-item shell-nav-item-active shrink-0"
-                aria-current="page"
+                className={`shell-nav-item shrink-0 ${active ? 'shell-nav-item-active' : ''}`}
+                aria-current={active ? 'page' : undefined}
               >
                 <NavigationIcon label={item.label} />
                 <span>{item.label}</span>
               </Link>
-            ),
-          )}
+            );
+          })}
         </nav>
 
         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:mt-8">
@@ -126,8 +135,8 @@ export function ApplicationShell({ principal }: ApplicationShellProps) {
       <div className="min-w-0">
         <header className="flex min-h-20 items-center justify-between border-b border-slate-200 bg-white px-5 py-3 sm:px-8">
           <div>
-            <p className="text-xs font-semibold text-slate-500">Ruang kerja</p>
-            <h1 className="mt-1 text-lg font-bold text-slate-950">Overview</h1>
+            <p className="text-xs font-semibold text-slate-500">{subtitle ?? 'Ruang kerja'}</p>
+            <h1 className="mt-1 text-lg font-bold text-slate-950">{title}</h1>
           </div>
 
           <details className="group relative">
@@ -141,19 +150,9 @@ export function ApplicationShell({ principal }: ApplicationShellProps) {
                 </span>
                 <span className="block text-xs text-slate-500">{formatRole(role)}</span>
               </span>
-              <svg
-                className="size-4 text-slate-400"
-                viewBox="0 0 20 20"
-                fill="none"
-                aria-hidden="true"
-              >
-                <path
-                  d="m6 8 4 4 4-4"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeWidth="1.8"
-                />
-              </svg>
+              <span aria-hidden="true" className="text-slate-400">
+                ▾
+              </span>
             </summary>
             <div className="absolute right-0 z-20 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
               <div className="border-b border-slate-100 px-2 pb-3">
@@ -176,93 +175,16 @@ export function ApplicationShell({ principal }: ApplicationShellProps) {
           </details>
         </header>
 
-        <main className="px-5 py-6 sm:px-8 sm:py-8">
-          <section className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-slate-100 px-6 py-6 sm:px-8">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-blue-600">
-                Fondasi aplikasi
-              </p>
-              <h2 className="mt-3 text-2xl font-bold tracking-tight text-slate-950">
-                Selamat datang, {firstName(principal.name)}
-              </h2>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600">
-                Sesi Anda aktif. Modul monitoring akan tersedia pada fase berikutnya setelah kontrak
-                data dan aturan keselamatan selesai diterapkan.
-              </p>
-            </div>
-            <div className="grid gap-4 p-6 sm:grid-cols-2 sm:p-8 xl:grid-cols-3">
-              <InformationCard
-                label="Pengguna"
-                value={principal.name}
-                description={principal.email}
-              />
-              <InformationCard
-                label="Organisasi"
-                value={membership?.organizationName ?? 'Belum ditetapkan'}
-                description="Lingkup akses saat ini"
-              />
-              <InformationCard
-                label="Status sesi"
-                value="Aktif"
-                description={`${formatRole(role)} · diverifikasi backend`}
-                status
-              />
-            </div>
-          </section>
-
-          <section className="mt-6 rounded-[22px] border border-dashed border-slate-300 bg-white/70 p-7 text-center">
-            <span className="mx-auto grid size-11 place-items-center rounded-2xl bg-slate-100 text-slate-500">
-              <svg viewBox="0 0 24 24" className="size-5" fill="none" aria-hidden="true">
-                <path
-                  d="M5 19V9m7 10V5m7 14v-7"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeWidth="2"
-                />
-              </svg>
-            </span>
-            <h2 className="mt-4 text-base font-bold text-slate-900">
-              Overview monitoring belum diaktifkan
-            </h2>
-            <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-slate-500">
-              Tidak ada statistik sementara atau data sensor contoh yang ditampilkan. Area ini
-              disiapkan untuk implementasi dashboard pada task terpisah.
-            </p>
-          </section>
-        </main>
+        <main className="px-5 py-6 sm:px-8 sm:py-8">{children}</main>
       </div>
     </div>
   );
 }
 
-function InformationCard({
-  label,
-  value,
-  description,
-  status = false,
-}: {
-  readonly label: string;
-  readonly value: string;
-  readonly description: string;
-  readonly status?: boolean;
-}) {
-  return (
-    <article className="rounded-[18px] border border-slate-200 p-5">
-      <p className="text-xs font-semibold text-slate-500">{label}</p>
-      <p className="mt-3 flex items-center gap-2 truncate text-base font-bold text-slate-950">
-        {status && <span className="size-2.5 rounded-full bg-emerald-500" aria-hidden="true" />}
-        {value}
-      </p>
-      <p className="mt-1 truncate text-xs text-slate-500">{description}</p>
-    </article>
-  );
-}
-
 function NavigationIcon({ label }: { readonly label: string }) {
-  const firstLetter = label.slice(0, 1);
   return (
     <span className="grid size-7 place-items-center rounded-lg bg-slate-100 text-[11px] font-black text-slate-600">
-      {firstLetter}
+      {label.slice(0, 1)}
     </span>
   );
 }
@@ -279,8 +201,4 @@ function initials(name: string): string {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase())
     .join('');
-}
-
-function firstName(name: string): string {
-  return name.trim().split(/\s+/, 1)[0] ?? name;
 }
