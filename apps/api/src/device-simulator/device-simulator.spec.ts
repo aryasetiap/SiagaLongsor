@@ -205,6 +205,26 @@ describe('device telemetry simulator', () => {
     expect(logs[1]?.errorMessage).toContain('[REDACTED]');
   });
 
+  it('reports a safe API error code when a normal send is rejected', async () => {
+    const logs: SimulatorLogEntry[] = [];
+    const capture = createFetchCapture([errorResponse(401, 'DEVICE_CREDENTIAL_INVALID')]);
+
+    await expect(
+      runSimulator(config(), {
+        ...dependencies(capture.fetch),
+        log: (entry) => logs.push(entry),
+      }),
+    ).rejects.toMatchObject({ code: 'UNEXPECTED_RESPONSE' });
+    expect(logs).toMatchObject([
+      {
+        httpStatus: 401,
+        errorCode: 'DEVICE_CREDENTIAL_INVALID',
+      },
+    ]);
+    expect(JSON.stringify(logs)).not.toContain(testEnvironment.SIMULATOR_DEVICE_SECRET);
+    expect(JSON.stringify(logs)).not.toContain('Authorization');
+  });
+
   it('fails on network, invalid JSON, and unexpected status responses', async () => {
     const failures = [
       vi.fn<typeof fetch>().mockRejectedValue(new Error('network failed')),
