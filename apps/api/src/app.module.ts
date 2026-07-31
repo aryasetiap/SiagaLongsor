@@ -9,6 +9,7 @@ import { HealthModule } from './health/health.module.js';
 import { MonitoringPointsModule } from './monitoring-points/monitoring-points.module.js';
 import { RateLimitModule } from './rate-limit/rate-limit.module.js';
 import { RedisModule } from './redis/redis.module.js';
+import { SitesModule } from './sites/sites.module.js';
 import { TelemetryModule } from './telemetry/telemetry.module.js';
 
 @Module({
@@ -22,6 +23,7 @@ import { TelemetryModule } from './telemetry/telemetry.module.js';
     AuthorizationModule,
     HealthModule,
     MonitoringPointsModule,
+    SitesModule,
     TelemetryModule,
   ],
 })
