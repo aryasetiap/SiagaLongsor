@@ -64,6 +64,9 @@ describe('Telemetry ingestion API', () => {
         name: 'Telemetry Point',
       },
     });
+    await prisma.riskProfile.create({
+      data: { ...provisionalProfileData(), organizationId, siteId },
+    });
     const issued = await credentials.issue();
     secret = issued.raw;
     hardwareId = `TEL_${testRunId}`.toUpperCase();
@@ -83,9 +86,12 @@ describe('Telemetry ingestion API', () => {
 
   afterAll(async () => {
     if (prisma !== undefined) {
+      await prisma.currentMonitoringPointState.deleteMany({ where: { organizationId } });
+      await prisma.riskAssessment.deleteMany({ where: { organizationId } });
       await prisma.telemetry.deleteMany({ where: { deviceId } });
       await prisma.device.deleteMany({ where: { organizationId } });
       await prisma.monitoringPoint.deleteMany({ where: { organizationId } });
+      await prisma.riskProfile.deleteMany({ where: { organizationId } });
       await prisma.site.deleteMany({ where: { organizationId } });
       await prisma.organization.deleteMany({ where: { id: organizationId } });
     }
@@ -107,9 +113,15 @@ describe('Telemetry ingestion API', () => {
     expect(response.headers['x-request-id']).toBeDefined();
     expect(response.body).not.toHaveProperty('serverRisk');
 
-    const [stored, device] = await Promise.all([
+    const [stored, device, assessment, currentState] = await Promise.all([
       prisma.telemetry.findUniqueOrThrow({ where: { id: response.body.telemetryId as string } }),
       prisma.device.findUniqueOrThrow({ where: { id: deviceId } }),
+      prisma.riskAssessment.findUniqueOrThrow({
+        where: { telemetryId: response.body.telemetryId as string },
+      }),
+      prisma.currentMonitoringPointState.findUniqueOrThrow({
+        where: { monitoringPointId: pointId },
+      }),
     ]);
     expect(stored).toMatchObject({
       deviceId,
@@ -127,6 +139,14 @@ describe('Telemetry ingestion API', () => {
     expect(device.firmwareVersion).toBe(payload.firmwareVersion);
     expect(device.lastNetworkType).toBe(NetworkType.WIFI);
     expect(device.lastSignalRssi?.toNumber()).toBe(-67);
+    expect(assessment).toMatchObject({
+      telemetryId: stored.id,
+      riskProfileVersion: 1,
+      affectsCurrentState: true,
+    });
+    expect(JSON.stringify(assessment)).not.toContain('credentialHash');
+    expect(currentState.latestTelemetryId).toBe(stored.id);
+    expect(currentState.connectivityStatus).toBe('ONLINE');
   });
 
   it('stores only the canonical body as raw payload without credentials or headers', async () => {
@@ -142,6 +162,27 @@ describe('Telemetry ingestion API', () => {
     expect(serialized).not.toContain(hardwareId);
     expect(serialized).not.toContain('Authorization');
     expect(serialized).not.toContain('credentialHash');
+  });
+
+  it('stores profile provenance and firmware/server mismatch without changing response contract', async () => {
+    const payload = validPayload();
+    const response = await ingest({
+      ...payload,
+      deviceAssessment: {
+        ...payload.deviceAssessment,
+        riskLevel: FirmwareRiskLevel.WATCH,
+      },
+    });
+    const assessment = await prisma.riskAssessment.findUniqueOrThrow({
+      where: { telemetryId: response.body.telemetryId as string },
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body).not.toHaveProperty('serverRisk');
+    expect(assessment.riskProfileVersion).toBe(1);
+    expect(assessment.serverRisk).toBe('SAFE');
+    expect(assessment.firmwareRisk).toBe(FirmwareRiskLevel.WATCH);
+    expect(assessment.reasons).toContain('DEVICE_SERVER_MISMATCH');
   });
 
   it('supports an omitted network object and persists nullable network state', async () => {
@@ -161,6 +202,7 @@ describe('Telemetry ingestion API', () => {
   it('returns the same acknowledgement for an exact duplicate without another row', async () => {
     const payload = validPayload();
     const first = await ingest(payload);
+    const assessmentCount = await prisma.riskAssessment.count({ where: { deviceId } });
     const second = await ingest(payload);
 
     expect(first.status).toBe(201);
@@ -172,6 +214,7 @@ describe('Telemetry ingestion API', () => {
     expect(
       await prisma.telemetry.count({ where: { deviceId, messageId: payload.messageId } }),
     ).toBe(1);
+    expect(await prisma.riskAssessment.count({ where: { deviceId } })).toBe(assessmentCount);
   });
 
   it('canonicalizes object key order for exact duplicate detection', async () => {
@@ -197,6 +240,12 @@ describe('Telemetry ingestion API', () => {
   it('rejects reuse of messageId with a different canonical payload', async () => {
     const payload = validPayload();
     expect((await ingest(payload)).status).toBe(201);
+    const assessmentCount = await prisma.riskAssessment.count({ where: { deviceId } });
+    const latestTelemetryId = (
+      await prisma.currentMonitoringPointState.findUniqueOrThrow({
+        where: { monitoringPointId: pointId },
+      })
+    ).latestTelemetryId;
     const response = await ingest({
       ...payload,
       readings: { ...payload.readings, soilMoisturePct: 71.25 },
@@ -207,11 +256,20 @@ describe('Telemetry ingestion API', () => {
     expect(
       await prisma.telemetry.count({ where: { deviceId, messageId: payload.messageId } }),
     ).toBe(1);
+    expect(await prisma.riskAssessment.count({ where: { deviceId } })).toBe(assessmentCount);
+    expect(
+      (
+        await prisma.currentMonitoringPointState.findUniqueOrThrow({
+          where: { monitoringPointId: pointId },
+        })
+      ).latestTelemetryId,
+    ).toBe(latestTelemetryId);
   });
 
   it('rejects a duplicate bootId and sequence with a different messageId', async () => {
     const payload = validPayload();
     expect((await ingest(payload)).status).toBe(201);
+    const assessmentCount = await prisma.riskAssessment.count({ where: { deviceId } });
     const response = await ingest({
       ...payload,
       messageId: messageId(),
@@ -219,6 +277,7 @@ describe('Telemetry ingestion API', () => {
 
     expect(response.status).toBe(409);
     expect(response.body.error.code).toBe('SEQUENCE_CONFLICT');
+    expect(await prisma.riskAssessment.count({ where: { deviceId } })).toBe(assessmentCount);
   });
 
   it('allows the same sequence after bootId changes', async () => {
@@ -387,6 +446,15 @@ describe('Telemetry ingestion API', () => {
     });
     expect((await ingest(late)).status).toBe(201);
     const afterLate = await prisma.device.findUniqueOrThrow({ where: { id: deviceId } });
+    const lateTelemetry = await prisma.telemetry.findUniqueOrThrow({
+      where: { deviceId_messageId: { deviceId, messageId: late.messageId } },
+    });
+    const lateAssessment = await prisma.riskAssessment.findUniqueOrThrow({
+      where: { telemetryId: lateTelemetry.id },
+    });
+    const currentState = await prisma.currentMonitoringPointState.findUniqueOrThrow({
+      where: { monitoringPointId: pointId },
+    });
 
     expect(afterLate.lastTelemetryAt?.toISOString()).toBe(recentTimestamp);
     expect(afterLate.firmwareVersion).toBe('2.0.0');
@@ -400,6 +468,8 @@ describe('Telemetry ingestion API', () => {
         where: { deviceId, messageId: { in: [recent.messageId, late.messageId] } },
       }),
     ).toBe(2);
+    expect(lateAssessment.affectsCurrentState).toBe(false);
+    expect(currentState.lastTelemetryAt?.toISOString()).toBe(recentTimestamp);
   });
 
   it('requires JSON content type after authenticating the device', async () => {
@@ -460,6 +530,10 @@ describe('Telemetry ingestion API', () => {
       expect(third.body.error.code).toBe('RATE_LIMITED');
     } finally {
       await rateApp.close();
+      await prisma.currentMonitoringPointState.deleteMany({
+        where: { monitoringPointId: ratePoint.id },
+      });
+      await prisma.riskAssessment.deleteMany({ where: { deviceId: rateDevice.id } });
       await prisma.telemetry.deleteMany({ where: { deviceId: rateDevice.id } });
       await prisma.device.delete({ where: { id: rateDevice.id } });
       await prisma.monitoringPoint.delete({ where: { id: ratePoint.id } });
@@ -533,6 +607,39 @@ describe('Telemetry ingestion API', () => {
     return `msg_${randomUUID()}`;
   }
 });
+
+function provisionalProfileData() {
+  return {
+    version: 1,
+    calibrationStatus: 'PROVISIONAL' as const,
+    safeTiltMagnitudeDegLt: 3,
+    safeSoilMoisturePctLt: 65,
+    safeRainfallMmHourLt: 20,
+    dangerTiltMagnitudeDegGt: 8,
+    dangerRainfallMmHourGt: 50,
+    dangerSoilMoisturePctGt: 85,
+    technicalTiltXDegMin: -180,
+    technicalTiltXDegMax: 180,
+    technicalTiltYDegMin: -180,
+    technicalTiltYDegMax: 180,
+    technicalTiltMagnitudeMin: 0,
+    technicalTiltMagnitudeMax: 180,
+    technicalSoilMoistureMin: 0,
+    technicalSoilMoistureMax: 100,
+    technicalRainfallMin: 0,
+    technicalRainfallMax: 1000,
+    technicalBatteryVoltageMin: 0,
+    technicalBatteryVoltageMax: 30,
+    technicalSignalRssiMin: -150,
+    technicalSignalRssiMax: 0,
+    onlineWithinMinutes: 20,
+    offlineAfterMinutes: 35,
+    watchConsecutiveSamples: 2,
+    dangerConsecutiveSamples: 1,
+    downgradeStableMinutes: 10,
+    mismatchConsecutiveSamples: 3,
+  };
+}
 
 function setTestEnvironment(): void {
   process.env.NODE_ENV = 'test';

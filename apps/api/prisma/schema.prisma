@@ -31,31 +31,56 @@ enum FirmwareRiskLevel {
   UNKNOWN
 }
 
+enum RiskLevel {
+  SAFE
+  WATCH
+  DANGER
+  UNKNOWN
+}
+
+enum ConnectivityStatus {
+  ONLINE
+  DELAYED
+  OFFLINE
+  UNKNOWN
+}
+
+enum CalibrationStatus {
+  PROVISIONAL
+  CALIBRATED
+}
+
 model Organization {
-  id               String            @id @default(cuid())
-  name             String
-  slug             String            @unique
-  sites            Site[]
-  monitoringPoints MonitoringPoint[]
-  devices          Device[]
-  memberships      Membership[]
-  auditLogs        AuditLog[]
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                           String                        @id @default(cuid())
+  name                         String
+  slug                         String                        @unique
+  sites                        Site[]
+  monitoringPoints             MonitoringPoint[]
+  devices                      Device[]
+  memberships                  Membership[]
+  auditLogs                    AuditLog[]
+  riskProfiles                 RiskProfile[]
+  riskAssessments              RiskAssessment[]
+  currentMonitoringPointStates CurrentMonitoringPointState[]
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
 }
 
 model Site {
-  id               String            @id @default(cuid())
-  organizationId   String
-  name             String
-  slug             String
-  address          String?
-  timezone         String            @default("Asia/Jakarta")
-  organization     Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  monitoringPoints MonitoringPoint[]
-  devices          Device[]
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id                           String                        @id @default(cuid())
+  organizationId               String
+  name                         String
+  slug                         String
+  address                      String?
+  timezone                     String                        @default("Asia/Jakarta")
+  organization                 Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  monitoringPoints             MonitoringPoint[]
+  devices                      Device[]
+  riskProfiles                 RiskProfile[]
+  riskAssessments              RiskAssessment[]
+  currentMonitoringPointStates CurrentMonitoringPointState[]
+  createdAt                    DateTime                      @default(now())
+  updatedAt                    DateTime                      @updatedAt
 
   @@unique([id, organizationId])
   @@unique([organizationId, slug])
@@ -63,19 +88,21 @@ model Site {
 }
 
 model MonitoringPoint {
-  id                  String       @id @default(cuid())
+  id                  String                       @id @default(cuid())
   organizationId      String
   siteId              String
-  name                String       @db.VarChar(120)
+  name                String                       @db.VarChar(120)
   description         String?
   locationDescription String?
-  isActive            Boolean      @default(true)
-  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  site                Site         @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  isActive            Boolean                      @default(true)
+  organization        Organization                 @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  site                Site                         @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
   devices             Device[]
   telemetry           Telemetry[]
-  createdAt           DateTime     @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime     @updatedAt @db.Timestamptz(3)
+  riskAssessments     RiskAssessment[]
+  currentState        CurrentMonitoringPointState?
+  createdAt           DateTime                     @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                     @updatedAt @db.Timestamptz(3)
 
   @@unique([id, siteId, organizationId])
   @@index([organizationId, createdAt(sort: Desc), id])
@@ -85,27 +112,29 @@ model MonitoringPoint {
 }
 
 model Device {
-  id                  String                @id @default(cuid())
+  id                  String                        @id @default(cuid())
   organizationId      String
   siteId              String
   monitoringPointId   String
-  hardwareId          String                @unique @db.VarChar(64)
-  displayName         String                @db.VarChar(120)
-  lifecycleStatus     DeviceLifecycleStatus @default(ENABLED)
-  credentialHash      String                @db.VarChar(255)
-  credentialRotatedAt DateTime              @default(now()) @db.Timestamptz(3)
-  firmwareVersion     String?               @db.VarChar(32)
-  lastSeenAt          DateTime?             @db.Timestamptz(3)
-  lastTelemetryAt     DateTime?             @db.Timestamptz(3)
+  hardwareId          String                        @unique @db.VarChar(64)
+  displayName         String                        @db.VarChar(120)
+  lifecycleStatus     DeviceLifecycleStatus         @default(ENABLED)
+  credentialHash      String                        @db.VarChar(255)
+  credentialRotatedAt DateTime                      @default(now()) @db.Timestamptz(3)
+  firmwareVersion     String?                       @db.VarChar(32)
+  lastSeenAt          DateTime?                     @db.Timestamptz(3)
+  lastTelemetryAt     DateTime?                     @db.Timestamptz(3)
   lastNetworkType     NetworkType?
-  lastSignalRssi      Decimal?              @db.Decimal(7, 2)
-  disabledAt          DateTime?             @db.Timestamptz(3)
-  organization        Organization          @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  site                Site                  @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  monitoringPoint     MonitoringPoint       @relation(fields: [monitoringPointId, siteId, organizationId], references: [id, siteId, organizationId], onDelete: Restrict)
+  lastSignalRssi      Decimal?                      @db.Decimal(7, 2)
+  disabledAt          DateTime?                     @db.Timestamptz(3)
+  organization        Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  site                Site                          @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  monitoringPoint     MonitoringPoint               @relation(fields: [monitoringPointId, siteId, organizationId], references: [id, siteId, organizationId], onDelete: Restrict)
   telemetry           Telemetry[]
-  createdAt           DateTime              @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime              @updatedAt @db.Timestamptz(3)
+  riskAssessments     RiskAssessment[]
+  currentStates       CurrentMonitoringPointState[]
+  createdAt           DateTime                      @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                      @updatedAt @db.Timestamptz(3)
 
   @@unique([id, monitoringPointId])
   @@index([organizationId, createdAt(sort: Desc), id])
@@ -116,35 +145,145 @@ model Device {
 }
 
 model Telemetry {
-  id                   String            @id @default(cuid())
+  id                   String                       @id @default(cuid())
   deviceId             String
   monitoringPointId    String
-  messageId            String            @db.VarChar(64)
-  bootId               String            @db.VarChar(64)
-  sequence             BigInt            @db.BigInt
-  deviceTimestamp      DateTime          @db.Timestamptz(3)
-  serverReceivedAt     DateTime          @default(now()) @db.Timestamptz(3)
-  firmwareVersion      String            @db.VarChar(32)
+  messageId            String                       @db.VarChar(64)
+  bootId               String                       @db.VarChar(64)
+  sequence             BigInt                       @db.BigInt
+  deviceTimestamp      DateTime                     @db.Timestamptz(3)
+  serverReceivedAt     DateTime                     @default(now()) @db.Timestamptz(3)
+  firmwareVersion      String                       @db.VarChar(32)
   networkType          NetworkType?
-  signalRssi           Decimal?          @db.Decimal(7, 2)
-  tiltXDeg             Decimal?          @db.Decimal(8, 4)
-  tiltYDeg             Decimal?          @db.Decimal(8, 4)
-  tiltMagnitudeDeg     Decimal           @db.Decimal(8, 4)
-  soilMoisturePct      Decimal           @db.Decimal(7, 4)
-  rainfallMmHour       Decimal           @db.Decimal(65, 20)
-  batteryVoltage       Decimal           @db.Decimal(8, 4)
+  signalRssi           Decimal?                     @db.Decimal(7, 2)
+  tiltXDeg             Decimal?                     @db.Decimal(8, 4)
+  tiltYDeg             Decimal?                     @db.Decimal(8, 4)
+  tiltMagnitudeDeg     Decimal                      @db.Decimal(8, 4)
+  soilMoisturePct      Decimal                      @db.Decimal(7, 4)
+  rainfallMmHour       Decimal                      @db.Decimal(65, 20)
+  batteryVoltage       Decimal                      @db.Decimal(8, 4)
   firmwareRiskLevel    FirmwareRiskLevel
   firmwareSirenActive  Boolean
-  canonicalPayloadHash String            @db.Char(64)
+  canonicalPayloadHash String                       @db.Char(64)
   rawPayload           Json
-  device               Device            @relation(fields: [deviceId, monitoringPointId], references: [id, monitoringPointId], onDelete: Restrict)
-  monitoringPoint      MonitoringPoint   @relation(fields: [monitoringPointId], references: [id], onDelete: Restrict)
+  device               Device                       @relation(fields: [deviceId, monitoringPointId], references: [id, monitoringPointId], onDelete: Restrict)
+  monitoringPoint      MonitoringPoint              @relation(fields: [monitoringPointId], references: [id], onDelete: Restrict)
+  riskAssessment       RiskAssessment?
+  currentState         CurrentMonitoringPointState?
 
   @@unique([deviceId, messageId])
   @@unique([deviceId, bootId, sequence])
   @@index([deviceId, deviceTimestamp(sort: Desc), id])
   @@index([monitoringPointId, deviceTimestamp(sort: Desc), id])
   @@index([serverReceivedAt(sort: Desc), id])
+}
+
+model RiskProfile {
+  id                           String                        @id @default(cuid())
+  organizationId               String
+  siteId                       String
+  version                      Int
+  isActive                     Boolean                       @default(true)
+  calibrationStatus            CalibrationStatus
+  notes                        String?
+  safeTiltMagnitudeDegLt       Decimal                       @db.Decimal(8, 4)
+  safeSoilMoisturePctLt        Decimal                       @db.Decimal(7, 4)
+  safeRainfallMmHourLt         Decimal                       @db.Decimal(65, 20)
+  dangerTiltMagnitudeDegGt     Decimal                       @db.Decimal(8, 4)
+  dangerRainfallMmHourGt       Decimal                       @db.Decimal(65, 20)
+  dangerSoilMoisturePctGt      Decimal                       @db.Decimal(7, 4)
+  technicalTiltXDegMin         Decimal                       @db.Decimal(8, 4)
+  technicalTiltXDegMax         Decimal?                      @db.Decimal(8, 4)
+  technicalTiltYDegMin         Decimal                       @db.Decimal(8, 4)
+  technicalTiltYDegMax         Decimal?                      @db.Decimal(8, 4)
+  technicalTiltMagnitudeMin    Decimal                       @db.Decimal(8, 4)
+  technicalTiltMagnitudeMax    Decimal?                      @db.Decimal(8, 4)
+  technicalSoilMoistureMin     Decimal                       @db.Decimal(7, 4)
+  technicalSoilMoistureMax     Decimal?                      @db.Decimal(7, 4)
+  technicalRainfallMin         Decimal                       @db.Decimal(65, 20)
+  technicalRainfallMax         Decimal?                      @db.Decimal(65, 20)
+  technicalBatteryVoltageMin   Decimal                       @db.Decimal(8, 4)
+  technicalBatteryVoltageMax   Decimal?                      @db.Decimal(8, 4)
+  technicalSignalRssiMin       Decimal                       @db.Decimal(7, 2)
+  technicalSignalRssiMax       Decimal?                      @db.Decimal(7, 2)
+  onlineWithinMinutes          Int
+  offlineAfterMinutes          Int
+  watchConsecutiveSamples      Int
+  dangerConsecutiveSamples     Int
+  downgradeStableMinutes       Int
+  mismatchConsecutiveSamples   Int
+  activatedAt                  DateTime                      @default(now()) @db.Timestamptz(3)
+  deactivatedAt                DateTime?                     @db.Timestamptz(3)
+  organization                 Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  site                         Site                          @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  riskAssessments              RiskAssessment[]
+  currentMonitoringPointStates CurrentMonitoringPointState[]
+  createdAt                    DateTime                      @default(now()) @db.Timestamptz(3)
+
+  @@unique([siteId, version])
+  @@unique([id, version])
+  @@index([organizationId, siteId, isActive])
+  @@index([siteId, isActive, version(sort: Desc)])
+}
+
+model RiskAssessment {
+  id                  String            @id @default(cuid())
+  organizationId      String
+  siteId              String
+  monitoringPointId   String
+  deviceId            String
+  telemetryId         String            @unique
+  riskProfileId       String
+  riskProfileVersion  Int
+  serverRisk          RiskLevel
+  firmwareRisk        FirmwareRiskLevel
+  firmwareSirenActive Boolean
+  reasons             Json
+  affectsCurrentState Boolean
+  evaluatedAt         DateTime          @db.Timestamptz(3)
+  organization        Organization      @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  site                Site              @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  monitoringPoint     MonitoringPoint   @relation(fields: [monitoringPointId, siteId, organizationId], references: [id, siteId, organizationId], onDelete: Restrict)
+  device              Device            @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  telemetry           Telemetry         @relation(fields: [telemetryId], references: [id], onDelete: Restrict)
+  riskProfile         RiskProfile       @relation(fields: [riskProfileId, riskProfileVersion], references: [id, version], onDelete: Restrict)
+
+  @@index([organizationId, evaluatedAt(sort: Desc), id])
+  @@index([monitoringPointId, evaluatedAt(sort: Desc), id])
+  @@index([deviceId, evaluatedAt(sort: Desc), id])
+  @@index([riskProfileId, riskProfileVersion])
+}
+
+model CurrentMonitoringPointState {
+  monitoringPointId          String             @id
+  organizationId             String
+  siteId                     String
+  deviceId                   String?
+  serverRisk                 RiskLevel          @default(UNKNOWN)
+  connectivityStatus         ConnectivityStatus @default(UNKNOWN)
+  reasons                    Json
+  latestTelemetryId          String?            @unique
+  evaluatedAt                DateTime           @db.Timestamptz(3)
+  lastTelemetryAt            DateTime?          @db.Timestamptz(3)
+  riskProfileId              String?
+  riskProfileVersion         Int?
+  watchConsecutiveSamples    Int                @default(0)
+  dangerConsecutiveSamples   Int                @default(0)
+  mismatchConsecutiveSamples Int                @default(0)
+  pendingDowngradeRisk       RiskLevel?
+  pendingDowngradeSince      DateTime?          @db.Timestamptz(3)
+  organization               Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  site                       Site               @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  monitoringPoint            MonitoringPoint    @relation(fields: [monitoringPointId], references: [id], onDelete: Restrict)
+  device                     Device?            @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  latestTelemetry            Telemetry?         @relation(fields: [latestTelemetryId], references: [id], onDelete: Restrict)
+  riskProfile                RiskProfile?       @relation(fields: [riskProfileId, riskProfileVersion], references: [id, version], onDelete: Restrict)
+  createdAt                  DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt                  DateTime           @updatedAt @db.Timestamptz(3)
+
+  @@index([organizationId, siteId, serverRisk, connectivityStatus])
+  @@index([siteId, updatedAt(sort: Desc), monitoringPointId])
+  @@index([deviceId])
 }
 
 model User {

@@ -218,6 +218,29 @@ export class DevicesService {
         where: { id: existing.id },
         data: changes,
       });
+      if (
+        input.monitoringPointId !== undefined &&
+        input.monitoringPointId !== existing.monitoringPointId
+      ) {
+        const movedAt = new Date();
+        await transaction.currentMonitoringPointState.updateMany({
+          where: { monitoringPointId: existing.monitoringPointId, deviceId: existing.id },
+          data: {
+            deviceId: null,
+            serverRisk: 'UNKNOWN',
+            connectivityStatus: 'UNKNOWN',
+            reasons: ['REQUIRED_SENSOR_MISSING'],
+            latestTelemetryId: null,
+            lastTelemetryAt: null,
+            evaluatedAt: movedAt,
+            watchConsecutiveSamples: 0,
+            dangerConsecutiveSamples: 0,
+            mismatchConsecutiveSamples: 0,
+            pendingDowngradeRisk: null,
+            pendingDowngradeSince: null,
+          },
+        });
+      }
       await transaction.auditLog.create({
         data: auditData({
           eventType: 'DEVICE_UPDATED',
@@ -293,6 +316,20 @@ export class DevicesService {
       const updated = await transaction.device.update({
         where: { id: existing.id },
         data: { lifecycleStatus: DeviceLifecycleStatus.DISABLED, disabledAt },
+      });
+      await transaction.currentMonitoringPointState.updateMany({
+        where: { monitoringPointId: existing.monitoringPointId, deviceId: existing.id },
+        data: {
+          serverRisk: 'UNKNOWN',
+          connectivityStatus: 'UNKNOWN',
+          reasons: ['DEVICE_DISABLED'],
+          evaluatedAt: disabledAt,
+          watchConsecutiveSamples: 0,
+          dangerConsecutiveSamples: 0,
+          mismatchConsecutiveSamples: 0,
+          pendingDowngradeRisk: null,
+          pendingDowngradeSince: null,
+        },
       });
       await transaction.auditLog.create({
         data: auditData({

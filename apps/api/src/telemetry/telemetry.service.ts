@@ -13,6 +13,7 @@ import { APP_CONFIG, type AppConfig } from '../config/app-config.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { Prisma, type Device } from '../generated/prisma/client.js';
 import { DeviceLifecycleStatus } from '../generated/prisma/enums.js';
+import { RiskEvaluationService } from '../risk/risk-evaluation.service.js';
 import type { TelemetryDto } from './dto/telemetry.dto.js';
 import type { AuthenticatedDevice, TelemetryAcceptedResponse } from './telemetry.types.js';
 
@@ -21,6 +22,7 @@ export class TelemetryService {
   constructor(
     private readonly prisma: PrismaService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
+    private readonly riskEvaluation: RiskEvaluationService,
   ) {}
 
   async ingest(
@@ -139,6 +141,12 @@ export class TelemetryService {
               }
             : {}),
         },
+      });
+      await this.riskEvaluation.evaluateAcceptedTelemetry(transaction, {
+        device,
+        telemetry,
+        affectsCurrentState: isLatest,
+        evaluatedAt: serverReceivedAt,
       });
 
       return { telemetry, duplicate: false };
