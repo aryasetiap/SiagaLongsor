@@ -16,7 +16,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16-alpine
@@ -45,6 +45,9 @@ jobs:
       REDIS_URL: redis://localhost:6379
       WEB_URL: http://localhost:3000
       NEXT_PUBLIC_API_BASE_URL: http://localhost:3001/api/v1
+      E2E_BASE_URL: http://localhost:3000
+      E2E_API_BASE_URL: http://localhost:3001/api/v1
+      E2E_PROJECT_OWNER_EMAIL: owner@ci.example.invalid
       AUTH_ACCESS_TOKEN_SECRET: ${{ format('ci-access-token-secret-{0}-{1}-not-for-production', github.run_id, github.run_attempt) }}
       AUTH_JWT_ISSUER: siagalongsor-api-ci
       AUTH_JWT_AUDIENCE: siagalongsor-web-ci
@@ -67,12 +70,18 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @siagalongsor/web exec playwright install --with-deps chromium
       - run: pnpm prisma:generate
       - name: Create ephemeral seed passwords
         shell: bash
         run: |
-          echo "SEED_PROJECT_OWNER_PASSWORD=$(openssl rand -base64 24)" >> "$GITHUB_ENV"
-          echo "SEED_SCHOOL_ADMIN_PASSWORD=$(openssl rand -base64 24)" >> "$GITHUB_ENV"
+          project_owner_password="$(openssl rand -base64 24)"
+          school_admin_password="$(openssl rand -base64 24)"
+          {
+            echo "SEED_PROJECT_OWNER_PASSWORD=$project_owner_password"
+            echo "E2E_PROJECT_OWNER_PASSWORD=$project_owner_password"
+            echo "SEED_SCHOOL_ADMIN_PASSWORD=$school_admin_password"
+          } >> "$GITHUB_ENV"
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck
@@ -84,3 +93,4 @@ jobs:
       - run: pnpm test:integration
       - run: pnpm prisma:seed
       - run: pnpm prisma:seed
+      - run: pnpm --filter @siagalongsor/web test:e2e
