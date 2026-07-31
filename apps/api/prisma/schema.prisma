@@ -50,6 +50,27 @@ enum CalibrationStatus {
   CALIBRATED
 }
 
+enum AlertType {
+  RISK_WATCH
+  RISK_DANGER
+  DEVICE_DELAYED
+  DEVICE_OFFLINE
+  DEVICE_SERVER_MISMATCH
+}
+
+enum AlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AlertStatus {
+  ACTIVE
+  ACKNOWLEDGED
+  RESOLVED
+  FALSE_ALARM
+}
+
 model Organization {
   id                           String                        @id @default(cuid())
   name                         String
@@ -62,6 +83,7 @@ model Organization {
   riskProfiles                 RiskProfile[]
   riskAssessments              RiskAssessment[]
   currentMonitoringPointStates CurrentMonitoringPointState[]
+  alerts                       Alert[]
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
 }
@@ -79,6 +101,7 @@ model Site {
   riskProfiles                 RiskProfile[]
   riskAssessments              RiskAssessment[]
   currentMonitoringPointStates CurrentMonitoringPointState[]
+  alerts                       Alert[]
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
 
@@ -101,6 +124,7 @@ model MonitoringPoint {
   telemetry           Telemetry[]
   riskAssessments     RiskAssessment[]
   currentState        CurrentMonitoringPointState?
+  alerts              Alert[]
   createdAt           DateTime                     @default(now()) @db.Timestamptz(3)
   updatedAt           DateTime                     @updatedAt @db.Timestamptz(3)
 
@@ -133,6 +157,7 @@ model Device {
   telemetry           Telemetry[]
   riskAssessments     RiskAssessment[]
   currentStates       CurrentMonitoringPointState[]
+  alerts              Alert[]
   createdAt           DateTime                      @default(now()) @db.Timestamptz(3)
   updatedAt           DateTime                      @updatedAt @db.Timestamptz(3)
 
@@ -170,6 +195,7 @@ model Telemetry {
   monitoringPoint      MonitoringPoint              @relation(fields: [monitoringPointId], references: [id], onDelete: Restrict)
   riskAssessment       RiskAssessment?
   currentState         CurrentMonitoringPointState?
+  alertEvents          AlertEvent[]
 
   @@unique([deviceId, messageId])
   @@unique([deviceId, bootId, sequence])
@@ -247,6 +273,7 @@ model RiskAssessment {
   device              Device            @relation(fields: [deviceId], references: [id], onDelete: Restrict)
   telemetry           Telemetry         @relation(fields: [telemetryId], references: [id], onDelete: Restrict)
   riskProfile         RiskProfile       @relation(fields: [riskProfileId, riskProfileVersion], references: [id, version], onDelete: Restrict)
+  alertEvents         AlertEvent[]
 
   @@index([organizationId, evaluatedAt(sort: Desc), id])
   @@index([monitoringPointId, evaluatedAt(sort: Desc), id])
@@ -284,6 +311,53 @@ model CurrentMonitoringPointState {
   @@index([organizationId, siteId, serverRisk, connectivityStatus])
   @@index([siteId, updatedAt(sort: Desc), monitoringPointId])
   @@index([deviceId])
+}
+
+model Alert {
+  id                String          @id @default(cuid())
+  organizationId    String
+  siteId            String
+  monitoringPointId String
+  deviceId          String?
+  type              AlertType
+  severity          AlertSeverity
+  status            AlertStatus     @default(ACTIVE)
+  deduplicationKey  String          @db.VarChar(512)
+  reasons           Json
+  firstObservedAt   DateTime        @db.Timestamptz(3)
+  lastObservedAt    DateTime        @db.Timestamptz(3)
+  occurrenceCount   Int             @default(1)
+  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  site              Site            @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  monitoringPoint   MonitoringPoint @relation(fields: [monitoringPointId, siteId, organizationId], references: [id, siteId, organizationId], onDelete: Restrict)
+  device            Device?         @relation(fields: [deviceId, monitoringPointId], references: [id, monitoringPointId], onDelete: Restrict)
+  events            AlertEvent[]
+  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @db.Timestamptz(3)
+
+  @@index([organizationId, lastObservedAt(sort: Desc), id])
+  @@index([organizationId, status, severity, lastObservedAt(sort: Desc), id])
+  @@index([siteId, monitoringPointId, type, status])
+  @@index([deduplicationKey, status])
+}
+
+model AlertEvent {
+  id               String          @id @default(cuid())
+  alertId          String
+  eventType        String          @db.VarChar(64)
+  observationKey   String          @unique @db.VarChar(512)
+  riskAssessmentId String?
+  telemetryId      String?
+  observedAt       DateTime        @db.Timestamptz(3)
+  metadata         Json
+  alert            Alert           @relation(fields: [alertId], references: [id], onDelete: Restrict)
+  riskAssessment   RiskAssessment? @relation(fields: [riskAssessmentId], references: [id], onDelete: Restrict)
+  telemetry        Telemetry?      @relation(fields: [telemetryId], references: [id], onDelete: Restrict)
+  createdAt        DateTime        @default(now()) @db.Timestamptz(3)
+
+  @@index([alertId, observedAt(sort: Desc), id])
+  @@index([riskAssessmentId])
+  @@index([telemetryId])
 }
 
 model User {
