@@ -97,7 +97,7 @@ Status: seluruh contract, backend, frontend MonitoringPoint/Device, Site lookup,
 ingestion, simulator, component/integration test, dan Chromium full acceptance telah selesai dan
 digabung ke `main`. Bukti exit berada di `docs/14_PHASE_02_ACCEPTANCE_REPORT.md`.
 
-## Phase 3 — Risk engine and alerts — contract/implementation active
+## Phase 3 — Risk engine and alerts — selesai
 
 Output:
 
@@ -118,9 +118,9 @@ Exit criteria:
 - Profile history dan assessment version binding tersimpan.
 - Alert generation/deduplication tersimpan; lifecycle mutation tetap Phase 05.
 
-Status: contract foundation dan implementation workstream aktif. Runtime belum boleh dianggap
-selesai sampai contract digabung, migration diuji dari database kosong, pure-engine boundary test,
-integration test, scheduler test, dan acceptance Phase 03 lulus.
+Status: contract, backend, operational frontend, migration dari database kosong, pure-engine
+boundary test, integration/scheduler test, dan Chromium full acceptance telah selesai. Bukti exit
+berada di [`docs/15_PHASE_03_ACCEPTANCE_REPORT.md`](15_PHASE_03_ACCEPTANCE_REPORT.md).
 
 Contract checkpoints:
 
@@ -132,7 +132,7 @@ Contract checkpoints:
 | A2         | Overview, assessment history, dan alert read API disetujui                           |
 | I3         | Backend implementation serta full Phase 03 acceptance lulus                          |
 
-## Phase 4 — Dashboard UI
+## Phase 4 — Dashboard UI — berikutnya
 
 Output:
 

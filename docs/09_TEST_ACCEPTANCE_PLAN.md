@@ -28,7 +28,7 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
 - Full monorepo verification Phase 02 dicatat dalam
   [`docs/14_PHASE_02_ACCEPTANCE_REPORT.md`](14_PHASE_02_ACCEPTANCE_REPORT.md).
 
-### Aktif untuk Phase 03
+### Selesai pada Phase 03
 
 - Contract validation untuk immutable Site risk profile, assessment history, current monitoring
   projection, alert list/detail, organization scope, dan cursor pagination.
@@ -38,6 +38,10 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
 - Scheduler test untuk boundary ONLINE/DELAYED/OFFLINE, distributed lock, idempotency, disabled
   Device, recovery tanpa auto-resolve, serta cadence default lima menit.
 - Phase 03 hanya membuat/membaca alert; mutation lifecycle tetap diuji pada Phase 05.
+- Operational Overview, Alert list/detail, assessment history, risk-profile versioning, role
+  behavior, organization isolation, dan credential-safe Chromium acceptance telah lulus. Matriks
+  hasil lengkap tersedia pada
+  [`docs/15_PHASE_03_ACCEPTANCE_REPORT.md`](15_PHASE_03_ACCEPTANCE_REPORT.md).
 
 ### Fase mendatang
 
