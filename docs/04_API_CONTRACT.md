@@ -3,8 +3,8 @@
 Base path: `/api/v1`
 
 `specs/openapi.yaml` adalah kontrak machine-readable. Dokumen ini menjelaskan semantics yang tidak
-cukup diwakili schema. Contract Phase 02 ini belum menyatakan bahwa endpoint sudah
-diimplementasikan.
+cukup diwakili schema. Phase 01 dan Phase 02 telah diimplementasikan; endpoint Phase 03 pada
+contract ini belum menyatakan bahwa runtime-nya sudah tersedia.
 
 ## 1. Aturan umum
 
@@ -53,7 +53,8 @@ tidak hanya mempercayai claim JWT.
 
 ## 3. Organization context dan permission
 
-Semua endpoint `/sites`, `/monitoring-points/**`, dan `/devices/**` wajib menerima:
+Semua endpoint user yang organization-scoped, termasuk `/sites`, `/monitoring-points/**`,
+`/devices/**`, `/monitoring-overview`, dan `/alerts/**`, wajib menerima:
 
 ```http
 X-Organization-Id: <organizationId>
@@ -78,6 +79,11 @@ Permission matrix:
 | Device          | List/detail                    |                Ya |                Ya |
 | Device          | Register/update/rotate/disable |                Ya |             Tidak |
 | Telemetry       | Ingest                         | Device credential | Device credential |
+| Risk profile    | Read                           |                Ya |                Ya |
+| Risk profile    | Replace active version         |                Ya |             Tidak |
+| Risk/overview   | Read current/history           |                Ya |                Ya |
+| Alert           | List/detail                    |                Ya |                Ya |
+| Alert           | Lifecycle mutation             | Phase 05 deferred | Phase 05 deferred |
 
 UI boleh menggunakan role untuk visibility, tetapi guard backend tetap sumber authorization.
 
@@ -227,8 +233,97 @@ Status utama:
 
 Phase 02 tidak memiliki heartbeat endpoint atau server risk response.
 
-## 8. Kontrak fase selanjutnya
+## 8. Risk profile Phase 03
 
-Dashboard, alerts, threshold profile, risk history, SSE, map, reporting, notification worker, dan
-remote siren bukan bagian implementasi Phase 02. Placeholder OpenAPI yang masih ada untuk kontrak
-fase berikutnya tidak mengubah scope delivery Phase 02.
+Endpoint:
+
+- `GET /sites/{siteId}/risk-profile`
+- `PUT /sites/{siteId}/risk-profile`
+
+Profile organization-scoped melalui Site. Kedua role dapat membaca, sedangkan PUT hanya untuk
+PROJECT_OWNER. Setiap configuration berbeda membuat immutable version baru dan mengaktifkannya
+secara atomik. Version lama tidak diedit/dihapus dan assessment lama tidak dihitung ulang.
+
+PUT canonically identik adalah no-op: response `200` mengembalikan active profile dengan
+`changed: false`. Request berbeda mengembalikan version baru dengan `changed: true`. Canonical
+comparison mencakup calibration status, thresholds, technical ranges, freshness, hysteresis, dan
+normalized notes. Site di luar organisasi menghasilkan `404 SITE_NOT_FOUND`.
+
+Profile version 1 memakai threshold provisional:
+
+- SAFE: tilt `< 3`, moisture `< 65`, dan rain `< 20`;
+- DANGER: tilt `> 8`, atau rain `> 50` dan moisture `> 85`;
+- valid lainnya WATCH.
+
+Nilai ini belum threshold bencana final dan wajib dikalibrasi bersama ahli serta data lapangan.
+Profile menyimpan `PROVISIONAL` atau `CALIBRATED`, technical sensor ranges, freshness 20/35 menit,
+hysteresis 2/1/10 menit, mismatch tiga sample, notes, version, dan activation timestamps.
+
+## 9. Assessment dan current state Phase 03
+
+Satu telemetry baru membuat paling banyak satu immutable `RiskAssessment` yang terikat pada
+`telemetryId` dan profile ID/version. Exact duplicate tidak membuat assessment baru. Assessment
+menyimpan server risk, stable reasons, evaluated time, firmware comparison, dan
+`affectsCurrentState`.
+
+Late telemetry boleh dinilai untuk histori tetapi memakai `affectsCurrentState: false`: tidak
+mengubah projection, counter hysteresis, connectivity, atau alert. Hanya telemetry newly accepted
+yang memajukan latest Device state boleh memengaruhi state live. Telemetry acknowledgement Phase 02
+tetap tidak memuat `serverRisk`.
+
+Connectivity memakai last newly accepted server receipt:
+
+- ONLINE `<= 20` menit;
+- DELAYED `> 20` dan `<= 35` menit;
+- OFFLINE `> 35` menit;
+- Device DISABLED menjadi UNKNOWN dengan reason `DEVICE_DISABLED`.
+
+DELAYED/OFFLINE selalu membuat current risk UNKNOWN. Current MonitoringPoint state adalah
+projection/read model, bukan pengganti immutable assessment history.
+
+## 10. Risk and alert read API Phase 03
+
+Endpoint:
+
+- `GET /monitoring-overview`
+- `GET /monitoring-points/{monitoringPointId}/risk-assessments`
+- `GET /alerts`
+- `GET /alerts/{alertId}`
+
+Semua endpoint memerlukan bearer authentication dan `X-Organization-Id`, tersedia untuk
+PROJECT_OWNER dan SCHOOL_ADMIN, serta menyamarkan cross-organization detail sebagai 404. Semua list
+memakai cursor opaque, limit default 25/maksimum 100, stable ID tie-breaker, dan tidak memiliki
+`totalCount`.
+
+Overview adalah projection untuk konsumsi UI fase berikutnya: MonitoringPoint/Site identity,
+nullable active Device/latest telemetry summary, current server risk/connectivity, reasons,
+evaluation time, profile version, dan active alert summary. Ini bukan dashboard KPI Phase 04.
+
+Assessment history selalu newest-first (`evaluatedAt:desc`, stable ID). Alert list mendukung filter
+Site, MonitoringPoint, type, severity, status, serta sort yang dibekukan di OpenAPI.
+
+## 11. Alert generation dan deduplication Phase 03
+
+Type: `RISK_WATCH`, `RISK_DANGER`, `DEVICE_DELAYED`, `DEVICE_OFFLINE`, dan
+`DEVICE_SERVER_MISMATCH`. Severity: `INFO`, `WARNING`, atau `CRITICAL`. Status model disiapkan
+sebagai `ACTIVE`, `ACKNOWLEDGED`, `RESOLVED`, dan `FALSE_ALARM`, tetapi Phase 03 hanya membuat alert
+ACTIVE dan membacanya.
+
+Satu unresolved alert diperbolehkan per organization/Site/MonitoringPoint/type. Repeated current
+observation memperbarui `lastObservedAt` dan `occurrenceCount`; duplicate dan late telemetry tidak.
+Risk downgrade atau connectivity recovery tidak auto-resolve alert.
+
+Tidak tersedia endpoint acknowledge, resolve, false-alarm, notification, atau external scheduler
+trigger pada Phase 03. Mutation lifecycle alert tetap Phase 05.
+
+## 12. Scheduler contract Phase 03
+
+Connectivity evaluator berjalan default setiap lima menit, menggunakan distributed lock,
+idempotent, mengevaluasi Device ENABLED tanpa bergantung pada browser, dan menghasilkan
+deduplicated connectivity alerts. Scheduler tidak mengirim notifikasi eksternal dan tidak
+memiliki HTTP endpoint.
+
+## 13. Kontrak fase selanjutnya
+
+Dashboard KPI/UI, SSE, acknowledge/resolve/false-alarm, notification, map, reporting, heartbeat,
+remote siren, dan firmware command tetap di luar Phase 03.

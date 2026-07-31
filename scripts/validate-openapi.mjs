@@ -7,9 +7,10 @@ import { fileURLToPath, URL } from 'node:url';
 const specificationPath = fileURLToPath(new URL('../specs/openapi.yaml', import.meta.url));
 const specificationsDirectory = dirname(specificationPath);
 const telemetrySchemaPath = join(specificationsDirectory, 'telemetry-payload.schema.json');
-const examplesDirectory = join(specificationsDirectory, 'examples', 'phase-02');
+const phase02ExamplesDirectory = join(specificationsDirectory, 'examples', 'phase-02');
+const phase03ExamplesDirectory = join(specificationsDirectory, 'examples', 'phase-03');
 
-const expectedExampleFiles = [
+const expectedPhase02ExampleFiles = [
   'device-register.request.json',
   'device-register.response.json',
   'error-validation.response.json',
@@ -19,6 +20,14 @@ const expectedExampleFiles = [
   'telemetry-accepted.response.json',
   'telemetry-duplicate.response.json',
   'telemetry.request.json',
+];
+const expectedPhase03ExampleFiles = [
+  'active-risk-profile.response.json',
+  'alert-detail.response.json',
+  'alert-list.response.json',
+  'monitoring-overview.response.json',
+  'risk-assessment-history.response.json',
+  'risk-profile-update.request.json',
 ];
 
 function assert(condition, message) {
@@ -134,6 +143,12 @@ function validateExample(value, schema, path = '$') {
     if (schema.maximum !== undefined) {
       assert(value <= schema.maximum, `${path}: above maximum.`);
     }
+    if (schema.exclusiveMinimum !== undefined) {
+      assert(value > schema.exclusiveMinimum, `${path}: not above exclusiveMinimum.`);
+    }
+    if (schema.exclusiveMaximum !== undefined) {
+      assert(value < schema.exclusiveMaximum, `${path}: not below exclusiveMaximum.`);
+    }
   }
 
   if (Array.isArray(value)) {
@@ -142,6 +157,10 @@ function validateExample(value, schema, path = '$') {
     }
     if (schema.items) {
       value.forEach((item, index) => validateExample(item, schema.items, `${path}[${index}]`));
+    }
+    if (schema.uniqueItems === true) {
+      const encoded = value.map((item) => JSON.stringify(item));
+      assert(new Set(encoded).size === encoded.length, `${path}: items must be unique.`);
     }
     return;
   }
@@ -252,11 +271,13 @@ async function readJson(path) {
 }
 
 try {
-  const [rawSpecification, telemetrySchema, exampleFileNames] = await Promise.all([
-    SwaggerParser.parse(specificationPath),
-    readJson(telemetrySchemaPath),
-    readdir(examplesDirectory),
-  ]);
+  const [rawSpecification, telemetrySchema, phase02ExampleFileNames, phase03ExampleFileNames] =
+    await Promise.all([
+      SwaggerParser.parse(specificationPath),
+      readJson(telemetrySchemaPath),
+      readdir(phase02ExamplesDirectory),
+      readdir(phase03ExamplesDirectory),
+    ]);
 
   assert(rawSpecification.openapi === '3.1.0', 'OpenAPI version must be 3.1.0.');
   assert(
@@ -307,11 +328,27 @@ try {
     '/devices/{deviceId}/disable': {
       post: ['PROJECT_OWNER'],
     },
+    '/sites/{siteId}/risk-profile': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+      put: ['PROJECT_OWNER'],
+    },
+    '/monitoring-overview': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
+    '/monitoring-points/{monitoringPointId}/risk-assessments': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
+    '/alerts': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
+    '/alerts/{alertId}': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
   };
   for (const [path, methods] of Object.entries(expectedUserOperations)) {
     for (const [method, expectedRoles] of Object.entries(methods)) {
       const operation = rawSpecification.paths[path]?.[method];
-      assert(operation, `Required Phase 02 operation is missing: ${method.toUpperCase()} ${path}`);
+      assert(operation, `Required user operation is missing: ${method.toUpperCase()} ${path}`);
       assert(
         hasParameterReference(operation, '#/components/parameters/OrganizationId'),
         `${method.toUpperCase()} ${path} must require X-Organization-Id.`,
@@ -360,6 +397,64 @@ try {
     'Phase 02 must not expose Site create, detail, update, or delete operations.',
   );
 
+  const phase03ListPaths = [
+    '/monitoring-overview',
+    '/monitoring-points/{monitoringPointId}/risk-assessments',
+    '/alerts',
+  ];
+  for (const path of phase03ListPaths) {
+    const operation = rawSpecification.paths[path].get;
+    assert(
+      hasParameterReference(operation, '#/components/parameters/Limit') &&
+        hasParameterReference(operation, '#/components/parameters/Cursor'),
+      `GET ${path} must declare limit and opaque cursor pagination.`,
+    );
+  }
+  assert(
+    JSON.stringify(rawSpecification.paths['/monitoring-overview'].get.security) ===
+      JSON.stringify([{ bearerAuth: [] }]) &&
+      JSON.stringify(
+        rawSpecification.paths['/monitoring-points/{monitoringPointId}/risk-assessments'].get
+          .security,
+      ) === JSON.stringify([{ bearerAuth: [] }]) &&
+      JSON.stringify(rawSpecification.paths['/alerts'].get.security) ===
+        JSON.stringify([{ bearerAuth: [] }]) &&
+      JSON.stringify(rawSpecification.paths['/alerts/{alertId}'].get.security) ===
+        JSON.stringify([{ bearerAuth: [] }]),
+    'Every Phase 03 read operation must require bearer authentication.',
+  );
+  const riskProfilePut = rawSpecification.paths['/sites/{siteId}/risk-profile'].put;
+  assert(
+    riskProfilePut['x-versioning-semantics'] === 'immutable-new-version-or-no-op' &&
+      riskProfilePut.responses['200'].content['application/json'].schema.$ref ===
+        '#/components/schemas/RiskProfileMutationResponse',
+    'Risk profile PUT must declare immutable new-version-or-no-op semantics.',
+  );
+  assert(
+    ['post', 'put', 'patch', 'delete'].every(
+      (method) => !Object.hasOwn(rawSpecification.paths['/alerts'], method),
+    ) &&
+      ['post', 'put', 'patch', 'delete'].every(
+        (method) => !Object.hasOwn(rawSpecification.paths['/alerts/{alertId}'], method),
+      ),
+    'Phase 03 Alert contract must be read-only.',
+  );
+  for (const forbiddenPath of [
+    '/dashboard/summary',
+    '/alerts/{alertId}/acknowledge',
+    '/alerts/{alertId}/resolve',
+    '/alerts/{alertId}/false-alarm',
+    '/threshold-profiles/{profileId}/activate',
+    '/notifications',
+    '/events',
+    '/iot/heartbeat',
+  ]) {
+    assert(
+      !Object.hasOwn(rawSpecification.paths, forbiddenPath),
+      `Deferred endpoint must not be present in Phase 03: ${forbiddenPath}`,
+    );
+  }
+
   assert(
     telemetrySchema.$schema === 'https://json-schema.org/draft/2020-12/schema',
     'Telemetry schema must declare JSON Schema draft 2020-12.',
@@ -377,20 +472,37 @@ try {
     'rainfallMmHour must not define a static maximum.',
   );
 
-  const sortedExamples = exampleFileNames.filter((name) => name.endsWith('.json')).sort();
+  const sortedPhase02Examples = phase02ExampleFileNames
+    .filter((name) => name.endsWith('.json'))
+    .sort();
   assert(
-    JSON.stringify(sortedExamples) === JSON.stringify(expectedExampleFiles),
-    `Phase 02 example set differs from the expected files: ${sortedExamples.join(', ')}`,
+    JSON.stringify(sortedPhase02Examples) === JSON.stringify(expectedPhase02ExampleFiles),
+    `Phase 02 example set differs from the expected files: ${sortedPhase02Examples.join(', ')}`,
+  );
+  const sortedPhase03Examples = phase03ExampleFileNames
+    .filter((name) => name.endsWith('.json'))
+    .sort();
+  assert(
+    JSON.stringify(sortedPhase03Examples) === JSON.stringify(expectedPhase03ExampleFiles),
+    `Phase 03 example set differs from the expected files: ${sortedPhase03Examples.join(', ')}`,
   );
 
   await SwaggerParser.validate(specificationPath);
   const dereferenced = await SwaggerParser.dereference(specificationPath);
   const schemas = dereferenced.components.schemas;
-  const examples = Object.fromEntries(
+  const phase02Examples = Object.fromEntries(
     await Promise.all(
-      expectedExampleFiles.map(async (name) => [
+      expectedPhase02ExampleFiles.map(async (name) => [
         name,
-        await readJson(join(examplesDirectory, name)),
+        await readJson(join(phase02ExamplesDirectory, name)),
+      ]),
+    ),
+  );
+  const phase03Examples = Object.fromEntries(
+    await Promise.all(
+      expectedPhase03ExampleFiles.map(async (name) => [
+        name,
+        await readJson(join(phase03ExamplesDirectory, name)),
       ]),
     ),
   );
@@ -406,39 +518,61 @@ try {
       !containsProperty(schemas.DeviceSummary, 'secret'),
     'Device read schemas must not expose a secret.',
   );
-  validateExample(examples['error-validation.response.json'], schemas.ErrorResponse);
+  validateExample(phase02Examples['error-validation.response.json'], schemas.ErrorResponse);
   validateExample(
-    examples['monitoring-point-list.response.json'],
+    phase02Examples['monitoring-point-list.response.json'],
     schemas.MonitoringPointListResponse,
   );
   validateExample(
-    examples['monitoring-point-create.request.json'],
+    phase02Examples['monitoring-point-create.request.json'],
     schemas.CreateMonitoringPointRequest,
   );
-  validateExample(examples['site-list.response.json'], schemas.SiteListResponse);
-  validateExample(examples['device-register.request.json'], schemas.RegisterDeviceRequest);
-  validateExample(examples['device-register.response.json'], schemas.DeviceCredentialResponse);
-  validateExample(examples['telemetry.request.json'], telemetryRequestSchema);
-  validateExample(examples['telemetry-accepted.response.json'], schemas.TelemetryAccepted);
-  validateExample(examples['telemetry-duplicate.response.json'], schemas.TelemetryAccepted);
+  validateExample(phase02Examples['site-list.response.json'], schemas.SiteListResponse);
+  validateExample(phase02Examples['device-register.request.json'], schemas.RegisterDeviceRequest);
+  validateExample(
+    phase02Examples['device-register.response.json'],
+    schemas.DeviceCredentialResponse,
+  );
+  validateExample(phase02Examples['telemetry.request.json'], telemetryRequestSchema);
+  validateExample(phase02Examples['telemetry-accepted.response.json'], schemas.TelemetryAccepted);
+  validateExample(phase02Examples['telemetry-duplicate.response.json'], schemas.TelemetryAccepted);
+  validateExample(
+    phase03Examples['active-risk-profile.response.json'],
+    schemas.RiskProfileResponse,
+  );
+  validateExample(
+    phase03Examples['risk-profile-update.request.json'],
+    schemas.UpdateRiskProfileRequest,
+  );
+  validateExample(
+    phase03Examples['monitoring-overview.response.json'],
+    schemas.MonitoringOverviewResponse,
+  );
+  validateExample(
+    phase03Examples['risk-assessment-history.response.json'],
+    schemas.RiskAssessmentListResponse,
+  );
+  validateExample(phase03Examples['alert-list.response.json'], schemas.AlertListResponse);
+  validateExample(phase03Examples['alert-detail.response.json'], schemas.AlertResponse);
 
   assert(
-    examples['telemetry-accepted.response.json'].duplicate === false &&
-      examples['telemetry-duplicate.response.json'].duplicate === true,
+    phase02Examples['telemetry-accepted.response.json'].duplicate === false &&
+      phase02Examples['telemetry-duplicate.response.json'].duplicate === true,
     'Telemetry acknowledgement examples must distinguish new and duplicate payloads.',
   );
   assert(
-    !containsProperty(rawSpecification, 'serverRisk') &&
-      !expectedExampleFiles.some((name) => containsProperty(examples[name], 'serverRisk')),
-    'serverRisk must not appear in the Phase 02 contract.',
+    !containsProperty(rawSpecification.components.schemas.TelemetryAccepted, 'serverRisk') &&
+      !containsProperty(phase02Examples['telemetry-accepted.response.json'], 'serverRisk') &&
+      !containsProperty(phase02Examples['telemetry-duplicate.response.json'], 'serverRisk'),
+    'Phase 02 telemetry acknowledgement must remain free of serverRisk.',
   );
   assert(
-    !containsProperty(examples['telemetry.request.json'], 'deviceId') &&
-      !containsProperty(examples['telemetry.request.json'], 'hardwareId'),
+    !containsProperty(phase02Examples['telemetry.request.json'], 'deviceId') &&
+      !containsProperty(phase02Examples['telemetry.request.json'], 'hardwareId'),
     'Telemetry example must not contain device identity.',
   );
   assert(
-    examples['device-register.response.json'].data.credential.secret ===
+    phase02Examples['device-register.response.json'].data.credential.secret ===
       'EXAMPLE_ONLY_NOT_A_REAL_CREDENTIAL_000000',
     'Credential example must use the approved non-secret placeholder.',
   );
@@ -447,11 +581,77 @@ try {
     'telemetry-accepted.response.json',
     'telemetry-duplicate.response.json',
   ]) {
-    assert(!containsProperty(examples[name], 'secret'), `${name} must not expose a device secret.`);
+    assert(
+      !containsProperty(phase02Examples[name], 'secret'),
+      `${name} must not expose a device secret.`,
+    );
   }
 
+  const activeProfile = phase03Examples['active-risk-profile.response.json'].data;
+  const profileUpdate = phase03Examples['risk-profile-update.request.json'];
+  assert(
+    activeProfile.version === 1 &&
+      activeProfile.calibrationStatus === 'PROVISIONAL' &&
+      activeProfile.thresholds.safe.tiltMagnitudeDegLt === 3 &&
+      activeProfile.thresholds.safe.soilMoisturePctLt === 65 &&
+      activeProfile.thresholds.safe.rainfallMmHourLt === 20 &&
+      activeProfile.thresholds.danger.tiltMagnitudeDegGt === 8 &&
+      activeProfile.thresholds.danger.rainfallMmHourGt === 50 &&
+      activeProfile.thresholds.danger.soilMoisturePctGt === 85 &&
+      activeProfile.freshness.onlineWithinMinutes === 20 &&
+      activeProfile.freshness.offlineAfterMinutes === 35 &&
+      activeProfile.hysteresis.watchConsecutiveSamples === 2 &&
+      activeProfile.hysteresis.dangerConsecutiveSamples === 1 &&
+      activeProfile.hysteresis.downgradeStableMinutes === 10 &&
+      activeProfile.hysteresis.mismatchConsecutiveSamples === 3,
+    'Phase 03 active profile example must preserve the approved provisional version 1 defaults.',
+  );
+  assert(
+    JSON.stringify({
+      calibrationStatus: activeProfile.calibrationStatus,
+      thresholds: activeProfile.thresholds,
+      technicalRanges: activeProfile.technicalRanges,
+      freshness: activeProfile.freshness,
+      hysteresis: activeProfile.hysteresis,
+      notes: activeProfile.notes,
+    }) === JSON.stringify(profileUpdate),
+    'Risk profile update example must canonically match the active configuration for no-op testing.',
+  );
+  assert(
+    JSON.stringify(rawSpecification.components.schemas.RiskLevel.enum) ===
+      JSON.stringify(['SAFE', 'WATCH', 'DANGER', 'UNKNOWN']) &&
+      JSON.stringify(rawSpecification.components.schemas.ConnectivityStatus.enum) ===
+        JSON.stringify(['ONLINE', 'DELAYED', 'OFFLINE', 'UNKNOWN']),
+    'Risk and connectivity enums drifted from the approved Phase 03 contract.',
+  );
+  assert(
+    JSON.stringify(rawSpecification.components.schemas.AlertStatus.enum) ===
+      JSON.stringify(['ACTIVE', 'ACKNOWLEDGED', 'RESOLVED', 'FALSE_ALARM']),
+    'Alert status contract is incorrect.',
+  );
+  for (const [name, schema] of [
+    ['MonitoringOverviewResponse', schemas.MonitoringOverviewResponse],
+    ['RiskAssessmentListResponse', schemas.RiskAssessmentListResponse],
+    ['AlertListResponse', schemas.AlertListResponse],
+  ]) {
+    assert(!containsProperty(schema, 'totalCount'), `${name} must not expose totalCount.`);
+  }
+  for (const name of [
+    'monitoring-overview.response.json',
+    'risk-assessment-history.response.json',
+    'alert-list.response.json',
+  ]) {
+    assert(!containsProperty(phase03Examples[name], 'totalCount'), `${name} must omit totalCount.`);
+  }
+  assert(
+    phase03Examples['risk-assessment-history.response.json'].data.some(
+      (assessment) => assessment.affectsCurrentState === false,
+    ),
+    'Risk assessment history example must include late historical evaluation semantics.',
+  );
+
   process.stdout.write(
-    `OpenAPI, external telemetry schema, and ${expectedExampleFiles.length} Phase 02 examples are valid.\n`,
+    `OpenAPI, external telemetry schema, ${expectedPhase02ExampleFiles.length} Phase 02 examples, and ${expectedPhase03ExampleFiles.length} Phase 03 examples are valid.\n`,
   );
 } catch (error) {
   process.stderr.write('OpenAPI contract validation failed.\n');

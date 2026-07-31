@@ -1,163 +1,274 @@
 # Risk Engine and Alert Specification
 
-## 1. Tujuan
+## 1. Tujuan dan batas keselamatan
 
-Risk engine mengubah telemetry tervalidasi menjadi status yang konsisten, dapat diuji, dan dapat diaudit. Nilai berikut berasal dari rancangan awal alat dan belum boleh dianggap threshold final tanpa kalibrasi ahli.
+Risk engine Phase 03 mengubah telemetry tervalidasi menjadi `RiskAssessment` server-side yang
+deterministik, immutable, dapat diaudit, dan terpisah dari assessment firmware. Current
+MonitoringPoint state adalah projection dari assessment dan connectivity terbaru; projection ini
+tidak menggantikan histori.
 
-## 2. Threshold awal
+Threshold version 1 bersifat **PROVISIONAL**. Angka tersebut berasal dari rancangan awal dan wajib
+dikalibrasi bersama ahli yang kompeten serta data lapangan sebelum dianggap threshold bencana
+final. Sirene dan evaluasi lokal perangkat tetap independen. Server tidak menyediakan remote
+siren.
 
-### SAFE
+## 2. Risk level dan urutan evaluasi
 
-Semua kondisi harus benar:
+Risk level hanya:
 
-- Tilt magnitude `< 3°`.
-- Soil moisture `< 65%`.
-- Rainfall `< 20 mm/hour`.
+- `SAFE`
+- `WATCH`
+- `DANGER`
+- `UNKNOWN`
 
-### WATCH
+Urutan evaluasi wajib:
 
-Salah satu kondisi benar:
-
-- Tilt `>= 3°` dan `<= 8°`.
-- Soil moisture `> 70%`.
-- Rainfall `>= 20` dan `<= 50 mm/hour`.
-
-Selain itu, kondisi valid yang tidak memenuhi SAFE dan tidak memenuhi DANGER juga masuk WATCH agar gap threshold tidak salah dianggap aman.
-
-### DANGER
-
-Salah satu kondisi benar:
-
-- Tilt `> 8°`.
-- Rainfall `> 50 mm/hour` DAN soil moisture `> 85%`.
-
-### UNKNOWN
-
-- Data invalid.
-- Sensor wajib tidak tersedia.
-- Device stale/delayed melewati batas evaluasi live.
-- Device offline.
-- Clock device tidak dapat dipercaya dan data tidak dapat direkonsiliasi.
-
-## 3. Urutan evaluasi
+1. Data tidak dapat dievaluasi live menghasilkan `UNKNOWN`.
+2. Rule `DANGER` dievaluasi.
+3. Seluruh rule `SAFE` dievaluasi.
+4. Data valid lainnya menghasilkan `WATCH`.
 
 ```ts
-if (!isValid || isStale || deviceUnavailable) return UNKNOWN;
-if (dangerRuleMatched) return DANGER;
-if (safeRuleMatched) return SAFE;
-return WATCH;
+if (!hasValidRequiredSensors || !isLiveTrustedState || !hasValidProfile) return 'UNKNOWN';
+if (dangerRuleMatched) return 'DANGER';
+if (safeRuleMatched) return 'SAFE';
+return 'WATCH';
 ```
 
-Tidak boleh mengevaluasi WATCH sebelum DANGER.
+### Profile provisional version 1
 
-## 4. Freshness
+`SAFE` hanya bila seluruh kondisi berikut benar:
 
-Default awal, configurable per site:
+- `tiltMagnitudeDeg < 3`
+- `soilMoisturePct < 65`
+- `rainfallMmHour < 20`
 
-- `ONLINE`: last accepted telemetry <= 20 menit.
-- `DELAYED`: > 20 menit dan <= 35 menit.
-- `OFFLINE`: > 35 menit.
+`DANGER` bila salah satu kondisi berikut benar:
 
-Karena mode normal rancangan alat dapat mengirim setiap 15 menit, toleransi harus lebih besar dari interval tersebut.
+- `tiltMagnitudeDeg > 8`; atau
+- `rainfallMmHour > 50` dan `soilMoisturePct > 85`.
 
-Untuk dashboard risk:
+Data valid yang tidak memenuhi seluruh kondisi `SAFE` dan tidak memenuhi `DANGER` menjadi
+`WATCH`. Karena operator perbandingan bersifat strict, nilai tepat 3, 65, 20, 8, 50, dan 85 harus
+diuji eksplisit.
 
-- ONLINE + valid → hasil risk engine.
-- DELAYED/OFFLINE → UNKNOWN.
-- MAINTENANCE → UNKNOWN dengan badge maintenance.
+`UNKNOWN` berlaku bila:
 
-## 5. Validasi sensor
+- required sensor hilang atau invalid;
+- Device `DISABLED`;
+- connectivity `DELAYED` atau `OFFLINE`;
+- timestamp tidak dapat dipercaya;
+- evaluation tidak memiliki active profile yang valid.
 
-Range awal untuk validasi teknis, bukan threshold bencana:
+Device tanpa active Device atau tanpa telemetry memiliki connectivity dan risk `UNKNOWN`.
 
-- `tiltXDeg`, `tiltYDeg`: -180 sampai 180.
-- `tiltMagnitudeDeg`: 0 sampai 180.
-- `soilMoisturePct`: 0 sampai 100.
-- `rainfallMmHour`: 0 sampai batas teknis configurable, misalnya 1000.
-- `batteryVoltage`: 0 sampai 30.
+## 3. Technical sensor ranges
+
+Technical ranges adalah validasi kualitas data, bukan threshold bencana:
+
+- `tiltXDeg`, `tiltYDeg`: -180 sampai 180;
+- `tiltMagnitudeDeg`: 0 sampai 180;
+- `soilMoisturePct`: 0 sampai 100;
+- `rainfallMmHour`: minimum 0; maximum tetap nullable sampai batas sensor terkalibrasi tersedia;
+- `batteryVoltage`: 0 sampai 30;
 - `signalRssi`: -150 sampai 0.
 
-Nilai di luar range ditolak atau ditandai invalid berdasarkan severity.
+Required input risk adalah `tiltMagnitudeDeg`, `soilMoisturePct`, dan `rainfallMmHour`. Input
+required yang hilang atau keluar technical range menghasilkan `UNKNOWN`, bukan `SAFE`. Technical
+range disimpan dalam profile agar versioned dan auditable.
 
-## 6. Hysteresis dan debounce
+## 4. Connectivity dan freshness
 
-Untuk mengurangi alert flapping:
+Connectivity memakai server receipt/latest newly accepted telemetry state, bukan timestamp late
+telemetry:
 
-- DANGER dari lonjakan tilt dapat dibuat segera setelah rule terpenuhi dan validasi noise lolos.
-- WATCH dapat membutuhkan N pembacaan berurutan atau durasi minimal configurable.
-- Downgrade status memerlukan kondisi lebih stabil dibanding upgrade.
-- Jangan auto-resolve DANGER hanya karena satu sampel kembali normal.
+- `ONLINE`: umur last accepted telemetry `<= 20` menit;
+- `DELAYED`: umur `> 20` dan `<= 35` menit;
+- `OFFLINE`: umur `> 35` menit;
+- Device `DISABLED`: `UNKNOWN` dengan reason `DEVICE_DISABLED`.
 
-Contoh parameter profile:
+`DELAYED` dan `OFFLINE` selalu membuat current server risk `UNKNOWN`. Late telemetry yang tidak
+memajukan latest accepted Device state tidak dapat memulihkan connectivity. `MAINTENANCE` tetap
+deferred karena lifecycle Device Phase 02 hanya `ENABLED` dan `DISABLED`.
+
+## 5. Hysteresis
+
+Default profile:
 
 ```json
 {
   "watchConsecutiveSamples": 2,
   "dangerConsecutiveSamples": 1,
   "downgradeStableMinutes": 10,
+  "mismatchConsecutiveSamples": 3,
+  "onlineWithinMinutes": 20,
   "offlineAfterMinutes": 35
 }
 ```
 
-## 7. Alert generation
+Aturan:
 
-### Risk alert
+- upgrade ke `DANGER` dapat terjadi setelah satu current valid sample;
+- upgrade ke `WATCH` membutuhkan dua current valid samples berurutan;
+- downgrade membutuhkan kandidat kondisi yang stabil selama 10 menit;
+- kandidat downgrade tidak langsung mengubah risk alert;
+- downgrade current risk tidak me-resolve alert;
+- late dan exact duplicate telemetry tidak memengaruhi counter hysteresis;
+- mismatch firmware/server membutuhkan tiga current samples berurutan sebelum alert dibuat.
 
-- SAFE -> WATCH: buat `RISK_WATCH`.
-- SAFE/WATCH -> DANGER: buat `RISK_DANGER`.
-- WATCH -> DANGER: update/close strategy harus eksplisit; rekomendasi membuat critical alert baru dan menghubungkannya ke alert sebelumnya.
-- DANGER -> WATCH/SAFE: jangan otomatis resolve tanpa verifikasi operator pada MVP.
+Counter berurutan terikat pada MonitoringPoint, Device aktif, dan active profile version. Pergantian
+Device atau profile mereset counter prospective tanpa mengubah assessment/alert lama.
 
-### Connectivity alert
+## 6. Versioned Site risk profile
 
-- ONLINE -> DELAYED: `DEVICE_DELAYED`, severity warning.
-- DELAYED -> OFFLINE: `DEVICE_OFFLINE`, severity critical/ warning sesuai site policy.
-- Kembali online: event recovery; alert dapat menunggu operator resolve atau auto-resolve untuk alert operasional non-kritis bila policy mengizinkan.
+Risk profile:
 
-## 8. Deduplication key
+- organization-scoped melalui Site;
+- mempunyai opaque immutable `id` dan integer `version`;
+- hanya satu active version per Site;
+- version lama tidak boleh diedit atau dihapus fisik;
+- perubahan berbeda membuat version berikutnya dan mengaktifkannya secara atomik;
+- request PUT yang canonically identik adalah no-op dengan `changed: false`;
+- perubahan profile tidak menghitung ulang atau mengubah assessment lama;
+- setiap assessment menyimpan `profileId` dan `profileVersion`;
+- `calibrationStatus` hanya `PROVISIONAL` atau `CALIBRATED`;
+- activation dan perubahan profile wajib diaudit pada implementation phase.
 
-Contoh:
+Canonical equality mencakup calibration status, thresholds, technical ranges, freshness,
+hysteresis, dan normalized nullable notes. Reprocessing histori, bila kelak dibutuhkan, harus
+menjadi job/version hasil terpisah.
 
-```text
-site:<siteId>:point:<pointId>:type:RISK_DANGER:active
-```
+Profile validation wajib memastikan minimum technical range lebih kecil dari maximum non-null,
+SAFE threshold lebih rendah dari pasangan DANGER threshold, `onlineWithinMinutes` lebih kecil dari
+`offlineAfterMinutes`, serta seluruh counter/durasi berada pada range schema. Concurrent PUT harus
+diserialisasi per Site: configuration berbeda mendapat version berurutan; request identik yang
+menemukan configuration sudah aktif menjadi no-op. Contract tidak memakai client-supplied version
+atau `If-Match`.
 
-Saat alert active dengan key sama sudah ada, tambahkan event/update `lastObservedAt`, jangan insert alert baru.
+## 7. Telemetry evaluation
 
-## 9. Server vs firmware assessment
+- Telemetry baru menghasilkan paling banyak satu assessment yang unik terhadap `telemetryId`.
+- Exact duplicate tidak membuat assessment dan tidak memperbarui alert/counter.
+- Assessment menyimpan `serverRisk`, reasons, `evaluatedAt`, profile ID/version, firmware risk,
+  firmware siren state, dan `affectsCurrentState`.
+- Firmware risk adalah pembanding, bukan sumber server risk.
+- Perbedaan firmware/server menambahkan reason `DEVICE_SERVER_MISMATCH`.
+- Mismatch alert baru dibuat setelah `mismatchConsecutiveSamples` current samples.
+- Telemetry late boleh memiliki historical assessment dengan `affectsCurrentState: false`.
+- Historical late assessment tidak mengubah current state, hysteresis, connectivity, atau alert.
+- Hanya telemetry yang memajukan latest accepted Device state dapat memengaruhi projection dan
+  alert.
+- Telemetry acknowledgement Phase 02 tetap tidak mengandung `serverRisk`.
 
-Simpan keduanya:
+Evaluation dan persistence assessment harus idempotent dan transactional pada implementation
+phase. Risk engine core harus pure dan tidak bergantung pada database, HTTP, scheduler, atau UI.
 
-- `deviceAssessment.riskLevel`.
-- `riskAssessment.serverRisk`.
+## 8. Current MonitoringPoint state
 
-Bila berbeda:
+Current state minimal memuat:
 
-- Simpan reason `DEVICE_SERVER_MISMATCH`.
-- Buat operational alert setelah mismatch berulang, bukan berdasarkan satu sampel.
-- Jangan otomatis mematikan sirene lokal.
+- `monitoringPointId`;
+- nullable `deviceId`;
+- `serverRisk`;
+- `connectivityStatus`;
+- reasons;
+- nullable `latestTelemetryId`;
+- `evaluatedAt`;
+- nullable `lastTelemetryAt`;
+- nullable profile ID/version bila belum tersedia;
+- active alert summary.
 
-## 10. Versioning
+Projection hanya berubah melalui newly accepted current telemetry, Device lifecycle/assignment,
+profile activation, atau connectivity scheduler. Pembacaan projection tidak boleh menghitung state
+berbeda per browser request.
 
-Setiap RiskAssessment menyimpan:
+Active alert summary menghitung status unresolved (`ACTIVE` dan, setelah Phase 05,
+`ACKNOWLEDGED`). `RESOLVED` dan `FALSE_ALARM` tidak dihitung.
 
-- `thresholdProfileId`.
-- `thresholdProfileVersion`.
-- `reasons`.
-- `evaluatedAt`.
+## 9. Alert domain
 
-Perubahan threshold tidak mengubah histori lama. Reprocessing histori harus menjadi job terpisah dengan versi hasil berbeda.
+Alert type Phase 03:
 
-## 11. Unit test matrix minimum
+- `RISK_WATCH`
+- `RISK_DANGER`
+- `DEVICE_DELAYED`
+- `DEVICE_OFFLINE`
+- `DEVICE_SERVER_MISMATCH`
+
+Severity default:
+
+| Type                     | Severity   |
+| ------------------------ | ---------- |
+| `RISK_WATCH`             | `WARNING`  |
+| `RISK_DANGER`            | `CRITICAL` |
+| `DEVICE_DELAYED`         | `WARNING`  |
+| `DEVICE_OFFLINE`         | `CRITICAL` |
+| `DEVICE_SERVER_MISMATCH` | `WARNING`  |
+
+Status disiapkan sebagai `ACTIVE`, `ACKNOWLEDGED`, `RESOLVED`, dan `FALSE_ALARM`, tetapi Phase 03
+hanya membuat `ACTIVE` dan menyediakan read API. Mutation acknowledge, resolve, dan false-alarm
+tetap Phase 05.
+
+Deduplication key secara konseptual adalah
+`organizationId/siteId/monitoringPointId/type/unresolved`. Hanya satu unresolved alert untuk key
+tersebut. Repeated current observation:
+
+- tidak membuat Alert row baru;
+- memperbarui `lastObservedAt`;
+- menambah `occurrenceCount` tepat satu;
+- mempertahankan `firstObservedAt`.
+
+`RISK_WATCH` dan `RISK_DANGER` adalah key berbeda. Risk downgrade dan connectivity recovery
+memperbarui current state, tetapi tidak auto-resolve alert. Late atau duplicate telemetry tidak
+membuat/memperbarui alert. Semua perubahan lifecycle alert, termasuk creation pada Phase 03, wajib
+menghasilkan event dan audit.
+
+Pembuatan Alert Phase 03 adalah lifecycle transition dan wajib membuat immutable creation event
+serta AuditLog dalam transaction yang sama. Deduplicated observation yang hanya menambah
+`occurrenceCount` bukan status transition, tetapi waktu/count tetap harus auditable melalui event
+observation atau histori setara. Phase 03 belum mengekspos event tersebut melalui HTTP.
+
+## 10. Background connectivity evaluator
+
+Scheduler:
+
+- berjalan default setiap 5 menit;
+- memakai distributed lock sehingga hanya satu evaluator efektif;
+- idempotent untuk evaluation timestamp/state yang sama;
+- mengevaluasi setiap Device `ENABLED`, termasuk ketika tidak ada browser aktif;
+- memakai last newly accepted server receipt state;
+- mengubah connectivity/risk menjadi `DELAYED`/`OFFLINE` dan `UNKNOWN` sesuai boundary;
+- menghasilkan atau memperbarui deduplicated connectivity alert;
+- tidak auto-resolve alert ketika recovery;
+- tidak mengirim notification eksternal pada Phase 03;
+- tidak memiliki HTTP trigger endpoint.
+
+## 11. Minimum test matrix
 
 - Semua nilai di bawah SAFE.
-- Tilt tepat 3, tepat 8, di atas 8.
-- Moisture tepat 65, 70, 85, di atas 85.
-- Rainfall tepat 20, 50, di atas 50.
-- Gap moisture 65–70.
-- Rainfall > 50 tanpa moisture > 85.
-- Invalid/null sensor.
-- Stale data.
-- Danger precedence.
-- Threshold profile berbeda.
-- Hysteresis/downgrade.
+- Boundary tepat 3, 65, 20, 8, 50, dan 85.
+- Tilt di atas 8.
+- Rain di atas 50 dengan moisture tepat 85 dan di atas 85.
+- Gap moisture 65–70 serta rain di atas 50 tanpa moisture di atas 85.
+- Missing/invalid required sensor.
+- Profile tidak tersedia/invalid.
+- Device disabled, delayed, offline, dan timestamp untrusted.
+- DANGER precedence.
+- WATCH dua sample; DANGER satu sample.
+- Downgrade stability.
+- Exact duplicate dan concurrent evaluation.
+- Late assessment `affectsCurrentState: false`.
+- Profile version berbeda dan histori tetap.
+- Firmware mismatch tiga sample.
+- Alert deduplication dan occurrence count.
+- Scheduler boundary 20/35 menit, lock, dan idempotency.
+- Cross-organization read isolation dan permission profile PUT.
+
+## 12. Keputusan yang belum diselesaikan
+
+- Governance dan bukti ahli yang wajib dipenuhi sebelum PROJECT_OWNER boleh menetapkan
+  `calibrationStatus: CALIBRATED`.
+- Cadence produksi dapat dibuat configurable, tetapi contract Phase 03 hanya membekukan default
+  lima menit dan tidak menambah environment variable.
+- Retention/archival jangka panjang untuk RiskAssessment dan Alert history ditetapkan sebelum
+  produksi; physical delete melalui alur normal tetap dilarang.

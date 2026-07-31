@@ -1,0 +1,53 @@
+{
+  "data": [
+    {
+      "monitoringPoint": {
+        "id": "mp_01K1B5Z9Y7X6W5V4U3T2S1R0QP",
+        "name": "Lereng belakang sekolah",
+        "locationDescription": "Di atas gedung laboratorium",
+        "isActive": true
+      },
+      "site": {
+        "id": "site_01K1B5T6Y7U8I9O0P1A2S3D4FG",
+        "name": "SMAN 17 Bandar Lampung",
+        "timezone": "Asia/Jakarta"
+      },
+      "device": {
+        "id": "dev_01K1B63JQP5AW8RZX4NC7M2TYV",
+        "hardwareId": "SL-SMAN17-001",
+        "displayName": "Sensor Lereng Utama",
+        "lifecycleStatus": "ENABLED"
+      },
+      "latestTelemetry": {
+        "telemetryId": "tel_01K1P42S6Z8H3N5C7V9B1M4QTX",
+        "deviceTimestamp": "2026-08-01T02:14:00.000Z",
+        "serverReceivedAt": "2026-08-01T02:14:02.000Z",
+        "tiltMagnitudeDeg": 4.2,
+        "soilMoisturePct": 72.1,
+        "rainfallMmHour": 24.5,
+        "batteryVoltage": 12.5
+      },
+      "currentState": {
+        "monitoringPointId": "mp_01K1B5Z9Y7X6W5V4U3T2S1R0QP",
+        "deviceId": "dev_01K1B63JQP5AW8RZX4NC7M2TYV",
+        "serverRisk": "WATCH",
+        "connectivityStatus": "ONLINE",
+        "reasons": ["WATCH_THRESHOLDS_MET"],
+        "latestTelemetryId": "tel_01K1P42S6Z8H3N5C7V9B1M4QTX",
+        "evaluatedAt": "2026-08-01T02:14:02.100Z",
+        "lastTelemetryAt": "2026-08-01T02:14:00.000Z",
+        "profileId": "risk_profile_01K1P3V8J7Q5B2M9X4C6D8F0GH",
+        "profileVersion": 1,
+        "activeAlertSummary": {
+          "count": 1,
+          "highestSeverity": "WARNING",
+          "types": ["RISK_WATCH"]
+        }
+      }
+    }
+  ],
+  "page": {
+    "nextCursor": null,
+    "hasMore": false
+  }
+}

@@ -1,11 +1,12 @@
 openapi: 3.1.0
 info:
   title: SiagaLongsor API
-  version: 0.2.0
+  version: 0.3.0
   description: >-
-    API contract for SiagaLongsor. Authentication and health paths are implemented in Phase 01.
-    Site lookup, MonitoringPoint, Device, credential, and telemetry paths are the approved Phase 02
-    contract; implementation follows in separate backend and frontend pull requests.
+    API contract for SiagaLongsor. Phase 01 authentication and Phase 02 Site lookup,
+    MonitoringPoint, Device, credential, and telemetry capabilities are implemented. Risk profile,
+    server-side risk assessment, monitoring overview, and read-only alert paths are the approved
+    Phase 03 contract; runtime implementation follows separately.
 servers:
   - url: /api/v1
 paths:
@@ -523,103 +524,233 @@ paths:
         '415': { $ref: '#/components/responses/UnsupportedMediaType' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '500': { $ref: '#/components/responses/InternalError' }
-  /dashboard/summary:
+  /sites/{siteId}/risk-profile:
     get:
-      tags: [Dashboard]
-      summary: Get dashboard summary
-      description: Planned for a later phase.
+      operationId: getActiveRiskProfile
+      tags: [Risk]
+      summary: Get the active immutable risk profile version for a Site
+      description: >-
+        Returns the single active profile version for a Site in the active organization. Historical
+        versions are immutable and are not exposed for mutation. A Site outside the organization is
+        reported as 404 SITE_NOT_FOUND.
       security:
         - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/SiteId'
       responses:
         '200':
-          description: Dashboard summary
+          description: Active Site risk profile
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/DashboardSummaryResponse' }
-  /alerts:
-    get:
-      tags: [Alerts]
-      summary: List alerts
-      description: Planned for a later phase.
+              schema: { $ref: '#/components/schemas/RiskProfileResponse' }
+              examples:
+                active:
+                  externalValue: ./examples/phase-03/active-risk-profile.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    put:
+      operationId: replaceActiveRiskProfile
+      tags: [Risk]
+      summary: Create and activate an immutable Site risk profile version
+      description: >-
+        PROJECT_OWNER only. A configuration different from the active profile creates the next
+        immutable version and atomically makes it active. A canonically identical request is a
+        no-op: changed is false and the current profile is returned without a new version. Existing
+        profiles and RiskAssessments are never rewritten. The provisional thresholds require expert
+        and field-data calibration before being treated as final disaster thresholds.
       security:
         - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER]
+      x-versioning-semantics: immutable-new-version-or-no-op
       parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/SiteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateRiskProfileRequest' }
+            examples:
+              provisional:
+                externalValue: ./examples/phase-03/risk-profile-update.request.json
+      responses:
+        '200':
+          description: Active profile returned; changed identifies new-version versus no-op
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RiskProfileMutationResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /monitoring-overview:
+    get:
+      operationId: listMonitoringOverview
+      tags: [Risk]
+      summary: List current monitoring state in the active organization
+      description: >-
+        Read projection only. Current state is derived from the latest newly accepted telemetry and
+        periodic connectivity evaluation; late telemetry never moves this projection. Cursor is
+        bound to the organization, filters, search, sort, last sort value, and stable id.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
         - $ref: '#/components/parameters/Limit'
         - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/MonitoringOverviewSort'
+        - name: siteId
+          in: query
+          schema: { type: string, minLength: 1 }
+        - name: riskLevel
+          in: query
+          schema: { $ref: '#/components/schemas/RiskLevel' }
+        - name: connectivityStatus
+          in: query
+          schema: { $ref: '#/components/schemas/ConnectivityStatus' }
+        - name: search
+          in: query
+          description: Case-insensitive search against MonitoringPoint name and Site name.
+          schema: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '200':
+          description: Cursor page of current monitoring state without totalCount
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MonitoringOverviewResponse' }
+              examples:
+                current:
+                  externalValue: ./examples/phase-03/monitoring-overview.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /monitoring-points/{monitoringPointId}/risk-assessments:
+    get:
+      operationId: listRiskAssessments
+      tags: [Risk]
+      summary: List immutable risk assessment history newest first
+      description: >-
+        Every item is bound to one telemetry and the immutable profile version used for evaluation.
+        Historical assessment is never rewritten when a profile changes. Cross-organization
+        MonitoringPoint is reported as 404 MONITORING_POINT_NOT_FOUND.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/MonitoringPointId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Risk assessment history ordered by evaluatedAt descending and stable id
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RiskAssessmentListResponse' }
+              examples:
+                history:
+                  externalValue: ./examples/phase-03/risk-assessment-history.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /alerts:
+    get:
+      operationId: listAlerts
+      tags: [Alerts]
+      summary: List alerts in the active organization
+      description: >-
+        Phase 03 is read-only. Alert generation and deduplication are server-side; acknowledge,
+        resolve, and false-alarm operations are deferred to Phase 05.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/AlertSort'
+        - name: siteId
+          in: query
+          schema: { type: string, minLength: 1 }
+        - name: monitoringPointId
+          in: query
+          schema: { type: string, minLength: 1 }
+        - name: type
+          in: query
+          schema: { $ref: '#/components/schemas/AlertType' }
+        - name: severity
+          in: query
+          schema: { $ref: '#/components/schemas/AlertSeverity' }
         - name: status
           in: query
           schema: { $ref: '#/components/schemas/AlertStatus' }
       responses:
         '200':
-          description: Alert list
-  /alerts/{alertId}/acknowledge:
-    post:
+          description: Cursor page of alerts without totalCount
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertListResponse' }
+              examples:
+                alerts:
+                  externalValue: ./examples/phase-03/alert-list.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /alerts/{alertId}:
+    get:
+      operationId: getAlert
       tags: [Alerts]
-      summary: Acknowledge an alert
-      description: Planned for a later phase.
+      summary: Get alert detail in the active organization
+      description: Cross-organization Alert is reported as 404 ALERT_NOT_FOUND.
       security:
         - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
       parameters:
+        - $ref: '#/components/parameters/OrganizationId'
         - $ref: '#/components/parameters/AlertId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [note, fieldCondition, sopExecuted]
-              properties:
-                note: { type: string, minLength: 3, maxLength: 2000 }
-                fieldCondition: { type: string, minLength: 3, maxLength: 2000 }
-                sopExecuted: { type: boolean }
       responses:
         '200':
-          description: Alert acknowledged
-        '409':
-          description: Invalid alert transition
-  /alerts/{alertId}/resolve:
-    post:
-      tags: [Alerts]
-      summary: Resolve an alert
-      description: Planned for a later phase.
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/AlertId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              additionalProperties: false
-              required: [note, resolutionCode]
-              properties:
-                note: { type: string, minLength: 3, maxLength: 2000 }
-                resolutionCode: { type: string, minLength: 3, maxLength: 64 }
-      responses:
-        '200':
-          description: Alert resolved
-        '409':
-          description: Invalid alert transition
-  /threshold-profiles/{profileId}/activate:
-    post:
-      tags: [Thresholds]
-      summary: Activate threshold profile
-      description: Planned for a later phase.
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: profileId
-          in: path
-          required: true
-          schema: { type: string }
-      responses:
-        '200':
-          description: Profile activated
-        '403':
-          description: PROJECT_OWNER required
+          description: Alert detail
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertResponse' }
+              examples:
+                danger:
+                  externalValue: ./examples/phase-03/alert-detail.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
 components:
   securitySchemes:
     bearerAuth:
@@ -657,7 +788,7 @@ components:
       in: header
       required: true
       description: >-
-        Active organization context for Phase 02 user endpoints. Runtime CORS configuration must
+        Active organization context for organization-scoped user endpoints. Runtime CORS must
         allow this header. Missing header returns ORGANIZATION_CONTEXT_REQUIRED; inactive or absent
         membership returns ORGANIZATION_ACCESS_DENIED.
       schema: { type: string, minLength: 1 }
@@ -710,6 +841,28 @@ components:
             displayName:desc,
             lastSeenAt:desc,
           ]
+    MonitoringOverviewSort:
+      name: sort
+      in: query
+      required: false
+      schema:
+        type: string
+        default: name:asc
+        enum: [name:asc, name:desc, risk:desc, connectivity:desc, lastTelemetryAt:desc]
+    AlertSort:
+      name: sort
+      in: query
+      required: false
+      schema:
+        type: string
+        default: lastObservedAt:desc
+        enum: [lastObservedAt:desc, createdAt:desc, severity:desc]
+    SiteId:
+      name: siteId
+      in: path
+      required: true
+      description: Opaque Site resource identifier.
+      schema: { type: string, minLength: 1 }
     MonitoringPointId:
       name: monitoringPointId
       in: path
@@ -731,7 +884,8 @@ components:
       name: alertId
       in: path
       required: true
-      schema: { type: string }
+      description: Opaque Alert resource identifier.
+      schema: { type: string, minLength: 1 }
   responses:
     BadRequest:
       description: Invalid request, validation failure, missing organization context, or invalid cursor
@@ -857,7 +1011,8 @@ components:
       enum:
         - ACCESS_TOKEN_INVALID
         - ACCESS_TOKEN_REQUIRED
-        - AUTHENTICATION_REQUIRED
+          - AUTHENTICATION_REQUIRED
+        - ALERT_NOT_FOUND
         - BAD_REQUEST
         - CONFLICT
         - DEPENDENCY_UNAVAILABLE
@@ -880,6 +1035,7 @@ components:
         - RATE_LIMITED
         - REFRESH_TOKEN_INVALID
         - REFRESH_TOKEN_REQUIRED
+        - RISK_PROFILE_NOT_FOUND
         - ROLE_ACCESS_DENIED
         - SEQUENCE_CONFLICT
         - SESSION_INVALID
@@ -1153,34 +1309,398 @@ components:
     RiskLevel:
       type: string
       enum: [SAFE, WATCH, DANGER, UNKNOWN]
-    AlertStatus:
+    ConnectivityStatus:
       type: string
-      enum: [OPEN, ACKNOWLEDGED, RESOLVED, FALSE_ALARM]
-    DashboardSummaryResponse:
+      enum: [ONLINE, DELAYED, OFFLINE, UNKNOWN]
+    CalibrationStatus:
+      type: string
+      enum: [PROVISIONAL, CALIBRATED]
+    RiskReason:
+      type: string
+      enum:
+        - SAFE_THRESHOLDS_MET
+        - WATCH_THRESHOLDS_MET
+        - DANGER_TILT
+        - DANGER_RAIN_MOISTURE
+        - REQUIRED_SENSOR_MISSING
+        - REQUIRED_SENSOR_INVALID
+        - DEVICE_DISABLED
+        - TELEMETRY_DELAYED
+        - DEVICE_OFFLINE
+        - TIMESTAMP_UNTRUSTED
+        - PROFILE_UNAVAILABLE
+        - DEVICE_SERVER_MISMATCH
+        - WATCH_HYSTERESIS_PENDING
+        - DOWNGRADE_STABILITY_PENDING
+    SafeThresholds:
       type: object
+      additionalProperties: false
+      required: [tiltMagnitudeDegLt, soilMoisturePctLt, rainfallMmHourLt]
+      properties:
+        tiltMagnitudeDegLt: { type: number, exclusiveMinimum: 0, maximum: 180 }
+        soilMoisturePctLt: { type: number, exclusiveMinimum: 0, maximum: 100 }
+        rainfallMmHourLt: { type: number, exclusiveMinimum: 0 }
+    DangerThresholds:
+      type: object
+      additionalProperties: false
+      required: [tiltMagnitudeDegGt, rainfallMmHourGt, soilMoisturePctGt]
+      properties:
+        tiltMagnitudeDegGt: { type: number, minimum: 0, maximum: 180 }
+        rainfallMmHourGt: { type: number, minimum: 0 }
+        soilMoisturePctGt: { type: number, minimum: 0, maximum: 100 }
+    RiskThresholds:
+      type: object
+      additionalProperties: false
+      required: [safe, danger]
+      properties:
+        safe: { $ref: '#/components/schemas/SafeThresholds' }
+        danger: { $ref: '#/components/schemas/DangerThresholds' }
+    TechnicalRange:
+      type: object
+      additionalProperties: false
+      required: [minimum, maximum]
+      properties:
+        minimum: { type: number }
+        maximum:
+          type: [number, 'null']
+          description: Null means no calibrated static upper bound is available.
+    TechnicalSensorRanges:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          tiltXDeg,
+          tiltYDeg,
+          tiltMagnitudeDeg,
+          soilMoisturePct,
+          rainfallMmHour,
+          batteryVoltage,
+          signalRssi,
+        ]
+      properties:
+        tiltXDeg: { $ref: '#/components/schemas/TechnicalRange' }
+        tiltYDeg: { $ref: '#/components/schemas/TechnicalRange' }
+        tiltMagnitudeDeg: { $ref: '#/components/schemas/TechnicalRange' }
+        soilMoisturePct: { $ref: '#/components/schemas/TechnicalRange' }
+        rainfallMmHour: { $ref: '#/components/schemas/TechnicalRange' }
+        batteryVoltage: { $ref: '#/components/schemas/TechnicalRange' }
+        signalRssi: { $ref: '#/components/schemas/TechnicalRange' }
+    RiskFreshness:
+      type: object
+      additionalProperties: false
+      required: [onlineWithinMinutes, offlineAfterMinutes]
+      properties:
+        onlineWithinMinutes: { type: integer, minimum: 1 }
+        offlineAfterMinutes: { type: integer, minimum: 2 }
+    RiskHysteresis:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          watchConsecutiveSamples,
+          dangerConsecutiveSamples,
+          downgradeStableMinutes,
+          mismatchConsecutiveSamples,
+        ]
+      properties:
+        watchConsecutiveSamples: { type: integer, minimum: 1 }
+        dangerConsecutiveSamples: { type: integer, minimum: 1 }
+        downgradeStableMinutes: { type: integer, minimum: 0 }
+        mismatchConsecutiveSamples: { type: integer, minimum: 1 }
+    RiskProfile:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          siteId,
+          version,
+          calibrationStatus,
+          thresholds,
+          technicalRanges,
+          freshness,
+          hysteresis,
+          notes,
+          createdAt,
+          activatedAt,
+        ]
+      description: >-
+        Immutable Site-scoped configuration version. Only one version is active per Site; changing
+        configuration creates and activates a new version.
+      properties:
+        id: { type: string, minLength: 1 }
+        siteId: { type: string, minLength: 1 }
+        version: { type: integer, minimum: 1 }
+        calibrationStatus: { $ref: '#/components/schemas/CalibrationStatus' }
+        thresholds: { $ref: '#/components/schemas/RiskThresholds' }
+        technicalRanges: { $ref: '#/components/schemas/TechnicalSensorRanges' }
+        freshness: { $ref: '#/components/schemas/RiskFreshness' }
+        hysteresis: { $ref: '#/components/schemas/RiskHysteresis' }
+        notes: { type: [string, 'null'], maxLength: 2000 }
+        createdAt: { type: string, format: date-time }
+        activatedAt: { type: string, format: date-time }
+    UpdateRiskProfileRequest:
+      type: object
+      additionalProperties: false
+      required: [calibrationStatus, thresholds, technicalRanges, freshness, hysteresis, notes]
+      properties:
+        calibrationStatus: { $ref: '#/components/schemas/CalibrationStatus' }
+        thresholds: { $ref: '#/components/schemas/RiskThresholds' }
+        technicalRanges: { $ref: '#/components/schemas/TechnicalSensorRanges' }
+        freshness: { $ref: '#/components/schemas/RiskFreshness' }
+        hysteresis: { $ref: '#/components/schemas/RiskHysteresis' }
+        notes: { type: [string, 'null'], maxLength: 2000 }
+    RiskProfileResponse:
+      type: object
+      additionalProperties: false
       required: [data]
       properties:
+        data: { $ref: '#/components/schemas/RiskProfile' }
+    RiskProfileMutationData:
+      type: object
+      additionalProperties: false
+      required: [profile, changed]
+      properties:
+        profile: { $ref: '#/components/schemas/RiskProfile' }
+        changed:
+          type: boolean
+          description: False only when the canonical request equals the active configuration.
+    RiskProfileMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/RiskProfileMutationData' }
+    RiskAssessment:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          telemetryId,
+          monitoringPointId,
+          deviceId,
+          serverRisk,
+          reasons,
+          firmwareRisk,
+          firmwareSirenActive,
+          affectsCurrentState,
+          evaluatedAt,
+          profileId,
+          profileVersion,
+        ]
+      properties:
+        id: { type: string, minLength: 1 }
+        telemetryId: { type: string, minLength: 1 }
+        monitoringPointId: { type: string, minLength: 1 }
+        deviceId: { type: string, minLength: 1 }
+        serverRisk: { $ref: '#/components/schemas/RiskLevel' }
+        reasons:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/RiskReason' }
+        firmwareRisk: { $ref: '#/components/schemas/RiskLevel' }
+        firmwareSirenActive: { type: boolean }
+        affectsCurrentState:
+          type: boolean
+          description: False for accepted late telemetry; it cannot alter hysteresis or alerts.
+        evaluatedAt: { type: string, format: date-time }
+        profileId: { type: string, minLength: 1 }
+        profileVersion: { type: integer, minimum: 1 }
+    RiskAssessmentListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
         data:
-          type: object
-          required:
-            [
-              monitoringPoints,
-              criticalAlerts,
-              devicesOffline,
-              newAlerts24h,
-              riskDistribution,
-              generatedAt,
-            ]
-          properties:
-            monitoringPoints: { type: integer, minimum: 0 }
-            criticalAlerts: { type: integer, minimum: 0 }
-            devicesOffline: { type: integer, minimum: 0 }
-            newAlerts24h: { type: integer, minimum: 0 }
-            riskDistribution:
-              type: object
-              properties:
-                safe: { type: integer, minimum: 0 }
-                watch: { type: integer, minimum: 0 }
-                danger: { type: integer, minimum: 0 }
-                unknown: { type: integer, minimum: 0 }
-            generatedAt: { type: string, format: date-time }
+          type: array
+          items: { $ref: '#/components/schemas/RiskAssessment' }
+        page: { $ref: '#/components/schemas/PageInfo' }
+    SiteIdentity:
+      type: object
+      additionalProperties: false
+      required: [id, name, timezone]
+      properties:
+        id: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        timezone: { type: string, minLength: 1 }
+    MonitoringPointIdentity:
+      type: object
+      additionalProperties: false
+      required: [id, name, locationDescription, isActive]
+      properties:
+        id: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+        locationDescription: { type: [string, 'null'], maxLength: 500 }
+        isActive: { type: boolean }
+    CurrentDeviceSummary:
+      type: object
+      additionalProperties: false
+      required: [id, hardwareId, displayName, lifecycleStatus]
+      properties:
+        id: { type: string, minLength: 1 }
+        hardwareId:
+          type: string
+          pattern: ^[A-Z0-9][A-Z0-9_-]{2,63}$
+        displayName: { type: string, minLength: 1 }
+        lifecycleStatus: { $ref: '#/components/schemas/DeviceLifecycleStatus' }
+    LatestTelemetrySensorSummary:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          telemetryId,
+          deviceTimestamp,
+          serverReceivedAt,
+          tiltMagnitudeDeg,
+          soilMoisturePct,
+          rainfallMmHour,
+          batteryVoltage,
+        ]
+      properties:
+        telemetryId: { type: string, minLength: 1 }
+        deviceTimestamp: { type: string, format: date-time }
+        serverReceivedAt: { type: string, format: date-time }
+        tiltMagnitudeDeg: { type: number }
+        soilMoisturePct: { type: number }
+        rainfallMmHour: { type: number }
+        batteryVoltage: { type: number }
+    AlertType:
+      type: string
+      enum: [RISK_WATCH, RISK_DANGER, DEVICE_DELAYED, DEVICE_OFFLINE, DEVICE_SERVER_MISMATCH]
+    AlertSeverity:
+      type: string
+      enum: [INFO, WARNING, CRITICAL]
+    AlertStatus:
+      type: string
+      enum: [ACTIVE, ACKNOWLEDGED, RESOLVED, FALSE_ALARM]
+    ActiveAlertSummary:
+      type: object
+      additionalProperties: false
+      required: [count, highestSeverity, types]
+      properties:
+        count: { type: integer, minimum: 0 }
+        highestSeverity:
+          oneOf:
+            - $ref: '#/components/schemas/AlertSeverity'
+            - type: 'null'
+        types:
+          type: array
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/AlertType' }
+    CurrentMonitoringPointState:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          monitoringPointId,
+          deviceId,
+          serverRisk,
+          connectivityStatus,
+          reasons,
+          latestTelemetryId,
+          evaluatedAt,
+          lastTelemetryAt,
+          profileId,
+          profileVersion,
+          activeAlertSummary,
+        ]
+      description: >-
+        Current read projection. It never replaces immutable RiskAssessment history and is not
+        advanced by late or duplicate telemetry.
+      properties:
+        monitoringPointId: { type: string, minLength: 1 }
+        deviceId: { type: [string, 'null'], minLength: 1 }
+        serverRisk: { $ref: '#/components/schemas/RiskLevel' }
+        connectivityStatus: { $ref: '#/components/schemas/ConnectivityStatus' }
+        reasons:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/RiskReason' }
+        latestTelemetryId: { type: [string, 'null'], minLength: 1 }
+        evaluatedAt: { type: string, format: date-time }
+        lastTelemetryAt: { type: [string, 'null'], format: date-time }
+        profileId: { type: [string, 'null'], minLength: 1 }
+        profileVersion: { type: [integer, 'null'], minimum: 1 }
+        activeAlertSummary: { $ref: '#/components/schemas/ActiveAlertSummary' }
+    MonitoringOverviewItem:
+      type: object
+      additionalProperties: false
+      required: [monitoringPoint, site, device, latestTelemetry, currentState]
+      properties:
+        monitoringPoint: { $ref: '#/components/schemas/MonitoringPointIdentity' }
+        site: { $ref: '#/components/schemas/SiteIdentity' }
+        device:
+          oneOf:
+            - $ref: '#/components/schemas/CurrentDeviceSummary'
+            - type: 'null'
+        latestTelemetry:
+          oneOf:
+            - $ref: '#/components/schemas/LatestTelemetrySensorSummary'
+            - type: 'null'
+        currentState: { $ref: '#/components/schemas/CurrentMonitoringPointState' }
+    MonitoringOverviewResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/MonitoringOverviewItem' }
+        page: { $ref: '#/components/schemas/PageInfo' }
+    Alert:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          organizationId,
+          site,
+          monitoringPoint,
+          deviceId,
+          type,
+          severity,
+          status,
+          reasons,
+          occurrenceCount,
+          firstObservedAt,
+          lastObservedAt,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id: { type: string, minLength: 1 }
+        organizationId: { type: string, minLength: 1 }
+        site: { $ref: '#/components/schemas/SiteIdentity' }
+        monitoringPoint: { $ref: '#/components/schemas/MonitoringPointIdentity' }
+        deviceId: { type: [string, 'null'], minLength: 1 }
+        type: { $ref: '#/components/schemas/AlertType' }
+        severity: { $ref: '#/components/schemas/AlertSeverity' }
+        status: { $ref: '#/components/schemas/AlertStatus' }
+        reasons:
+          type: array
+          minItems: 1
+          uniqueItems: true
+          items: { $ref: '#/components/schemas/RiskReason' }
+        occurrenceCount: { type: integer, minimum: 1 }
+        firstObservedAt: { type: string, format: date-time }
+        lastObservedAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AlertListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Alert' }
+        page: { $ref: '#/components/schemas/PageInfo' }
+    AlertResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/Alert' }

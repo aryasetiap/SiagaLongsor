@@ -1,0 +1,42 @@
+{
+  "data": {
+    "id": "risk_profile_01K1P3V8J7Q5B2M9X4C6D8F0GH",
+    "siteId": "site_01K1B5T6Y7U8I9O0P1A2S3D4FG",
+    "version": 1,
+    "calibrationStatus": "PROVISIONAL",
+    "thresholds": {
+      "safe": {
+        "tiltMagnitudeDegLt": 3,
+        "soilMoisturePctLt": 65,
+        "rainfallMmHourLt": 20
+      },
+      "danger": {
+        "tiltMagnitudeDegGt": 8,
+        "rainfallMmHourGt": 50,
+        "soilMoisturePctGt": 85
+      }
+    },
+    "technicalRanges": {
+      "tiltXDeg": { "minimum": -180, "maximum": 180 },
+      "tiltYDeg": { "minimum": -180, "maximum": 180 },
+      "tiltMagnitudeDeg": { "minimum": 0, "maximum": 180 },
+      "soilMoisturePct": { "minimum": 0, "maximum": 100 },
+      "rainfallMmHour": { "minimum": 0, "maximum": null },
+      "batteryVoltage": { "minimum": 0, "maximum": 30 },
+      "signalRssi": { "minimum": -150, "maximum": 0 }
+    },
+    "freshness": {
+      "onlineWithinMinutes": 20,
+      "offlineAfterMinutes": 35
+    },
+    "hysteresis": {
+      "watchConsecutiveSamples": 2,
+      "dangerConsecutiveSamples": 1,
+      "downgradeStableMinutes": 10,
+      "mismatchConsecutiveSamples": 3
+    },
+    "notes": "Profil provisional; wajib dikalibrasi bersama ahli dan data lapangan.",
+    "createdAt": "2026-08-01T02:00:00.000Z",
+    "activatedAt": "2026-08-01T02:00:00.000Z"
+  }
+}
