@@ -5,11 +5,24 @@ import type {
   RotateCredentialResponse,
 } from '../src/devices/device-contracts';
 import type { MonitoringPoint } from '../src/monitoring-points/monitoring-point-contracts';
+import type { Site } from '../src/sites/site-contracts';
+
+export const siteFixture: Site = {
+  id: 'site_01K1B6H3QAK8N0P4U6W9Y1Z3BC',
+  name: 'SMAN 17 Bandar Lampung',
+  address: null,
+  timezone: 'Asia/Jakarta',
+};
+
+export const siteListFixture: ListEnvelope<Site> = {
+  data: [siteFixture],
+  page: { nextCursor: null, hasMore: false },
+};
 
 export const monitoringPointFixture: MonitoringPoint = {
   id: 'mp_01K1B6JZTHB7M8Q9K2R4V6W8XY',
   organizationId: 'org_01K1B6G2PZJ7K9M3T5V8X0Y2AB',
-  siteId: 'site_01K1B6H3QAK8N0P4U6W9Y1Z3BC',
+  siteId: siteFixture.id,
   name: 'Lereng Belakang Gedung Utama',
   description: 'Titik pemantauan awal di area lereng sekolah.',
   locationDescription: 'Sebelah utara gedung utama.',

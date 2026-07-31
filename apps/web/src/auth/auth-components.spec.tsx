@@ -9,15 +9,18 @@ import { ProtectedRoute } from './protected-route';
 import { OrganizationProvider } from '../organization/organization-context';
 
 const navigationMocks = vi.hoisted(() => ({
+  pathname: '/overview',
   replace: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
+  usePathname: () => navigationMocks.pathname,
   useRouter: () => ({ replace: navigationMocks.replace }),
 }));
 
 describe('AuthProvider and protected content', () => {
   beforeEach(() => {
+    navigationMocks.pathname = '/overview';
     navigationMocks.replace.mockReset();
   });
 
@@ -109,7 +112,9 @@ describe('AuthProvider and protected content', () => {
         client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
       >
         <OrganizationProvider>
-          <ApplicationShell principal={principal} />
+          <ApplicationShell principal={principal} title="Overview">
+            <p>Konten shell</p>
+          </ApplicationShell>
         </OrganizationProvider>
       </AuthProvider>,
     );
@@ -119,7 +124,10 @@ describe('AuthProvider and protected content', () => {
         .length,
     ).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: /Overview/ })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Monitoring/ })).toBeDisabled();
+    expect(screen.getByRole('link', { name: /Monitoring/ })).toHaveAttribute(
+      'href',
+      '/monitoring-points',
+    );
     if (seesOwnerMenu) {
       expect(screen.getByRole('button', { name: /Perangkat/ })).toBeDisabled();
       expect(screen.getByRole('button', { name: /Pengaturan/ })).toBeDisabled();
@@ -137,7 +145,9 @@ describe('AuthProvider and protected content', () => {
         client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
       >
         <OrganizationProvider>
-          <ApplicationShell principal={principal} />
+          <ApplicationShell principal={principal} title="Overview">
+            <p>Konten shell</p>
+          </ApplicationShell>
         </OrganizationProvider>
       </AuthProvider>,
     );
@@ -170,7 +180,9 @@ describe('AuthProvider and protected content', () => {
         })}
       >
         <OrganizationProvider>
-          <ApplicationShell principal={principal} />
+          <ApplicationShell principal={principal} title="Overview">
+            <p>Konten shell</p>
+          </ApplicationShell>
           <AuthStateProbe />
         </OrganizationProvider>
       </AuthProvider>,
@@ -183,6 +195,28 @@ describe('AuthProvider and protected content', () => {
     expect(
       await screen.findByText(/Sesi lokal telah diakhiri, tetapi server tidak dapat dikonfirmasi/),
     ).toBeInTheDocument();
+  });
+
+  it('marks Monitoring as active using the current pathname', async () => {
+    navigationMocks.pathname = '/monitoring-points';
+    const principal = createPrincipal('PROJECT_OWNER');
+    render(
+      <AuthProvider
+        client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
+      >
+        <OrganizationProvider>
+          <ApplicationShell principal={principal} title="Titik monitoring">
+            <p>Daftar titik monitoring</p>
+          </ApplicationShell>
+        </OrganizationProvider>
+      </AuthProvider>,
+    );
+
+    expect(await screen.findByRole('link', { name: /Monitoring/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByRole('link', { name: /Overview/ })).not.toHaveAttribute('aria-current');
   });
 });
 

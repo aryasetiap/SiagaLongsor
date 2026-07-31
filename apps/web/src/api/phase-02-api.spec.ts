@@ -7,6 +7,8 @@ import {
   monitoringPointFixture,
   monitoringPointListFixture,
   rotateCredentialFixture,
+  siteFixture,
+  siteListFixture,
 } from '../../test/phase-02-fixtures';
 import { ApiClient } from '../auth/api-client';
 import {
@@ -23,11 +25,37 @@ import {
   listMonitoringPoints,
   updateMonitoringPoint,
 } from '../monitoring-points/monitoring-points-api';
+import { listSites } from '../sites/sites-api';
 
 const apiBaseUrl = 'http://api.example.test/api/v1';
 const organizationId = monitoringPointFixture.organizationId;
 
 describe('Phase 02 API adapters', () => {
+  it('builds the Site lookup path, query, and organization header', async () => {
+    const fetchMock = createFetchMock([jsonResponse(siteListFixture)]);
+    const client = new ApiClient(apiBaseUrl, fetchMock);
+
+    const result = await listSites(client, organizationId, {
+      search: 'utama / utara',
+      cursor: 'opaque+cursor',
+      limit: 25,
+      sort: 'name:desc',
+    });
+
+    const [input, init] = fetchMock.mock.calls[0] ?? [];
+    const url = new URL(String(input));
+    expect(url.pathname).toBe('/api/v1/sites');
+    expect(url.searchParams.get('search')).toBe('utama / utara');
+    expect(url.searchParams.get('cursor')).toBe('opaque+cursor');
+    expect(url.searchParams.get('limit')).toBe('25');
+    expect(url.searchParams.get('sort')).toBe('name:desc');
+    expect(String(input)).not.toContain('undefined');
+    expect(new Headers(init?.headers).get('x-organization-id')).toBe(organizationId);
+    expect(result.data[0]).toEqual(siteFixture);
+    expect(result.data[0]?.address).toBeNull();
+    expect(result).not.toHaveProperty('totalCount');
+  });
+
   it('builds MonitoringPoint list query without undefined and preserves false', async () => {
     const fetchMock = createFetchMock([jsonResponse(monitoringPointListFixture)]);
     const client = new ApiClient(apiBaseUrl, fetchMock);
