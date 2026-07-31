@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 
 import { AlertObservationService } from '../alerts/alert-observation.service.js';
 import { PrismaService } from '../database/prisma.service.js';
+import { Prisma, type Device } from '../generated/prisma/client.js';
 import { DeviceLifecycleStatus, RiskLevel } from '../generated/prisma/enums.js';
 import { evaluateConnectivity } from './connectivity-policy.js';
 import { DistributedLockService } from './distributed-lock.service.js';
@@ -29,81 +30,136 @@ export class ConnectivityEvaluatorService {
   }
 
   private async evaluate(evaluationTime: Date): Promise<number> {
-    const states = await this.prisma.currentMonitoringPointState.findMany({
+    const candidates = await this.prisma.currentMonitoringPointState.findMany({
       where: { device: { lifecycleStatus: DeviceLifecycleStatus.ENABLED } },
-      include: {
-        device: true,
-        latestTelemetry: true,
-        riskProfile: true,
-        site: {
-          include: {
-            riskProfiles: {
-              where: { isActive: true },
-              take: 1,
-            },
-          },
-        },
-      },
+      select: { monitoringPointId: true, deviceId: true },
     });
 
     let evaluated = 0;
-    for (const state of states) {
-      if (state.device === null || state.latestTelemetry === null) continue;
-      const device = state.device;
-      const profile = state.riskProfile ?? state.site.riskProfiles[0];
-      if (profile === undefined || profile === null) continue;
-      const decision = evaluateConnectivity({
-        lifecycleStatus: device.lifecycleStatus,
-        serverReceivedAt: state.latestTelemetry.serverReceivedAt,
-        evaluationTime,
-        onlineWithinMinutes: profile.onlineWithinMinutes,
-        offlineAfterMinutes: profile.offlineAfterMinutes,
-      });
-      const target = decision.status;
-      if (
-        state.connectivityStatus === target &&
-        state.evaluatedAt.getTime() === evaluationTime.getTime()
-      ) {
-        continue;
-      }
-
-      await this.prisma.$transaction(async (transaction) => {
-        const reason = decision.reason;
-        await transaction.currentMonitoringPointState.update({
-          where: { monitoringPointId: state.monitoringPointId },
-          data:
-            reason === null
-              ? { connectivityStatus: target, evaluatedAt: evaluationTime }
-              : {
-                  connectivityStatus: target,
-                  serverRisk: RiskLevel.UNKNOWN,
-                  reasons: [reason],
-                  evaluatedAt: evaluationTime,
-                  watchConsecutiveSamples: 0,
-                  dangerConsecutiveSamples: 0,
-                  mismatchConsecutiveSamples: 0,
-                  pendingDowngradeRisk: null,
-                  pendingDowngradeSince: null,
-                },
-        });
-        if (reason !== null) {
-          const type = decision.alertType;
-          if (type === null) return;
-          await this.alerts.observe(transaction, {
-            organizationId: state.organizationId,
-            siteId: state.siteId,
-            monitoringPointId: state.monitoringPointId,
-            deviceId: state.deviceId,
-            type,
-            reasons: [reason],
-            observedAt: evaluationTime,
-            observationKey: `connectivity:${device.id}:${type}:${evaluationTime.toISOString()}`,
-            eventType: 'CONNECTIVITY_TRANSITION',
-          });
-        }
-      });
-      evaluated += 1;
+    for (const candidate of candidates) {
+      const deviceId = candidate.deviceId;
+      if (deviceId === null) continue;
+      const changed = await this.prisma.$transaction((transaction) =>
+        this.evaluateCandidate(
+          transaction,
+          {
+            monitoringPointId: candidate.monitoringPointId,
+            deviceId,
+          },
+          evaluationTime,
+        ),
+      );
+      if (changed) evaluated += 1;
     }
     return evaluated;
   }
+
+  private async evaluateCandidate(
+    transaction: Prisma.TransactionClient,
+    candidate: { readonly monitoringPointId: string; readonly deviceId: string },
+    evaluationTime: Date,
+  ): Promise<boolean> {
+    const device = await lockDevice(transaction, candidate.deviceId);
+    if (
+      device === null ||
+      device.lifecycleStatus !== DeviceLifecycleStatus.ENABLED ||
+      device.monitoringPointId !== candidate.monitoringPointId
+    ) {
+      return false;
+    }
+
+    const lockedState = await transaction.$queryRaw<Array<{ monitoringPointId: string }>>(
+      Prisma.sql`
+        SELECT "monitoringPointId"
+        FROM "CurrentMonitoringPointState"
+        WHERE "monitoringPointId" = ${candidate.monitoringPointId}
+        FOR UPDATE
+      `,
+    );
+    if (lockedState.length === 0) return false;
+
+    const state = await transaction.currentMonitoringPointState.findUnique({
+      where: { monitoringPointId: candidate.monitoringPointId },
+      include: { latestTelemetry: true },
+    });
+    if (
+      state === null ||
+      state.deviceId !== device.id ||
+      state.siteId !== device.siteId ||
+      state.organizationId !== device.organizationId ||
+      state.latestTelemetry === null
+    ) {
+      return false;
+    }
+
+    const profile = await transaction.riskProfile.findFirst({
+      where: {
+        organizationId: device.organizationId,
+        siteId: device.siteId,
+        isActive: true,
+      },
+    });
+    if (profile === null) return false;
+
+    const decision = evaluateConnectivity({
+      lifecycleStatus: device.lifecycleStatus,
+      serverReceivedAt: state.latestTelemetry.serverReceivedAt,
+      evaluationTime,
+      onlineWithinMinutes: profile.onlineWithinMinutes,
+      offlineAfterMinutes: profile.offlineAfterMinutes,
+    });
+    const target = decision.status;
+    if (
+      state.connectivityStatus === target &&
+      state.evaluatedAt.getTime() === evaluationTime.getTime()
+    ) {
+      return false;
+    }
+
+    const reason = decision.reason;
+    await transaction.currentMonitoringPointState.update({
+      where: { monitoringPointId: state.monitoringPointId },
+      data:
+        reason === null
+          ? { connectivityStatus: target, evaluatedAt: evaluationTime }
+          : {
+              connectivityStatus: target,
+              serverRisk: RiskLevel.UNKNOWN,
+              reasons: [reason],
+              evaluatedAt: evaluationTime,
+              watchConsecutiveSamples: 0,
+              dangerConsecutiveSamples: 0,
+              mismatchConsecutiveSamples: 0,
+              pendingDowngradeRisk: null,
+              pendingDowngradeSince: null,
+            },
+    });
+    if (reason !== null && decision.alertType !== null) {
+      await this.alerts.observe(transaction, {
+        organizationId: state.organizationId,
+        siteId: state.siteId,
+        monitoringPointId: state.monitoringPointId,
+        deviceId: device.id,
+        type: decision.alertType,
+        reasons: [reason],
+        observedAt: evaluationTime,
+        observationKey: `connectivity:${device.id}:${decision.alertType}:${evaluationTime.toISOString()}`,
+        eventType: 'CONNECTIVITY_TRANSITION',
+      });
+    }
+    return true;
+  }
+}
+
+async function lockDevice(
+  transaction: Prisma.TransactionClient,
+  deviceId: string,
+): Promise<Device | null> {
+  const rows = await transaction.$queryRaw<Array<Device>>(Prisma.sql`
+    SELECT *
+    FROM "Device"
+    WHERE "id" = ${deviceId}
+    FOR UPDATE
+  `);
+  return rows[0] ?? null;
 }

@@ -13,6 +13,7 @@ import { AppModule } from '../app.module.js';
 import { configureApp } from '../bootstrap/configure-app.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { DeviceCredentialService } from '../devices/device-credential.service.js';
+import { Prisma } from '../generated/prisma/client.js';
 import {
   DeviceLifecycleStatus,
   FirmwareRiskLevel,
@@ -86,19 +87,29 @@ describe('Telemetry ingestion API', () => {
 
   afterAll(async () => {
     if (prisma !== undefined) {
-      await prisma.alertEvent.deleteMany({
-        where: { alert: { organizationId } },
+      await prisma.$transaction(async (transaction) => {
+        await transaction.$queryRaw(Prisma.sql`
+          SELECT "id"
+          FROM "Device"
+          WHERE "organizationId" = ${organizationId}
+          FOR UPDATE
+        `);
+        await transaction.alertEvent.deleteMany({
+          where: { alert: { organizationId } },
+        });
+        await transaction.alert.deleteMany({ where: { organizationId } });
+        await transaction.auditLog.deleteMany({ where: { organizationId } });
+        await transaction.currentMonitoringPointState.deleteMany({ where: { organizationId } });
+        await transaction.riskAssessment.deleteMany({ where: { organizationId } });
+        await transaction.telemetry.deleteMany({
+          where: { device: { organizationId } },
+        });
+        await transaction.device.deleteMany({ where: { organizationId } });
+        await transaction.monitoringPoint.deleteMany({ where: { organizationId } });
+        await transaction.riskProfile.deleteMany({ where: { organizationId } });
+        await transaction.site.deleteMany({ where: { organizationId } });
+        await transaction.organization.deleteMany({ where: { id: organizationId } });
       });
-      await prisma.alert.deleteMany({ where: { organizationId } });
-      await prisma.auditLog.deleteMany({ where: { organizationId } });
-      await prisma.currentMonitoringPointState.deleteMany({ where: { organizationId } });
-      await prisma.riskAssessment.deleteMany({ where: { organizationId } });
-      await prisma.telemetry.deleteMany({ where: { deviceId } });
-      await prisma.device.deleteMany({ where: { organizationId } });
-      await prisma.monitoringPoint.deleteMany({ where: { organizationId } });
-      await prisma.riskProfile.deleteMany({ where: { organizationId } });
-      await prisma.site.deleteMany({ where: { organizationId } });
-      await prisma.organization.deleteMany({ where: { id: organizationId } });
     }
     await app?.close();
   });
