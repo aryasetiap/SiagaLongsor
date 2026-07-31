@@ -4,8 +4,8 @@ info:
   version: 0.2.0
   description: >-
     API contract for SiagaLongsor. Authentication and health paths are implemented in Phase 01.
-    MonitoringPoint, Device, credential, and telemetry paths are the approved Phase 02 contract;
-    implementation follows in separate backend and frontend pull requests.
+    Site lookup, MonitoringPoint, Device, credential, and telemetry paths are the approved Phase 02
+    contract; implementation follows in separate backend and frontend pull requests.
 servers:
   - url: /api/v1
 paths:
@@ -106,6 +106,45 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/UserPrincipal' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /sites:
+    get:
+      operationId: listSites
+      tags: [Sites]
+      summary: List sites in the active organization
+      description: >-
+        Read-only lookup for selecting a Site in MonitoringPoint and Device workflows. Available to
+        PROJECT_OWNER and SCHOOL_ADMIN. Site management remains outside Phase 02. The opaque cursor
+        is bound to the active organization, search value, sort, last sort value, and stable id
+        tie-breaker. An invalid or mismatched cursor returns 400 INVALID_CURSOR; an unavailable
+        active organization membership returns 403 ORGANIZATION_ACCESS_DENIED.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/SiteSort'
+        - name: search
+          in: query
+          description: Lookup against Site name and address.
+          schema: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '200':
+          description: Site lookup page limited to the active organization
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SiteListResponse' }
+              examples:
+                page:
+                  externalValue: ./examples/phase-02/site-list.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /monitoring-points:
     get:
       operationId: listMonitoringPoints
@@ -639,6 +678,14 @@ components:
         Opaque cursor bound to organization, filters, sort, last sort value, and stable id
         tie-breaker. Clients must not parse it.
       schema: { type: string, minLength: 1 }
+    SiteSort:
+      name: sort
+      in: query
+      required: false
+      schema:
+        type: string
+        default: name:asc
+        enum: [name:asc, name:desc, createdAt:desc]
     MonitoringPointSort:
       name: sort
       in: query
@@ -864,6 +911,32 @@ components:
       properties:
         nextCursor: { type: [string, 'null'] }
         hasMore: { type: boolean }
+    SiteLookup:
+      type: object
+      additionalProperties: false
+      required: [id, name, address, timezone]
+      description: Read-only Site projection for MonitoringPoint and Device selection.
+      properties:
+        id:
+          type: string
+          minLength: 1
+          description: Opaque Site resource identifier.
+        name: { type: string, minLength: 1 }
+        address: { type: [string, 'null'] }
+        timezone:
+          type: string
+          minLength: 1
+          description: IANA timezone identifier.
+          examples: [Asia/Jakarta]
+    SiteListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/SiteLookup' }
+        page: { $ref: '#/components/schemas/PageInfo' }
     DeviceLifecycleStatus:
       type: string
       enum: [ENABLED, DISABLED]

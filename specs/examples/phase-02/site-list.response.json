@@ -1,0 +1,14 @@
+{
+  "data": [
+    {
+      "id": "site_01K1B6H3QAK8N0P4U6W9Y1Z3BC",
+      "name": "SMAN 17 Bandar Lampung",
+      "address": null,
+      "timezone": "Asia/Jakarta"
+    }
+  ],
+  "page": {
+    "nextCursor": null,
+    "hasMore": false
+  }
+}
