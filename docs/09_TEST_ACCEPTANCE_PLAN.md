@@ -14,16 +14,19 @@
 
 Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah dibuat.
 
-### Direncanakan untuk Phase 02
+### Terverifikasi pada Phase 02
 
-- Contract validation untuk error envelope, organization context, pagination, Site lookup,
+- Contract validation tersedia untuk error envelope, organization context, pagination, Site lookup,
   MonitoringPoint, Device, one-time credential, dan telemetry.
-- Migration test dari database bersih.
-- API integration test untuk permission, CRUD, credential lifecycle, ingestion, validation,
-  idempotency, raw payload, dan rate limiting.
-- Frontend component test dengan typed contract mocks.
-- Chromium browser smoke pada checkpoint integrasi sebelum management UI pertama digabung.
-- Full monorepo CI pada setiap pull request.
+- Migration test dari database bersih dan seed idempotent tersedia.
+- API integration test mencakup permission, CRUD, credential lifecycle, ingestion, validation,
+  idempotency, raw payload, rate limiting, organization isolation, dan late data.
+- Frontend component test memakai typed contract mocks untuk akses PROJECT_OWNER dan read-only
+  SCHOOL_ADMIN.
+- Chromium browser smoke mencakup authentication, MonitoringPoint, Device, dan full lifecycle
+  acceptance lintas kapabilitas dengan simulator CLI aktual.
+- Full monorepo verification Phase 02 dicatat dalam
+  [`docs/14_PHASE_02_ACCEPTANCE_REPORT.md`](14_PHASE_02_ACCEPTANCE_REPORT.md).
 
 ### Fase mendatang
 

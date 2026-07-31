@@ -405,6 +405,19 @@ async function sendAndValidate(
     return;
   }
 
+  if (!response.ok) {
+    const parsed = parseErrorResponse(body);
+    runtime.log({
+      ...baseLog,
+      errorCode: sanitize(parsed.error.code, config),
+      errorMessage: sanitize(parsed.error.message, config),
+    });
+    throw new SimulatorError(
+      'UNEXPECTED_RESPONSE',
+      `Response tidak sesuai scenario: diharapkan HTTP ${expected.status}.`,
+    );
+  }
+
   const parsed = parseSuccessResponse(body);
   runtime.log({
     ...baseLog,
