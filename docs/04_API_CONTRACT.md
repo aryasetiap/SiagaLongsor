@@ -53,7 +53,7 @@ tidak hanya mempercayai claim JWT.
 
 ## 3. Organization context dan permission
 
-Semua endpoint `/monitoring-points/**` dan `/devices/**` wajib menerima:
+Semua endpoint `/sites`, `/monitoring-points/**`, dan `/devices/**` wajib menerima:
 
 ```http
 X-Organization-Id: <organizationId>
@@ -72,6 +72,7 @@ Permission matrix:
 
 | Resource        | Operasi                        |     PROJECT_OWNER |      SCHOOL_ADMIN |
 | --------------- | ------------------------------ | ----------------: | ----------------: |
+| Site            | Lookup list                    |                Ya |                Ya |
 | MonitoringPoint | List/detail                    |                Ya |                Ya |
 | MonitoringPoint | Create/update                  |                Ya |             Tidak |
 | Device          | List/detail                    |                Ya |                Ya |
@@ -80,7 +81,27 @@ Permission matrix:
 
 UI boleh menggunakan role untuk visibility, tetapi guard backend tetap sumber authorization.
 
-## 4. MonitoringPoint Phase 02
+## 4. Site lookup Phase 02
+
+Endpoint read-only:
+
+- `GET /sites`
+
+Endpoint ini hanya lookup untuk pilihan Site pada alur MonitoringPoint dan Device. Site management,
+termasuk create, detail, update, dan delete, tetap di luar Phase 02. PROJECT_OWNER dan SCHOOL_ADMIN
+dapat membaca hanya Site dari organisasi aktif berdasarkan `X-Organization-Id` dan membership
+backend yang masih aktif.
+
+Response hanya memuat opaque `id`, `name`, nullable `address`, dan IANA `timezone`. List memakai
+cursor pagination tanpa `totalCount`, dengan limit default 25 dan maksimum 100. Search opsional
+mencari `name` dan `address` dengan panjang maksimum 100 karakter. Sort default `name:asc`; pilihan
+lain adalah `name:desc` dan `createdAt:desc`.
+
+Cursor tidak boleh diparse client dan terikat pada organisasi aktif, search, sort, nilai sort
+terakhir, serta stable id tie-breaker. Cursor invalid atau tidak cocok dengan konteks query
+menghasilkan `400 INVALID_CURSOR`.
+
+## 5. MonitoringPoint Phase 02
 
 Endpoint:
 
@@ -97,7 +118,7 @@ selama masih memiliki enabled device.
 List mendukung filter `siteId`, `isActive`, `search`; sort yang disetujui ada di OpenAPI. Phase 02
 tidak memiliki delete, koordinat/peta, risk, telemetry history, alert, atau KPI pada resource ini.
 
-## 5. Device dan credential Phase 02
+## 6. Device dan credential Phase 02
 
 Endpoint:
 
@@ -123,7 +144,7 @@ lama invalid segera setelah rotation berhasil. Secret atau hash tidak boleh ada 
 audit log, application log, URL, fixture, atau frontend storage. Disable bersifat idempotent dan
 langsung memblokir telemetry.
 
-## 6. Telemetry Phase 02
+## 7. Telemetry Phase 02
 
 ### Request
 
@@ -206,7 +227,7 @@ Status utama:
 
 Phase 02 tidak memiliki heartbeat endpoint atau server risk response.
 
-## 7. Kontrak fase selanjutnya
+## 8. Kontrak fase selanjutnya
 
 Dashboard, alerts, threshold profile, risk history, SSE, map, reporting, notification worker, dan
 remote siren bukan bagian implementasi Phase 02. Placeholder OpenAPI yang masih ada untuk kontrak

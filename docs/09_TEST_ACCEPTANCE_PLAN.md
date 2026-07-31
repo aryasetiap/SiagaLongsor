@@ -16,8 +16,8 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
 
 ### Direncanakan untuk Phase 02
 
-- Contract validation untuk error envelope, organization context, pagination, MonitoringPoint,
-  Device, one-time credential, dan telemetry.
+- Contract validation untuk error envelope, organization context, pagination, Site lookup,
+  MonitoringPoint, Device, one-time credential, dan telemetry.
 - Migration test dari database bersih.
 - API integration test untuk permission, CRUD, credential lifecycle, ingestion, validation,
   idempotency, raw payload, dan rate limiting.
@@ -76,6 +76,19 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
 8. Cross-organization resource -> 404 resource-specific not found.
 9. Site dari organisasi lain ditolak.
 10. Runtime CORS mengizinkan header `X-Organization-Id`.
+
+### Site lookup
+
+1. PROJECT_OWNER dan SCHOOL_ADMIN dapat membaca Site dalam organisasi aktif.
+2. Response tidak memuat Site dari organisasi lain.
+3. Missing organization context dan membership tidak aktif mengikuti error contract.
+4. Search mencakup `name` dan `address`, dengan panjang maksimum 100 karakter.
+5. Limit default 25 dan maksimum 100; tidak ada `totalCount`.
+6. Sort default `name:asc`; `name:desc` dan `createdAt:desc` diterima.
+7. Cursor opaque terikat pada organization, search, sort, nilai sort terakhir, dan stable id.
+8. Cursor invalid atau dari konteks query lain menghasilkan 400 `INVALID_CURSOR`.
+9. Item hanya memuat `id`, `name`, nullable `address`, dan `timezone`.
+10. Tidak tersedia endpoint create, detail, update, atau delete Site pada Phase 02.
 
 ### MonitoringPoint
 

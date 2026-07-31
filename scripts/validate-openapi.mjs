@@ -15,6 +15,7 @@ const expectedExampleFiles = [
   'error-validation.response.json',
   'monitoring-point-create.request.json',
   'monitoring-point-list.response.json',
+  'site-list.response.json',
   'telemetry-accepted.response.json',
   'telemetry-duplicate.response.json',
   'telemetry.request.json',
@@ -281,6 +282,9 @@ try {
   );
 
   const expectedUserOperations = {
+    '/sites': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
     '/monitoring-points': {
       get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
       post: ['PROJECT_OWNER'],
@@ -324,6 +328,37 @@ try {
       }
     }
   }
+
+  const siteListOperation = rawSpecification.paths['/sites'].get;
+  assert(
+    JSON.stringify(siteListOperation.security) === JSON.stringify([{ bearerAuth: [] }]),
+    'GET /sites must require bearer authentication.',
+  );
+  assert(
+    hasParameterReference(siteListOperation, '#/components/parameters/Limit') &&
+      hasParameterReference(siteListOperation, '#/components/parameters/Cursor') &&
+      hasParameterReference(siteListOperation, '#/components/parameters/SiteSort'),
+    'GET /sites must declare limit, cursor, and Site sort parameters.',
+  );
+  const siteSearchParameter = siteListOperation.parameters.find(
+    (parameter) => parameter.name === 'search' && parameter.in === 'query',
+  );
+  assert(
+    siteSearchParameter?.required !== true && siteSearchParameter?.schema?.maxLength === 100,
+    'GET /sites search must be optional with maxLength 100.',
+  );
+  assert(
+    rawSpecification.components.parameters.SiteSort.schema.default === 'name:asc' &&
+      JSON.stringify(rawSpecification.components.parameters.SiteSort.schema.enum) ===
+        JSON.stringify(['name:asc', 'name:desc', 'createdAt:desc']),
+    'GET /sites sort contract is incorrect.',
+  );
+  assert(
+    ['post', 'put', 'patch', 'delete'].every(
+      (method) => !Object.hasOwn(rawSpecification.paths['/sites'], method),
+    ) && !Object.hasOwn(rawSpecification.paths, '/sites/{siteId}'),
+    'Phase 02 must not expose Site create, detail, update, or delete operations.',
+  );
 
   assert(
     telemetrySchema.$schema === 'https://json-schema.org/draft/2020-12/schema',
@@ -380,6 +415,7 @@ try {
     examples['monitoring-point-create.request.json'],
     schemas.CreateMonitoringPointRequest,
   );
+  validateExample(examples['site-list.response.json'], schemas.SiteListResponse);
   validateExample(examples['device-register.request.json'], schemas.RegisterDeviceRequest);
   validateExample(examples['device-register.response.json'], schemas.DeviceCredentialResponse);
   validateExample(examples['telemetry.request.json'], telemetryRequestSchema);
