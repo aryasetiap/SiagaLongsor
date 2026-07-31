@@ -128,11 +128,10 @@ describe('AuthProvider and protected content', () => {
       'href',
       '/monitoring-points',
     );
+    expect(screen.getByRole('link', { name: /Perangkat/ })).toHaveAttribute('href', '/devices');
     if (seesOwnerMenu) {
-      expect(screen.getByRole('button', { name: /Perangkat/ })).toBeDisabled();
       expect(screen.getByRole('button', { name: /Pengaturan/ })).toBeDisabled();
     } else {
-      expect(screen.queryByRole('button', { name: /Perangkat/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Pengaturan/ })).not.toBeInTheDocument();
     }
   });
@@ -154,18 +153,18 @@ describe('AuthProvider and protected content', () => {
 
     const selector = await screen.findByRole('combobox', { name: 'Organisasi aktif' });
     expect(selector).toHaveValue('');
-    expect(screen.queryByRole('button', { name: /Perangkat/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /Perangkat/ })).not.toBeInTheDocument();
 
     await user.selectOptions(selector, 'org-owner');
     expect(screen.getAllByText('Organisasi Pemilik').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Project Owner').length).toBeGreaterThan(0);
-    expect(screen.getByRole('button', { name: /Perangkat/ })).toBeDisabled();
+    expect(screen.getByRole('link', { name: /Perangkat/ })).toBeInTheDocument();
 
     await user.selectOptions(selector, 'org-admin');
     expect(screen.getAllByText('Organisasi Admin').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Admin Sekolah').length).toBeGreaterThan(0);
     expect(screen.queryByText('Project Owner')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /Perangkat/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Perangkat/ })).toBeInTheDocument();
   });
 
   it('clears local auth state and redirects even when server logout fails', async () => {
@@ -217,6 +216,27 @@ describe('AuthProvider and protected content', () => {
       'page',
     );
     expect(screen.getByRole('link', { name: /Overview/ })).not.toHaveAttribute('aria-current');
+  });
+
+  it('marks Devices as active using the current pathname', async () => {
+    navigationMocks.pathname = '/devices';
+    const principal = createPrincipal('SCHOOL_ADMIN');
+    render(
+      <AuthProvider
+        client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
+      >
+        <OrganizationProvider>
+          <ApplicationShell principal={principal} title="Perangkat">
+            <p>Daftar perangkat</p>
+          </ApplicationShell>
+        </OrganizationProvider>
+      </AuthProvider>,
+    );
+
+    expect(await screen.findByRole('link', { name: /Perangkat/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
   });
 });
 

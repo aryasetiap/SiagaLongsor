@@ -31,7 +31,11 @@ const navigation: readonly NavigationItem[] = [
   },
   { label: 'Peringatan', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
   { label: 'Peta & Evakuasi', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
-  { label: 'Perangkat', roles: ['PROJECT_OWNER'] },
+  {
+    label: 'Perangkat',
+    href: '/devices',
+    roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+  },
   { label: 'Laporan', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
   { label: 'Pengaturan', roles: ['PROJECT_OWNER'] },
 ];
