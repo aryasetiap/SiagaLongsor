@@ -29,7 +29,7 @@ const navigation: readonly NavigationItem[] = [
     href: '/monitoring-points',
     roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
   },
-  { label: 'Peringatan', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
+  { label: 'Peringatan', href: '/alerts', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
   { label: 'Peta & Evakuasi', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
   {
     label: 'Perangkat',
@@ -37,7 +37,11 @@ const navigation: readonly NavigationItem[] = [
     roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
   },
   { label: 'Laporan', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
-  { label: 'Pengaturan', roles: ['PROJECT_OWNER'] },
+  {
+    label: 'Profil Risiko',
+    href: '/settings/risk-profile',
+    roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+  },
 ];
 
 export function ApplicationShell({ principal, title, subtitle, children }: ApplicationShellProps) {

@@ -129,11 +129,12 @@ describe('AuthProvider and protected content', () => {
       '/monitoring-points',
     );
     expect(screen.getByRole('link', { name: /Perangkat/ })).toHaveAttribute('href', '/devices');
-    if (seesOwnerMenu) {
-      expect(screen.getByRole('button', { name: /Pengaturan/ })).toBeDisabled();
-    } else {
-      expect(screen.queryByRole('button', { name: /Pengaturan/ })).not.toBeInTheDocument();
-    }
+    expect(screen.getByRole('link', { name: /Peringatan/ })).toHaveAttribute('href', '/alerts');
+    expect(screen.getByRole('link', { name: /Profil Risiko/ })).toHaveAttribute(
+      'href',
+      '/settings/risk-profile',
+    );
+    expect(seesOwnerMenu || role === 'SCHOOL_ADMIN').toBe(true);
   });
 
   it('uses the selected organization role for shell identity and navigation', async () => {
@@ -234,6 +235,30 @@ describe('AuthProvider and protected content', () => {
     );
 
     expect(await screen.findByRole('link', { name: /Perangkat/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+  });
+
+  it.each([
+    ['/alerts', /Peringatan/],
+    ['/settings/risk-profile', /Profil Risiko/],
+  ])('marks the Phase 03 navigation for %s as active', async (pathname, accessibleName) => {
+    navigationMocks.pathname = pathname;
+    const principal = createPrincipal('SCHOOL_ADMIN');
+    render(
+      <AuthProvider
+        client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
+      >
+        <OrganizationProvider>
+          <ApplicationShell principal={principal} title="Operasional">
+            <p>Konten operasional</p>
+          </ApplicationShell>
+        </OrganizationProvider>
+      </AuthProvider>,
+    );
+
+    expect(await screen.findByRole('link', { name: accessibleName })).toHaveAttribute(
       'aria-current',
       'page',
     );
