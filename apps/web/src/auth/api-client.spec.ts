@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ApiClient, ApiClientError } from './api-client';
 import type { Principal } from './auth-types';
+import { validationErrorFixture } from '../../test/phase-02-fixtures';
 
 const principal: Principal = {
   id: 'user-1',
@@ -128,6 +129,53 @@ describe('ApiClient', () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(5);
     expectRequest(fetchMock, 4, '/protected', 'Bearer rotated-token');
+  });
+
+  it('keeps the organization header when a request is retried after refresh', async () => {
+    const fetchMock = createFetchMock([
+      jsonResponse(authResponse('initial-token')),
+      jsonResponse(principal),
+      jsonResponse({ error: { code: 'SESSION_INVALID' } }, 401),
+      jsonResponse(authResponse('rotated-token')),
+      jsonResponse({ data: [] }),
+    ]);
+    const client = new ApiClient('http://api.example.test/api/v1', fetchMock);
+    await client.bootstrapSession();
+
+    await client.organizationRequest('/devices', 'org-1');
+
+    for (const index of [2, 4]) {
+      const [, init] = fetchMock.mock.calls[index] ?? [];
+      expect(new Headers(init?.headers).get('x-organization-id')).toBe('org-1');
+    }
+    expectRequest(fetchMock, 4, '/devices', 'Bearer rotated-token');
+  });
+
+  it('fails before fetch when an organization-scoped request has no organization', async () => {
+    const fetchMock = createFetchMock([]);
+    const client = new ApiClient('http://api.example.test/api/v1', fetchMock);
+
+    await expect(client.organizationRequest('/devices', '  ')).rejects.toEqual(
+      expect.objectContaining({
+        kind: 'configuration',
+        code: 'ORGANIZATION_CONTEXT_REQUIRED',
+      }),
+    );
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('parses safe API code, requestId, message, and validation details', async () => {
+    const fetchMock = createFetchMock([jsonResponse(validationErrorFixture, 400)]);
+    const client = new ApiClient('http://api.example.test/api/v1', fetchMock);
+
+    await expect(client.organizationRequest('/devices', 'org-1')).rejects.toMatchObject({
+      kind: 'api',
+      status: 400,
+      code: 'VALIDATION_ERROR',
+      requestId: validationErrorFixture.requestId,
+      message: 'Payload tidak valid.',
+      details: validationErrorFixture.error.details,
+    });
   });
 
   it('does not refresh more than once when the retried request remains unauthorized', async () => {

@@ -6,6 +6,7 @@ import { ApplicationShell } from '../components/application-shell';
 import { AuthProvider, type AuthClient, useAuth } from './auth-context';
 import type { Principal, Role } from './auth-types';
 import { ProtectedRoute } from './protected-route';
+import { OrganizationProvider } from '../organization/organization-context';
 
 const navigationMocks = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -107,10 +108,16 @@ describe('AuthProvider and protected content', () => {
       <AuthProvider
         client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
       >
-        <ApplicationShell principal={principal} />
+        <OrganizationProvider>
+          <ApplicationShell principal={principal} />
+        </OrganizationProvider>
       </AuthProvider>,
     );
 
+    expect(
+      (await screen.findAllByText(role === 'PROJECT_OWNER' ? 'Project Owner' : 'Admin Sekolah'))
+        .length,
+    ).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: /Overview/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Monitoring/ })).toBeDisabled();
     if (seesOwnerMenu) {
@@ -120,9 +127,35 @@ describe('AuthProvider and protected content', () => {
       expect(screen.queryByRole('button', { name: /Perangkat/ })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Pengaturan/ })).not.toBeInTheDocument();
     }
-    expect(
-      screen.getAllByText(role === 'PROJECT_OWNER' ? 'Project Owner' : 'Admin Sekolah').length,
-    ).toBeGreaterThan(0);
+  });
+
+  it('uses the selected organization role for shell identity and navigation', async () => {
+    const user = userEvent.setup();
+    const principal = createMultiOrganizationPrincipal();
+    render(
+      <AuthProvider
+        client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
+      >
+        <OrganizationProvider>
+          <ApplicationShell principal={principal} />
+        </OrganizationProvider>
+      </AuthProvider>,
+    );
+
+    const selector = await screen.findByRole('combobox', { name: 'Organisasi aktif' });
+    expect(selector).toHaveValue('');
+    expect(screen.queryByRole('button', { name: /Perangkat/ })).not.toBeInTheDocument();
+
+    await user.selectOptions(selector, 'org-owner');
+    expect(screen.getAllByText('Organisasi Pemilik').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Project Owner').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: /Perangkat/ })).toBeDisabled();
+
+    await user.selectOptions(selector, 'org-admin');
+    expect(screen.getAllByText('Organisasi Admin').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Admin Sekolah').length).toBeGreaterThan(0);
+    expect(screen.queryByText('Project Owner')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Perangkat/ })).not.toBeInTheDocument();
   });
 
   it('clears local auth state and redirects even when server logout fails', async () => {
@@ -136,8 +169,10 @@ describe('AuthProvider and protected content', () => {
           logout,
         })}
       >
-        <ApplicationShell principal={principal} />
-        <AuthStateProbe />
+        <OrganizationProvider>
+          <ApplicationShell principal={principal} />
+          <AuthStateProbe />
+        </OrganizationProvider>
       </AuthProvider>,
     );
 
@@ -198,6 +233,26 @@ function createPrincipal(role: Role): Principal {
         organizationId: 'org-1',
         organizationName: 'SMAN 17 Bandar Lampung',
         role,
+      },
+    ],
+  };
+}
+
+function createMultiOrganizationPrincipal(): Principal {
+  return {
+    id: 'user-multi',
+    email: 'multi@example.invalid',
+    name: 'Pengguna Multi',
+    memberships: [
+      {
+        organizationId: 'org-owner',
+        organizationName: 'Organisasi Pemilik',
+        role: 'PROJECT_OWNER',
+      },
+      {
+        organizationId: 'org-admin',
+        organizationName: 'Organisasi Admin',
+        role: 'SCHOOL_ADMIN',
       },
     ],
   };
