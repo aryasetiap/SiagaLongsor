@@ -86,6 +86,11 @@ describe('Telemetry ingestion API', () => {
 
   afterAll(async () => {
     if (prisma !== undefined) {
+      await prisma.alertEvent.deleteMany({
+        where: { alert: { organizationId } },
+      });
+      await prisma.alert.deleteMany({ where: { organizationId } });
+      await prisma.auditLog.deleteMany({ where: { organizationId } });
       await prisma.currentMonitoringPointState.deleteMany({ where: { organizationId } });
       await prisma.riskAssessment.deleteMany({ where: { organizationId } });
       await prisma.telemetry.deleteMany({ where: { deviceId } });
