@@ -40,10 +40,7 @@ Exit criteria:
 
 Status: selesai dan telah digabung ke `main`.
 
-## Phase 2 — Device management and ingestion — coordination/contract planning
-
-Implementasi belum dimulai. Backend dan frontend baru mulai bekerja paralel setelah contract
-checkpoint terkait disepakati dan digabung.
+## Phase 2 — Device management and ingestion — selesai
 
 Output:
 
@@ -96,14 +93,20 @@ Exit criteria:
 - Risk engine, alert, dashboard KPI, sensor chart, SSE, map, reports, remote siren, firmware, dan
   heartbeat tetap di luar scope.
 
-## Phase 3 — Risk engine and alerts
+Status: seluruh contract, backend, frontend MonitoringPoint/Device, Site lookup, telemetry
+ingestion, simulator, component/integration test, dan Chromium full acceptance telah selesai dan
+digabung ke `main`. Bukti exit berada di `docs/14_PHASE_02_ACCEPTANCE_REPORT.md`.
+
+## Phase 3 — Risk engine and alerts — contract/implementation active
 
 Output:
 
-- Threshold profile.
+- Versioned Site risk profile.
 - Pure risk engine package.
 - Risk assessment persistence.
-- Alert engine and deduplication.
+- Current MonitoringPoint risk/connectivity projection.
+- Alert generation, deduplication, and read API.
+- Monitoring overview and assessment history read API.
 - Offline/delayed scheduler.
 - Unit/integration tests.
 
@@ -111,7 +114,23 @@ Exit criteria:
 
 - Boundary test lengkap lulus.
 - Offline tidak pernah SAFE.
-- Alert lifecycle tersimpan.
+- Late/duplicate telemetry tidak mengubah current state atau alert.
+- Profile history dan assessment version binding tersimpan.
+- Alert generation/deduplication tersimpan; lifecycle mutation tetap Phase 05.
+
+Status: contract foundation dan implementation workstream aktif. Runtime belum boleh dianggap
+selesai sampai contract digabung, migration diuji dari database kosong, pure-engine boundary test,
+integration test, scheduler test, dan acceptance Phase 03 lulus.
+
+Contract checkpoints:
+
+| Checkpoint | Output                                                                               |
+| ---------- | ------------------------------------------------------------------------------------ |
+| R1         | Risk level, technical ranges, freshness, hysteresis, dan immutable profile disetujui |
+| R2         | Assessment/current-state semantics serta late/duplicate behavior disetujui           |
+| A1         | Alert type, severity, deduplication, dan scheduler contract disetujui                |
+| A2         | Overview, assessment history, dan alert read API disetujui                           |
+| I3         | Backend implementation serta full Phase 03 acceptance lulus                          |
 
 ## Phase 4 — Dashboard UI
 

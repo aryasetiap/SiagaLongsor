@@ -1,0 +1,36 @@
+{
+  "data": [
+    {
+      "id": "ra_01K1P49M5A7S9D2F4G6H8J0KLC",
+      "telemetryId": "tel_01K1P49E3M5N7B9V2C4X6Z8QWA",
+      "monitoringPointId": "mp_01K1B5Z9Y7X6W5V4U3T2S1R0QP",
+      "deviceId": "dev_01K1B63JQP5AW8RZX4NC7M2TYV",
+      "serverRisk": "DANGER",
+      "reasons": ["DANGER_TILT", "DEVICE_SERVER_MISMATCH"],
+      "firmwareRisk": "WATCH",
+      "firmwareSirenActive": false,
+      "affectsCurrentState": true,
+      "evaluatedAt": "2026-08-01T02:20:02.100Z",
+      "profileId": "risk_profile_01K1P3V8J7Q5B2M9X4C6D8F0GH",
+      "profileVersion": 1
+    },
+    {
+      "id": "ra_01K1P46C2V4B6N8M0A2S5D7FGH",
+      "telemetryId": "tel_01K1P4659Q7W5E3R1T8Y6U4IOP",
+      "monitoringPointId": "mp_01K1B5Z9Y7X6W5V4U3T2S1R0QP",
+      "deviceId": "dev_01K1B63JQP5AW8RZX4NC7M2TYV",
+      "serverRisk": "WATCH",
+      "reasons": ["WATCH_THRESHOLDS_MET"],
+      "firmwareRisk": "WATCH",
+      "firmwareSirenActive": false,
+      "affectsCurrentState": false,
+      "evaluatedAt": "2026-08-01T02:18:01.500Z",
+      "profileId": "risk_profile_01K1P3V8J7Q5B2M9X4C6D8F0GH",
+      "profileVersion": 1
+    }
+  ],
+  "page": {
+    "nextCursor": null,
+    "hasMore": false
+  }
+}

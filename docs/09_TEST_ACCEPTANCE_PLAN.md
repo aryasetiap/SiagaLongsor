@@ -28,10 +28,21 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
 - Full monorepo verification Phase 02 dicatat dalam
   [`docs/14_PHASE_02_ACCEPTANCE_REPORT.md`](14_PHASE_02_ACCEPTANCE_REPORT.md).
 
+### Aktif untuk Phase 03
+
+- Contract validation untuk immutable Site risk profile, assessment history, current monitoring
+  projection, alert list/detail, organization scope, dan cursor pagination.
+- Pure risk engine boundary matrix, technical range, reason, precedence, dan profile-version test.
+- Integration test untuk exactly-one assessment, duplicate/late behavior, transactional current
+  state, hysteresis, profile activation/no-op, alert deduplication, dan organization isolation.
+- Scheduler test untuk boundary ONLINE/DELAYED/OFFLINE, distributed lock, idempotency, disabled
+  Device, recovery tanpa auto-resolve, serta cadence default lima menit.
+- Phase 03 hanya membuat/membaca alert; mutation lifecycle tetap diuji pada Phase 05.
+
 ### Fase mendatang
 
-- Risk engine, alert, offline detector, dashboard, realtime, map, report, performance, dan
-  resilience test dijalankan ketika implementasi fasenya tersedia.
+- Dashboard, alert operation, realtime, map, report, notification, performance, dan resilience test
+  dijalankan ketika implementasi fasenya tersedia.
 - k6 ingestion dan dashboard wajib sebelum produksi, bukan pada coordination stage.
 
 ## 2. Test pyramid
@@ -121,13 +132,19 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
 
 ### Risk engine
 
-- SAFE normal.
-- Semua boundary.
-- Gap 65–70 moisture -> WATCH.
-- Rain > 50 tanpa moisture > 85 -> WATCH kecuali profile mendefinisikan lain.
+- SAFE hanya bila tilt `< 3`, moisture `< 65`, dan rain `< 20`.
+- Boundary tepat 3, 65, 20, 8, 50, dan 85.
+- Gap moisture 65–70 -> WATCH.
+- Rain > 50 tanpa moisture > 85 -> WATCH.
 - Tilt > 8 -> DANGER.
-- Invalid/stale -> UNKNOWN.
-- Danger precedence.
+- Rain > 50 dan moisture > 85 -> DANGER.
+- Required sensor missing/invalid, timestamp untrusted, profile unavailable -> UNKNOWN.
+- Device DISABLED dan DELAYED/OFFLINE -> UNKNOWN.
+- DANGER precedence sebelum SAFE/WATCH.
+- WATCH membutuhkan dua current sample; DANGER satu.
+- Downgrade membutuhkan 10 menit stabil.
+- Profile version berbeda tidak mengubah assessment lama.
+- Exact duplicate tidak membuat assessment; late assessment tidak memengaruhi current state.
 
 ### Offline detector
 
@@ -135,23 +152,27 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
 - > 20 sampai <=35 DELAYED.
 - > 35 OFFLINE.
 - OFFLINE dashboard risk UNKNOWN.
-- Kembali online mencatat status event.
+- Device DISABLED -> connectivity/risk UNKNOWN dengan reason DEVICE_DISABLED.
+- Late telemetry tidak memulihkan connectivity.
+- Kembali online memperbarui current state tetapi tidak auto-resolve alert.
+- Scheduler lock dan rerun idempotent.
 
 ### Alerts
 
-- Transition risk membuat alert.
-- Duplicate state tidak membuat alert baru.
-- School Admin acknowledge dengan note.
-- Resolve tanpa note ditolak.
-- False alarm wajib alasan.
-- AlertEvent tercatat.
-- AuditLog tercatat.
+- WATCH/DANGER dan DELAYED/OFFLINE transition membuat alert sesuai type.
+- Mismatch firmware/server membutuhkan tiga current sample berurutan.
+- Satu unresolved alert per organization/Site/MonitoringPoint/type.
+- Repeated observation memperbarui lastObservedAt dan occurrenceCount.
+- Duplicate dan late telemetry tidak membuat atau memperbarui alert.
+- Risk downgrade/connectivity recovery tidak auto-resolve alert.
+- List/detail organization-scoped tersedia untuk kedua role tanpa totalCount.
+- Acknowledge, resolve, false alarm, AlertEvent mutation, dan audit mutation diuji pada Phase 05.
 
 ### Authorization
 
-- School Admin tidak dapat activate threshold.
+- School Admin tidak dapat mengganti active risk profile.
 - School Admin tidak dapat rotate credential.
-- Project Owner dapat melakukan keduanya.
+- Project Owner dapat mengganti profile dan rotate credential.
 - User dari organization lain tidak dapat membaca data.
 - Header organisasi tidak menggantikan pemeriksaan membership aktif.
 

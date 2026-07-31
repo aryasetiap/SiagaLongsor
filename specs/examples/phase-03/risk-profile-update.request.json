@@ -1,0 +1,35 @@
+{
+  "calibrationStatus": "PROVISIONAL",
+  "thresholds": {
+    "safe": {
+      "tiltMagnitudeDegLt": 3,
+      "soilMoisturePctLt": 65,
+      "rainfallMmHourLt": 20
+    },
+    "danger": {
+      "tiltMagnitudeDegGt": 8,
+      "rainfallMmHourGt": 50,
+      "soilMoisturePctGt": 85
+    }
+  },
+  "technicalRanges": {
+    "tiltXDeg": { "minimum": -180, "maximum": 180 },
+    "tiltYDeg": { "minimum": -180, "maximum": 180 },
+    "tiltMagnitudeDeg": { "minimum": 0, "maximum": 180 },
+    "soilMoisturePct": { "minimum": 0, "maximum": 100 },
+    "rainfallMmHour": { "minimum": 0, "maximum": null },
+    "batteryVoltage": { "minimum": 0, "maximum": 30 },
+    "signalRssi": { "minimum": -150, "maximum": 0 }
+  },
+  "freshness": {
+    "onlineWithinMinutes": 20,
+    "offlineAfterMinutes": 35
+  },
+  "hysteresis": {
+    "watchConsecutiveSamples": 2,
+    "dangerConsecutiveSamples": 1,
+    "downgradeStableMinutes": 10,
+    "mismatchConsecutiveSamples": 3
+  },
+  "notes": "Profil provisional; wajib dikalibrasi bersama ahli dan data lapangan."
+}

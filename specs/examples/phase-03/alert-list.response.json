@@ -1,0 +1,33 @@
+{
+  "data": [
+    {
+      "id": "alert_01K1P4F7G9H2J4K6L8M0N3QWES",
+      "organizationId": "org_01K1B4D5F6G7H8J9K0L1M2N3PQ",
+      "site": {
+        "id": "site_01K1B5T6Y7U8I9O0P1A2S3D4FG",
+        "name": "SMAN 17 Bandar Lampung",
+        "timezone": "Asia/Jakarta"
+      },
+      "monitoringPoint": {
+        "id": "mp_01K1B5Z9Y7X6W5V4U3T2S1R0QP",
+        "name": "Lereng belakang sekolah",
+        "locationDescription": "Di atas gedung laboratorium",
+        "isActive": true
+      },
+      "deviceId": "dev_01K1B63JQP5AW8RZX4NC7M2TYV",
+      "type": "RISK_DANGER",
+      "severity": "CRITICAL",
+      "status": "ACTIVE",
+      "reasons": ["DANGER_TILT"],
+      "occurrenceCount": 2,
+      "firstObservedAt": "2026-08-01T02:20:02.100Z",
+      "lastObservedAt": "2026-08-01T02:25:01.900Z",
+      "createdAt": "2026-08-01T02:20:02.100Z",
+      "updatedAt": "2026-08-01T02:25:01.900Z"
+    }
+  ],
+  "page": {
+    "nextCursor": null,
+    "hasMore": false
+  }
+}
