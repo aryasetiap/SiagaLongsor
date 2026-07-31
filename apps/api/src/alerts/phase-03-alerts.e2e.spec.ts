@@ -23,6 +23,7 @@ import {
   Role,
 } from '../generated/prisma/enums.js';
 import { RedisService } from '../redis/redis.service.js';
+import { Prisma } from '../generated/prisma/client.js';
 import { AlertObservationService } from './alert-observation.service.js';
 
 describe('Phase 03 alerts, connectivity, and read APIs', () => {
@@ -33,6 +34,7 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
   const siteBId = `phase03-site-b-${runId}`;
   const telemetryPointId = `phase03-point-telemetry-${runId}`;
   const schedulerPointId = `phase03-point-scheduler-${runId}`;
+  const racePointId = `phase03-point-race-${runId}`;
   const lockPointId = `phase03-point-lock-${runId}`;
   const disabledPointId = `phase03-point-disabled-${runId}`;
   const pointBId = `phase03-point-b-${runId}`;
@@ -55,8 +57,10 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
   let adminToken: string;
   let telemetryDevice: Awaited<ReturnType<typeof createDevice>>;
   let schedulerDevice: Awaited<ReturnType<typeof createDevice>>;
+  let raceDevice: Awaited<ReturnType<typeof createDevice>>;
   let telemetrySecret: string;
   let schedulerSecret: string;
+  let raceSecret: string;
   let requestSequence = 0;
   let telemetrySequence = 0;
 
@@ -101,6 +105,7 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
       data: [
         pointData(telemetryPointId, organizationAId, siteAId, 'Lereng Telemetry'),
         pointData(schedulerPointId, organizationAId, siteAId, 'Lereng Scheduler'),
+        pointData(racePointId, organizationAId, siteAId, 'Lereng Race'),
         pointData(lockPointId, organizationAId, siteAId, 'Lereng Lock'),
         pointData(disabledPointId, organizationAId, siteAId, 'Lereng Disabled'),
         pointData(pointBId, organizationBId, siteBId, 'Lereng Rahasia B'),
@@ -143,6 +148,9 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
       schedulerIssued.hash,
       'SCHEDULER',
     );
+    const raceIssued = await credentials.issue();
+    raceSecret = raceIssued.raw;
+    raceDevice = await createDevice(racePointId, organizationAId, siteAId, raceIssued.hash, 'RACE');
     await createDevice(
       disabledPointId,
       organizationAId,
@@ -158,7 +166,8 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
       (await credentials.issue()).hash,
       'ORG-B',
     );
-    await createSchedulerProjection();
+    await createConnectivityProjection(schedulerDevice, schedulerPointId, 'scheduler');
+    await createConnectivityProjection(raceDevice, racePointId, 'race');
     ownerToken = await login(ownerEmail);
     adminToken = await login(adminEmail);
   }, 40_000);
@@ -405,6 +414,125 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
     expect(await alertCount(AlertType.DEVICE_OFFLINE, disabledPointId)).toBe(0);
   });
 
+  it('serializes ingestion and connectivity evaluation on the same Device without stale state', async () => {
+    const initialState = await prisma.currentMonitoringPointState.findUniqueOrThrow({
+      where: { monitoringPointId: racePointId },
+    });
+    const oldReceivedAt = new Date(Date.now() - 60 * 60_000);
+    await prisma.telemetry.update({
+      where: { id: initialState.latestTelemetryId as string },
+      data: { serverReceivedAt: oldReceivedAt },
+    });
+
+    let releaseDeviceLock!: () => void;
+    let confirmDeviceLock!: () => void;
+    const deviceLockAcquired = new Promise<void>((resolve) => {
+      confirmDeviceLock = resolve;
+    });
+    const releaseGate = new Promise<void>((resolve) => {
+      releaseDeviceLock = resolve;
+    });
+    const blocker = prisma.$transaction(
+      async (transaction) => {
+        await transaction.$queryRaw(Prisma.sql`
+          SELECT "id"
+          FROM "Device"
+          WHERE "id" = ${raceDevice.id}
+          FOR UPDATE
+        `);
+        confirmDeviceLock();
+        await releaseGate;
+      },
+      { timeout: 15_000 },
+    );
+    await deviceLockAcquired;
+
+    const baselineWaiters = await databaseLockWaiterCount();
+    const evaluationTime = new Date();
+    const evaluationPromise = evaluator.runOnce(evaluationTime);
+    await waitForDatabaseLockWaiters(baselineWaiters + 1);
+
+    const currentPayload = payload({ risk: FirmwareRiskLevel.SAFE, tilt: 1 });
+    const ingestionPromise = Promise.resolve(
+      ingest(raceDevice.hardwareId, raceSecret, currentPayload),
+    );
+    try {
+      await waitForDatabaseLockWaiters(baselineWaiters + 2);
+    } finally {
+      releaseDeviceLock();
+    }
+
+    const [evaluation, ingestion] = await Promise.all([evaluationPromise, ingestionPromise]);
+    await blocker;
+    expect(evaluation.acquired).toBe(true);
+    expect(ingestion.status).toBe(201);
+    expect(ingestion.body.duplicate).toBe(false);
+
+    const currentTelemetryId = ingestion.body.telemetryId as string;
+    let currentState = await prisma.currentMonitoringPointState.findUniqueOrThrow({
+      where: { monitoringPointId: racePointId },
+    });
+    expect(currentState.latestTelemetryId).toBe(currentTelemetryId);
+    expect(currentState.connectivityStatus).toBe('ONLINE');
+    expect(
+      await prisma.telemetry.count({
+        where: { deviceId: raceDevice.id, messageId: currentPayload.messageId },
+      }),
+    ).toBe(1);
+    expect(await prisma.riskAssessment.count({ where: { telemetryId: currentTelemetryId } })).toBe(
+      1,
+    );
+
+    const alertCountAfterRace = await prisma.alert.count({
+      where: { monitoringPointId: racePointId },
+    });
+    const eventCountAfterRace = await prisma.alertEvent.count({
+      where: { alert: { monitoringPointId: racePointId } },
+    });
+    expect((await ingest(raceDevice.hardwareId, raceSecret, currentPayload)).status).toBe(200);
+
+    const latePayload = payload({
+      risk: FirmwareRiskLevel.DANGER,
+      tilt: 9,
+      timestamp: new Date(Date.now() - 86_400_000).toISOString(),
+    });
+    const [repeatedEvaluation, lateIngestion] = await Promise.all([
+      evaluator.runOnce(new Date()),
+      ingest(raceDevice.hardwareId, raceSecret, latePayload),
+    ]);
+    expect(repeatedEvaluation.acquired).toBe(true);
+    expect(lateIngestion.status).toBe(201);
+    const lateTelemetryId = lateIngestion.body.telemetryId as string;
+    const lateAssessment = await prisma.riskAssessment.findUniqueOrThrow({
+      where: { telemetryId: lateTelemetryId },
+    });
+    expect(lateAssessment.affectsCurrentState).toBe(false);
+    expect(await prisma.riskAssessment.count({ where: { telemetryId: lateTelemetryId } })).toBe(1);
+
+    const idempotentTime = new Date();
+    await evaluator.runOnce(idempotentTime);
+    await evaluator.runOnce(idempotentTime);
+    currentState = await prisma.currentMonitoringPointState.findUniqueOrThrow({
+      where: { monitoringPointId: racePointId },
+    });
+    expect(currentState.latestTelemetryId).toBe(currentTelemetryId);
+    expect(currentState.connectivityStatus).toBe('ONLINE');
+    expect(await prisma.alert.count({ where: { monitoringPointId: racePointId } })).toBe(
+      alertCountAfterRace,
+    );
+    expect(
+      await prisma.alertEvent.count({
+        where: { alert: { monitoringPointId: racePointId } },
+      }),
+    ).toBe(eventCountAfterRace);
+    const alertsByType = await prisma.alert.groupBy({
+      by: ['type'],
+      where: { monitoringPointId: racePointId },
+      _count: { _all: true },
+    });
+    expect(alertsByType.every((group) => group._count._all === 1)).toBe(true);
+  }, 20_000);
+
   it('serves overview to both roles with filters, stable cursor, and organization isolation', async () => {
     const [owner, admin, filtered] = await Promise.all([
       get('/api/v1/monitoring-overview?limit=2', ownerToken, organizationAId),
@@ -534,13 +662,17 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
     expect(JSON.stringify(detail.body)).not.toContain(telemetrySecret);
   });
 
-  async function createSchedulerProjection(): Promise<void> {
+  async function createConnectivityProjection(
+    device: Awaited<ReturnType<typeof createDevice>>,
+    monitoringPointId: string,
+    suffix: string,
+  ): Promise<void> {
     const telemetry = await prisma.telemetry.create({
       data: {
-        deviceId: schedulerDevice.id,
-        monitoringPointId: schedulerPointId,
-        messageId: `scheduler-message-${runId}`,
-        bootId: `scheduler-boot-${runId}`,
+        deviceId: device.id,
+        monitoringPointId,
+        messageId: `${suffix}-message-${runId}`,
+        bootId: `${suffix}-boot-${runId}`,
         sequence: 1,
         deviceTimestamp: baseTime,
         serverReceivedAt: baseTime,
@@ -559,15 +691,15 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
       where: { siteId: siteAId, isActive: true },
     });
     await prisma.device.update({
-      where: { id: schedulerDevice.id },
+      where: { id: device.id },
       data: { lastSeenAt: baseTime, lastTelemetryAt: baseTime },
     });
     await prisma.currentMonitoringPointState.create({
       data: {
-        monitoringPointId: schedulerPointId,
+        monitoringPointId,
         organizationId: organizationAId,
         siteId: siteAId,
-        deviceId: schedulerDevice.id,
+        deviceId: device.id,
         serverRisk: 'SAFE',
         connectivityStatus: 'ONLINE',
         reasons: ['SAFE_THRESHOLDS_MET'],
@@ -678,6 +810,25 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
     throw new Error('Redis lock was not acquired in time.');
+  }
+
+  async function databaseLockWaiterCount(): Promise<number> {
+    const rows = await prisma.$queryRaw<Array<{ count: bigint }>>(Prisma.sql`
+      SELECT count(*)::bigint AS "count"
+      FROM pg_stat_activity
+      WHERE "datname" = current_database()
+        AND "pid" <> pg_backend_pid()
+        AND "wait_event_type" = 'Lock'
+    `);
+    return Number(rows[0]?.count ?? 0);
+  }
+
+  async function waitForDatabaseLockWaiters(expected: number): Promise<void> {
+    for (let attempt = 0; attempt < 250; attempt += 1) {
+      if ((await databaseLockWaiterCount()) >= expected) return;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    throw new Error(`Expected at least ${expected} PostgreSQL lock waiters.`);
   }
 });
 
