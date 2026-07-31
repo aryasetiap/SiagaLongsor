@@ -1,4 +1,5 @@
 import type { LoginInput, Principal } from './auth-types';
+import type { ValidationDetail } from '../api/contracts';
 
 interface AuthResponse {
   readonly accessToken: string;
@@ -7,20 +8,14 @@ interface AuthResponse {
   readonly user: Principal;
 }
 
-interface ApiErrorEnvelope {
-  readonly error?: {
-    readonly code?: string;
-    readonly message?: string;
-  };
-  readonly requestId?: string;
-}
-
 export class ApiClientError extends Error {
   constructor(
     message: string,
     readonly kind: 'api' | 'configuration' | 'network',
     readonly status?: number,
     readonly code?: string,
+    readonly requestId?: string,
+    readonly details?: readonly ValidationDetail[],
   ) {
     super(message);
     this.name = 'ApiClientError';
@@ -78,6 +73,26 @@ export class ApiClient {
 
   request<T>(path: string, init: RequestInit = {}): Promise<T> {
     return this.requestWithRefresh<T>(path, init, true);
+  }
+
+  async organizationRequest<T>(
+    path: string,
+    organizationId: string,
+    init: RequestInit = {},
+  ): Promise<T> {
+    const normalizedOrganizationId = organizationId.trim();
+    if (normalizedOrganizationId.length === 0) {
+      throw new ApiClientError(
+        'Organisasi aktif harus dipilih sebelum mengirim permintaan.',
+        'configuration',
+        undefined,
+        'ORGANIZATION_CONTEXT_REQUIRED',
+      );
+    }
+
+    const headers = new Headers(init.headers);
+    headers.set('x-organization-id', normalizedOrganizationId);
+    return this.requestWithRefresh<T>(path, { ...init, headers }, true);
   }
 
   clearSession(): void {
@@ -168,10 +183,12 @@ export class ApiClient {
     if (!response.ok) {
       const envelope = await readErrorEnvelope(response);
       throw new ApiClientError(
-        envelope.error?.message ?? 'Permintaan tidak dapat diproses.',
+        envelope.message,
         'api',
         response.status,
-        envelope.error?.code,
+        envelope.code,
+        envelope.requestId,
+        envelope.details,
       );
     }
 
@@ -183,10 +200,59 @@ export class ApiClient {
   }
 }
 
-async function readErrorEnvelope(response: Response): Promise<ApiErrorEnvelope> {
+async function readErrorEnvelope(response: Response): Promise<{
+  readonly message: string;
+  readonly code?: string;
+  readonly requestId?: string;
+  readonly details?: readonly ValidationDetail[];
+}> {
   try {
-    return (await response.json()) as ApiErrorEnvelope;
+    const value = (await response.json()) as unknown;
+    if (!isRecord(value) || !isRecord(value.error)) {
+      return { message: 'Permintaan tidak dapat diproses.' };
+    }
+
+    return {
+      message: safeText(value.error.message, 'Permintaan tidak dapat diproses.', 500),
+      ...(typeof value.error.code === 'string'
+        ? { code: safeText(value.error.code, 'API_ERROR', 100) }
+        : {}),
+      ...(typeof value.requestId === 'string'
+        ? { requestId: safeText(value.requestId, '', 128) }
+        : {}),
+      ...(Array.isArray(value.error.details)
+        ? { details: parseValidationDetails(value.error.details) }
+        : {}),
+    };
   } catch {
-    return {};
+    return { message: 'Permintaan tidak dapat diproses.' };
   }
+}
+
+function parseValidationDetails(values: readonly unknown[]): readonly ValidationDetail[] {
+  return values.flatMap((value) => {
+    if (!isRecord(value) || typeof value.field !== 'string' || !Array.isArray(value.messages)) {
+      return [];
+    }
+    const messages = value.messages
+      .filter((message): message is string => typeof message === 'string')
+      .map((message) => safeText(message, '', 500))
+      .filter((message) => message.length > 0);
+    return messages.length === 0 ? [] : [{ field: safeText(value.field, 'body', 200), messages }];
+  });
+}
+
+function safeText(value: unknown, fallback: string, maximumLength: number): string {
+  if (typeof value !== 'string' || value.length === 0) return fallback;
+  return [...value]
+    .map((character) => {
+      const code = character.charCodeAt(0);
+      return code <= 31 || code === 127 ? ' ' : character;
+    })
+    .join('')
+    .slice(0, maximumLength);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

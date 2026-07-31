@@ -6,6 +6,7 @@ import { useState } from 'react';
 
 import { useAuth } from '../auth/auth-context';
 import type { Principal, Role } from '../auth/auth-types';
+import { useOrganization } from '../organization/organization-context';
 import { BrandMark } from './brand-mark';
 
 interface ApplicationShellProps {
@@ -35,8 +36,9 @@ const navigation: readonly NavigationItem[] = [
 export function ApplicationShell({ principal }: ApplicationShellProps) {
   const router = useRouter();
   const auth = useAuth();
+  const organization = useOrganization();
   const [loggingOut, setLoggingOut] = useState(false);
-  const membership = principal.memberships[0];
+  const membership = organization.activeMembership;
   const role = membership?.role;
   const visibleNavigation =
     role === undefined
@@ -95,8 +97,25 @@ export function ApplicationShell({ principal }: ApplicationShellProps) {
           )}
         </nav>
 
-        <div className="mt-8 hidden rounded-2xl border border-slate-200 bg-slate-50 p-4 md:block">
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:mt-8">
           <p className="text-xs font-semibold text-slate-500">Lingkup aktif</p>
+          {organization.availableMemberships.length > 1 && (
+            <label className="mt-2 block text-xs font-semibold text-slate-600">
+              Organisasi aktif
+              <select
+                value={organization.activeOrganizationId ?? ''}
+                onChange={(event) => organization.selectOrganization(event.target.value)}
+                className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-2 focus-visible:outline-blue-600"
+              >
+                <option value="">Pilih organisasi</option>
+                {organization.availableMemberships.map((candidate) => (
+                  <option key={candidate.organizationId} value={candidate.organizationId}>
+                    {candidate.organizationName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
           <p className="mt-2 truncate text-sm font-bold text-slate-900">
             {membership?.organizationName ?? 'Belum ada organisasi'}
           </p>
