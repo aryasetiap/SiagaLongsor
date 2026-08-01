@@ -43,7 +43,7 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
   hasil lengkap tersedia pada
   [`docs/15_PHASE_03_ACCEPTANCE_REPORT.md`](15_PHASE_03_ACCEPTANCE_REPORT.md).
 
-### Acceptance behavior lulus, verification gate Phase 04 masih blocked
+### Selesai pada Phase 04
 
 - Dashboard Summary menjadi sumber KPI dan distribusi authoritative, bukan list terpaginasikan.
 - Monitoring Overview, risk/connectivity presentation, Sensor Series, serta Recent Alerts memiliki
@@ -51,9 +51,10 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
 - Sensor chart menjaga oldest-first, null, late marker, dan gap tanpa interpolasi.
 - PROJECT_OWNER dan SCHOOL_ADMIN read path, Site/window filter, manual refresh, organization
   header, responsive viewport, accessibility, dan browser-storage safety telah diverifikasi.
-- Tiga putaran penuh API integration dan Chromium acceptance lulus. Phase exit belum ditutup karena
-  repository-wide format gate menemukan file backend commit basis di luar scope frontend ini.
-  Detail dicatat dalam
+- API unit, web unit/component, clean-database migration dan seed idempotent, API integration,
+  production build, OpenAPI, root format gate, serta 12 Chromium test telah lulus.
+- Kebijakan `.gitattributes` memastikan source LF secara reproducible pada Windows, Linux, dan CI
+  tanpa perubahan semantik aplikasi. Detail final dicatat dalam
   [`docs/16_PHASE_04_ACCEPTANCE_REPORT.md`](16_PHASE_04_ACCEPTANCE_REPORT.md).
 
 ### Fase mendatang

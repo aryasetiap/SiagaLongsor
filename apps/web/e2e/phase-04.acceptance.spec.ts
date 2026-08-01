@@ -39,8 +39,7 @@ test('PROJECT_OWNER menjalankan Dashboard Phase 04 dengan data aktual', async ({
     requiredCredential('E2E_PROJECT_OWNER_EMAIL', 'SEED_PROJECT_OWNER_EMAIL'),
     requiredCredential('E2E_PROJECT_OWNER_PASSWORD', 'SEED_PROJECT_OWNER_PASSWORD'),
   );
-  const baseline = await reloadSummary(page);
-  const baselineBody = await dashboardBody(baseline);
+  const baselineBody = await refreshSummary(page);
 
   const siteId = await createMonitoringPoint(page, pointName);
   deviceSecret = await registerDevice(page, { hardwareId, displayName, pointName, siteId });
@@ -250,10 +249,10 @@ function isOldestFirst(items: readonly SensorItem[]) {
   );
 }
 
-async function reloadSummary(page: Page) {
+async function refreshSummary(page: Page) {
   const response = waitForDashboardSummary(page, 24);
-  await page.reload();
-  return response;
+  await page.getByRole('button', { name: 'Segarkan seluruh dashboard' }).click();
+  return dashboardBody(await response);
 }
 
 function waitForDashboardSummary(page: Page, hours: number, siteId?: string) {

@@ -1,20 +1,26 @@
 # Phase 04 Acceptance Report
 
-Tanggal verifikasi: 1 Agustus 2026  
-Commit basis: `d5b88ea`  
+Tanggal verifikasi: 1 Agustus 2026
+
+Commit basis: `27cff76cc8999c5f43efc92f26b31a004b0f4f7a`
+
 Environment: Windows development host, Node.js 24, pnpm 10.34.5, PostgreSQL 16, Redis 7,
 Chromium Playwright, NestJS API, dan Next.js web.
 
 ## Keputusan
 
-**FAIL — capability acceptance lulus, tetapi repository verification gate belum hijau.**
+**Phase 04 capability acceptance: PASS**
 
-Dashboard data backend dan UI responsive telah diuji sebagai satu alur aktual dan seluruh test
-lulus. Namun, `format:check` repository gagal pada sembilan file backend Dashboard yang identik
-dengan commit basis dan tidak boleh diubah dalam scope frontend ini. Phase exit tidak dinyatakan
-selesai sampai defect format tersebut diperbaiki melalui perubahan backend terpisah. Hasil
-capability tidak mengubah risk profile `PROVISIONAL` menjadi threshold bencana yang sudah
-terkalibrasi.
+**Phase 04 repository exit gate: PASS**
+
+**Phase 04 exit criteria: PASS**
+
+Dashboard data backend dan UI responsive telah diuji sebagai satu alur aktual dan seluruh gate
+lulus. Blocker sebelumnya berasal dari checkout EOL lintas platform: Git for Windows dapat
+menghasilkan CRLF saat repository belum memiliki kebijakan EOL. Repository sekarang menetapkan
+`* text=auto eol=lf` melalui `.gitattributes`; root `format:check` reproducible dan PASS tanpa
+perubahan semantik aplikasi. Hasil acceptance tidak mengubah risk profile `PROVISIONAL` menjadi
+threshold bencana yang sudah terkalibrasi.
 
 ## Capability matrix
 
@@ -88,8 +94,8 @@ terkalibrasi.
 - Prisma: 6 migration terpasang; schema valid; seed dua kali idempotent.
 - OpenAPI, NestJS production build, dan Next.js production build: lulus.
 - Tidak ditemukan PostgreSQL `SQLSTATE 40P01` dalam tiga integration run.
-- `format:check`: gagal hanya pada sembilan file `apps/api/src/dashboard/**`/`app.module.ts` dari
-  commit basis; hash working tree sama dengan `HEAD`. Seluruh changed file Phase 04 sesuai Prettier.
+- Root `format:check`: PASS dengan kebijakan LF repository pada Windows; representative backend dan
+  frontend source memiliki index/working-tree LF serta effective attribute `eol=lf`.
 
 ## Security dan artifact evidence
 
@@ -102,10 +108,9 @@ terkalibrasi.
 ## Known limitations
 
 - Late marker saat ini bergantung pada `RiskAssessment.affectsCurrentState`.
-- Site operasional harus memiliki active risk profile.
-- Ingestion-level late persistence independen tetap menjadi follow-up sebelum production.
-- Dashboard menggunakan refresh manual; realtime SSE memang deferred ke Phase 05.
-- k6 ingestion dan dashboard tetap wajib sebelum production.
+- Ingestion-level independent late persistence tetap menjadi production-hardening item.
+- Dashboard menggunakan refresh manual; realtime SSE dan Alert lifecycle tetap Phase 05.
+- k6 ingestion dan dashboard tetap wajib pada hardening/deployment phase.
 
 ## Deferred Phase 05+
 

@@ -132,7 +132,7 @@ Contract checkpoints:
 | A2         | Overview, assessment history, dan alert read API disetujui                           |
 | I3         | Backend implementation serta full Phase 03 acceptance lulus                          |
 
-## Phase 4 — Dashboard data and UI — acceptance complete, verification blocked
+## Phase 4 — Dashboard UI — selesai
 
 Output:
 
@@ -155,13 +155,12 @@ Exit criteria:
 - Sensor chart tidak menginterpolasi gap atau mengubah null/no-data menjadi nol.
 - PROJECT_OWNER dan SCHOOL_ADMIN read path, organization isolation, dan Chromium acceptance lulus.
 
-Status: contract, backend dashboard-data, frontend responsive, component test, tiga putaran API
-integration, dan Chromium full acceptance telah lulus. Exit belum ditutup karena repository-wide
-`format:check` menemukan sembilan file backend dari commit basis yang belum sesuai Prettier dan
-berada di luar scope perubahan frontend ini. Bukti berada di
+Status: contract, backend dashboard-data, frontend responsive, component test, API integration,
+Chromium full acceptance, dan repository exit gate telah PASS. Root formatting sekarang
+reproducible melalui kebijakan LF repository. Bukti berada di
 [`docs/16_PHASE_04_ACCEPTANCE_REPORT.md`](16_PHASE_04_ACCEPTANCE_REPORT.md).
 
-## Phase 5 — Alert operations and realtime
+## Phase 5 — Alert operations and realtime — berikutnya
 
 Output:
 
