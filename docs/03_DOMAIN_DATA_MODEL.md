@@ -146,3 +146,41 @@ tidak boleh digunakan sebagai schema aktif atau sumber migration.
   dan raw payload mendapat defense-in-depth constraint untuk menolak property credential/header.
 - `serverReceivedAt` juga menjadi waktu pembuatan row telemetry sehingga tidak ditambahkan
   `createdAt` yang redundan.
+
+## 8. Model konseptual Phase 06
+
+Bagian ini membekukan domain boundary; model Prisma dan migration dibuat pada implementation PR.
+
+### SiteMapConfiguration
+
+- Milik satu Site dan organisasi melalui Site, memiliki immutable ID dan version monotonik.
+- Tepat satu versi aktif per Site; versi lama tidak diedit atau dihapus melalui alur normal.
+- Menyimpan center/zoom, lokasi MonitoringPoint, polygon zona referensi, jalur evakuasi, notes,
+  actor, `createdAt`, dan `activatedAt`.
+- Semua posisi WGS84/EPSG:4326 memakai `[longitude, latitude]`, tanpa altitude. Longitude
+  `-180..180`, latitude `-90..90`, seluruh angka finite. Validation memastikan ring Polygon
+  tertutup dan struktur minimum, tetapi tidak mengklaim validasi topology/self-intersection GIS
+  penuh tanpa library khusus. LineString minimal dua posisi berbeda.
+- Update memakai `expectedVersion`; canonical request identik adalah no-op tanpa versi/audit baru.
+  Perubahan berbeda membuat versi baru dan audit tersanitasi secara atomik.
+
+### SopDocument
+
+- Metadata immutable dan versioned per Site; satu versi aktif, tanpa physical delete normal.
+- Byte PDF berada di private object storage menggunakan opaque random key. Metadata menyimpan
+  filename tersanitasi, MIME `application/pdf`, ukuran maksimal 10 MiB, SHA-256, actor, dan waktu.
+- Storage key, public URL, byte file, serta detail provider tidak pernah masuk public projection
+  atau AuditLog.
+
+### ReportJob dan ReportArtifact
+
+- ReportJob organization-scoped, terkait Site, requester, rentang `[from,to)`, tipe, status, dan
+  durable timestamps. Status: `QUEUED`, `PROCESSING`, `SUCCEEDED`, `FAILED`, `EXPIRED`.
+- Artifact PDF private hanya ada untuk job sukses dan menyimpan safe metadata serta expiry 90 hari.
+  `FAILED` menyimpan failure classification tersanitasi, bukan stack trace.
+- Regenerasi selalu membuat job baru. Worker harus idempotent agar retry tidak membuat metadata
+  atau object yang inkonsisten.
+
+Map overview adalah read projection, bukan histori baru. Zona polygon dan route adalah konfigurasi
+manual statis, sedangkan warna marker berasal dari current risk/connectivity authoritative. Data
+tidak tersedia, delayed, atau offline tidak boleh dipresentasikan sebagai `SAFE`.

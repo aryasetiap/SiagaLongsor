@@ -189,3 +189,22 @@ Tahap awal cukup memakai PostgreSQL biasa. Bila volume meningkat:
 - Gunakan MQTT hanya bila kebutuhan device count/connection mengharuskan.
 
 Jangan mengoptimalkan berlebihan sebelum metrik nyata tersedia.
+
+## 8. Boundary arsitektur Phase 06
+
+Phase 06 menambahkan tiga boundary tanpa mengubah sumber kebenaran monitoring:
+
+- **Map projection** membaca konfigurasi Site immutable dan projection risiko/konektivitas yang
+  authoritative. Geometry disimpan sebagai GeoJSON WGS84/EPSG:4326 yang provider-independent;
+  backend tidak melakukan geocoding, directions, atau automatic routing.
+- **Private document storage** menyimpan byte SOP dan hasil report di object storage privat.
+  PostgreSQL hanya menyimpan metadata, checksum SHA-256, versi/status, dan opaque object key.
+  Download selalu melewati API terautentikasi; tidak ada public/permanent URL.
+- **Report worker** memakai BullMQ untuk pembuatan PDF asinkron. API hanya membuat durable job,
+  worker melakukan retry terbatas dan idempotent, lalu menulis artifact metadata. Kegagalan worker
+  disanitasi dan tidak membocorkan stack/provider detail.
+
+Upload SOP memakai validasi berlapis MIME, ekstensi, ukuran, dan PDF magic signature. Ini adalah
+content containment, bukan klaim bahwa file bebas malware. Bila object upload berhasil tetapi
+transaksi metadata gagal, implementasi wajib melakukan compensating delete. Artifact report
+berumur 90 hari; metadata job dipertahankan dan regenerasi selalu membuat job baru.

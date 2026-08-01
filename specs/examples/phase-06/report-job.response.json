@@ -1,0 +1,26 @@
+{
+  "data": {
+    "id": "report-job-001",
+    "organizationId": "org-sman17",
+    "site": { "id": "site-sman17", "name": "SMAN 17 Bandar Lampung", "timezone": "Asia/Jakarta" },
+    "reportType": "SITE_PERIOD_SUMMARY_PDF",
+    "from": "2026-07-01T00:00:00.000Z",
+    "to": "2026-08-01T00:00:00.000Z",
+    "status": "SUCCEEDED",
+    "createdBy": { "id": "user-owner", "name": "Arya Setia Pratama" },
+    "requestedAt": "2026-08-01T05:00:00.000Z",
+    "startedAt": "2026-08-01T05:00:02.000Z",
+    "completedAt": "2026-08-01T05:00:10.000Z",
+    "expiresAt": "2026-10-30T05:00:10.000Z",
+    "failureCode": null,
+    "failureMessage": null,
+    "artifact": {
+      "fileName": "laporan-sman17-2026-07.pdf",
+      "mediaType": "application/pdf",
+      "sizeBytes": 723144,
+      "sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+      "generatedAt": "2026-08-01T05:00:10.000Z",
+      "expiresAt": "2026-10-30T05:00:10.000Z"
+    }
+  }
+}

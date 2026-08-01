@@ -274,3 +274,42 @@ Quick access SOP membuka dokumen yang memang tersedia. Jika belum ada, tampilkan
 tersedia” dan jangan membuat instruksi darurat sintetis. Halaman audit hanya tersedia untuk
 `PROJECT_OWNER` pada `/settings/audit-log`, mendukung filter dan cursor history, serta tidak
 menampilkan metadata JSON mentah, data transport, atau secret.
+
+## 14. Phase 06 map, SOP, dan reports UI contract
+
+### Map
+
+Halaman `/map` wajib memiliki Site selector dari API, legend text+icon, marker dengan nama,
+risk/connectivity, last update, dan tautan detail. Polygon harus diberi label “zona referensi
+statis”; route diberi label “jalur evakuasi manual”. Layer tidak boleh menyiratkan prediksi,
+geocoder, directions, atau routing otomatis. Jika WebGL/provider gagal, fallback accessible list
+tetap menampilkan informasi authoritative. Site belum dikonfigurasi menampilkan empty state jujur,
+bukan koordinat atau marker palsu. Delayed/offline/unknown tidak boleh berwarna/berlabel SAFE.
+
+`PROJECT_OWNER` dapat membuka editor konfigurasi dengan validasi koordinat, polygon, route,
+preview, dan konfirmasi. Conflict version memicu refetch dan meminta pengguna mengulang perubahan;
+tidak melakukan overwrite diam-diam. `SCHOOL_ADMIN` hanya read-only.
+
+### SOP
+
+Quick access menampilkan metadata active SOP dan tombol authenticated download. Frontend mengambil
+blob memakai bearer + organization header, membuat object URL sementara, lalu revoke. Jika SOP
+belum ada, tampilkan “SOP resmi belum tersedia” tanpa membuat prosedur sintetis.
+
+Owner mendapat upload dialog dengan PDF-only hint, ukuran maksimal 10 MiB, progress/loading,
+validation error, dan konfirmasi bahwa versi baru menjadi aktif. Riwayat versi memakai Load More
+cursor. Admin tidak melihat upload control. Filename tidak dirender sebagai HTML dan file tidak
+pernah dimuat melalui public URL.
+
+### Reports
+
+Halaman `/reports` menyediakan Site/rentang waktu, CSV download, pembuatan PDF job, status, dan
+authenticated artifact download. Rentang maksimum 31 hari dijelaskan sebelum submit. Job baru
+masuk `QUEUED`; UI polling setiap 3 detik dengan backoff terbatas pada error sementara dan berhenti
+pada `SUCCEEDED`, `FAILED`, `EXPIRED`, navigasi keluar, organization switch, atau unmount. Tombol
+regenerate membuat job baru. UI tidak mengarang progress percentage atau failure detail.
+
+Download failure/expiry ditampilkan sebagai state yang dapat ditindaklanjuti. PDF dijelaskan
+sebagai snapshot “Status saat laporan dibuat”, bukan keadaan live. Semua form, layer toggle,
+dialog, status, dan download dapat dioperasikan keyboard, memiliki focus ring, serta tidak
+mengandalkan warna saja.

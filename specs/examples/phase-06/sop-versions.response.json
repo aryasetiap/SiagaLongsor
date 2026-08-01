@@ -1,0 +1,19 @@
+{
+  "data": [
+    {
+      "id": "sop-site-01-v2",
+      "siteId": "site-sman17",
+      "version": 2,
+      "title": "SOP Evakuasi Longsor",
+      "description": "Prosedur operasional sekolah yang berlaku.",
+      "originalFileName": "sop-evakuasi-longsor-v2.pdf",
+      "mediaType": "application/pdf",
+      "sizeBytes": 482311,
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "uploadedBy": { "id": "user-owner", "name": "Arya Setia Pratama" },
+      "uploadedAt": "2026-08-01T04:00:00.000Z",
+      "isActive": true
+    }
+  ],
+  "page": { "nextCursor": null, "hasMore": false }
+}
