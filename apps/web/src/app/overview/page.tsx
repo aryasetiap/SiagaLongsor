@@ -3,8 +3,8 @@
 import { getDefaultApiClient } from '../../auth/default-api-client';
 import { ProtectedRoute } from '../../auth/protected-route';
 import { ApplicationShell } from '../../components/application-shell';
+import { DashboardManager } from '../../dashboard/dashboard-manager';
 import { useOrganization } from '../../organization/organization-context';
-import { MonitoringOverviewManager } from '../../risk/monitoring-overview-manager';
 
 export default function OverviewPage() {
   return (
@@ -12,8 +12,8 @@ export default function OverviewPage() {
       {(principal) => (
         <ApplicationShell
           principal={principal}
-          title="Overview"
-          subtitle="Status operasional risiko dan konektivitas organisasi aktif."
+          title="Dashboard"
+          subtitle="Ringkasan risiko, konektivitas, sensor, dan peringatan organisasi aktif."
         >
           <OverviewContent />
         </ApplicationShell>
@@ -36,7 +36,7 @@ function OverviewContent() {
     );
   }
   return (
-    <MonitoringOverviewManager
+    <DashboardManager
       key={organization.activeOrganizationId}
       client={api.client}
       organizationId={organization.activeOrganizationId}

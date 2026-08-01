@@ -43,19 +43,25 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
   hasil lengkap tersedia pada
   [`docs/15_PHASE_03_ACCEPTANCE_REPORT.md`](15_PHASE_03_ACCEPTANCE_REPORT.md).
 
+### Selesai pada Phase 04
+
+- Dashboard Summary menjadi sumber KPI dan distribusi authoritative, bukan list terpaginasikan.
+- Monitoring Overview, risk/connectivity presentation, Sensor Series, serta Recent Alerts memiliki
+  state loading, error, empty, retry, dan partial failure yang independen.
+- Sensor chart menjaga oldest-first, null, late marker, dan gap tanpa interpolasi.
+- PROJECT_OWNER dan SCHOOL_ADMIN read path, Site/window filter, manual refresh, organization
+  header, responsive viewport, accessibility, dan browser-storage safety telah diverifikasi.
+- API unit, web unit/component, clean-database migration dan seed idempotent, API integration,
+  production build, OpenAPI, root format gate, serta 12 Chromium test telah lulus.
+- Kebijakan `.gitattributes` memastikan source LF secara reproducible pada Windows, Linux, dan CI
+  tanpa perubahan semantik aplikasi. Detail final dicatat dalam
+  [`docs/16_PHASE_04_ACCEPTANCE_REPORT.md`](16_PHASE_04_ACCEPTANCE_REPORT.md).
+
 ### Fase mendatang
 
 - Alert operation, realtime, map, report, notification, performance, dan resilience test dijalankan
   ketika implementasi fasenya tersedia.
 - k6 ingestion dan dashboard wajib sebelum produksi, bukan pada coordination stage.
-
-### Contract/implementation active pada Phase 04
-
-- Authoritative dashboard summary dan MonitoringPoint sensor-series contract tersedia.
-- Monitoring table, Recent Alerts, Alert detail, dan assessment history tetap memakai endpoint
-  Phase 03 existing tanpa endpoint duplikat.
-- Runtime/backend/frontend acceptance belum dinyatakan selesai sampai seluruh kriteria Phase 04
-  berikut lulus.
 
 ## 2. Test pyramid
 

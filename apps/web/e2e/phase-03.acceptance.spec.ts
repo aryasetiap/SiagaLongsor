@@ -7,6 +7,7 @@ test('Phase 03 risk, alert, profile, dan late-data flow terintegrasi', async ({
   request,
 }, testInfo) => {
   test.setTimeout(180_000);
+  page.setDefaultNavigationTimeout(30_000);
   const pageErrors: Error[] = [];
   const missingOrganizationHeaders: string[] = [];
   page.on('pageerror', (error) => pageErrors.push(error));
@@ -65,9 +66,8 @@ test('Phase 03 risk, alert, profile, dan late-data flow terintegrasi', async ({
   await expectAccepted(await sendTelemetry(request, hardwareId, deviceSecret, secondWatch));
 
   await page.goto('/overview');
-  const pointCard = page.locator('article').filter({ hasText: pointName });
-  await expect(pointCard).toBeVisible({ timeout: 20_000 });
-  await expect(pointCard).toContainText('Waspada', { timeout: 30_000 });
+  const pointRow = await findDashboardPoint(page, pointName);
+  await expect(pointRow).toContainText('Waspada', { timeout: 30_000 });
   await page.goto('/alerts');
   const watchRow = page
     .getByRole('row')
@@ -84,7 +84,7 @@ test('Phase 03 risk, alert, profile, dan late-data flow terintegrasi', async ({
   });
   await expectAccepted(await sendTelemetry(request, hardwareId, deviceSecret, dangerPayload));
   await page.goto('/overview');
-  await expect(page.locator('article').filter({ hasText: pointName })).toContainText('Bahaya', {
+  await expect(await findDashboardPoint(page, pointName)).toContainText('Bahaya', {
     timeout: 30_000,
   });
   await page.goto('/alerts');
@@ -122,9 +122,9 @@ test('Phase 03 risk, alert, profile, dan late-data flow terintegrasi', async ({
   });
   await expectAccepted(await sendTelemetry(request, hardwareId, deviceSecret, latePayload));
   await page.goto('/overview');
-  const currentCard = page.locator('article').filter({ hasText: pointName });
-  await expect(currentCard).toContainText('Bahaya', { timeout: 30_000 });
-  await currentCard.getByRole('button', { name: 'Lihat riwayat penilaian' }).click();
+  const currentRow = await findDashboardPoint(page, pointName);
+  await expect(currentRow).toContainText('Bahaya', { timeout: 30_000 });
+  await currentRow.getByRole('button', { name: 'Lihat riwayat penilaian' }).click();
   await expect(page.getByText('Data historis terlambat')).toBeVisible();
   await expectSensitiveValueAbsent(page, deviceSecret);
   await page.getByRole('button', { name: 'Tutup', exact: true }).click();
@@ -169,6 +169,7 @@ test('Phase 03 risk, alert, profile, dan late-data flow terintegrasi', async ({
 
 test('SCHOOL_ADMIN dapat membaca risk dan alert tanpa kontrol mutation', async ({ page }) => {
   test.setTimeout(120_000);
+  page.setDefaultNavigationTimeout(30_000);
   const pageErrors: Error[] = [];
   page.on('pageerror', (error) => pageErrors.push(error));
 
@@ -207,6 +208,14 @@ interface ActiveProfile {
   readonly technicalRanges: {
     readonly tiltMagnitudeDeg: { readonly maximum: number | null };
   };
+}
+
+async function findDashboardPoint(page: Page, pointName: string) {
+  await page.getByLabel('Cari titik monitoring').fill(pointName);
+  await page.getByRole('button', { name: 'Terapkan filter' }).click();
+  const row = page.getByRole('row').filter({ hasText: pointName });
+  await expect(row).toBeVisible({ timeout: 20_000 });
+  return row;
 }
 
 async function readActiveProfile(page: Page): Promise<ActiveProfile> {
