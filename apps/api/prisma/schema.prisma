@@ -71,6 +71,12 @@ enum AlertStatus {
   FALSE_ALARM
 }
 
+enum AlertLifecycleActionType {
+  ACKNOWLEDGE
+  RESOLVE
+  FALSE_ALARM
+}
+
 model Organization {
   id                           String                        @id @default(cuid())
   name                         String
@@ -84,6 +90,7 @@ model Organization {
   riskAssessments              RiskAssessment[]
   currentMonitoringPointStates CurrentMonitoringPointState[]
   alerts                       Alert[]
+  alertLifecycleActions        AlertLifecycleAction[]
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
 }
@@ -314,27 +321,29 @@ model CurrentMonitoringPointState {
 }
 
 model Alert {
-  id                String          @id @default(cuid())
+  id                String                 @id @default(cuid())
   organizationId    String
   siteId            String
   monitoringPointId String
   deviceId          String?
   type              AlertType
   severity          AlertSeverity
-  status            AlertStatus     @default(ACTIVE)
-  deduplicationKey  String          @db.VarChar(512)
+  status            AlertStatus            @default(ACTIVE)
+  deduplicationKey  String                 @db.VarChar(512)
   reasons           Json
-  firstObservedAt   DateTime        @db.Timestamptz(3)
-  lastObservedAt    DateTime        @db.Timestamptz(3)
-  occurrenceCount   Int             @default(1)
-  organization      Organization    @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  site              Site            @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  monitoringPoint   MonitoringPoint @relation(fields: [monitoringPointId, siteId, organizationId], references: [id, siteId, organizationId], onDelete: Restrict)
-  device            Device?         @relation(fields: [deviceId, monitoringPointId], references: [id, monitoringPointId], onDelete: Restrict)
+  firstObservedAt   DateTime               @db.Timestamptz(3)
+  lastObservedAt    DateTime               @db.Timestamptz(3)
+  occurrenceCount   Int                    @default(1)
+  organization      Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  site              Site                   @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  monitoringPoint   MonitoringPoint        @relation(fields: [monitoringPointId, siteId, organizationId], references: [id, siteId, organizationId], onDelete: Restrict)
+  device            Device?                @relation(fields: [deviceId, monitoringPointId], references: [id, monitoringPointId], onDelete: Restrict)
   events            AlertEvent[]
-  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime        @updatedAt @db.Timestamptz(3)
+  lifecycleActions  AlertLifecycleAction[]
+  createdAt         DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime               @updatedAt @db.Timestamptz(3)
 
+  @@unique([id, organizationId])
   @@index([organizationId, lastObservedAt(sort: Desc), id])
   @@index([organizationId, status, severity, lastObservedAt(sort: Desc), id])
   @@index([siteId, monitoringPointId, type, status])
@@ -342,36 +351,66 @@ model Alert {
 }
 
 model AlertEvent {
-  id               String          @id @default(cuid())
+  id               String                @id @default(cuid())
   alertId          String
-  eventType        String          @db.VarChar(64)
-  observationKey   String          @unique @db.VarChar(512)
+  eventType        String                @db.VarChar(64)
+  observationKey   String?               @unique @db.VarChar(512)
   riskAssessmentId String?
   telemetryId      String?
-  observedAt       DateTime        @db.Timestamptz(3)
+  actorId          String?
+  observedAt       DateTime?             @db.Timestamptz(3)
+  actedAt          DateTime?             @db.Timestamptz(3)
   metadata         Json
-  alert            Alert           @relation(fields: [alertId], references: [id], onDelete: Restrict)
-  riskAssessment   RiskAssessment? @relation(fields: [riskAssessmentId], references: [id], onDelete: Restrict)
-  telemetry        Telemetry?      @relation(fields: [telemetryId], references: [id], onDelete: Restrict)
-  createdAt        DateTime        @default(now()) @db.Timestamptz(3)
+  alert            Alert                 @relation(fields: [alertId], references: [id], onDelete: Restrict)
+  riskAssessment   RiskAssessment?       @relation(fields: [riskAssessmentId], references: [id], onDelete: Restrict)
+  telemetry        Telemetry?            @relation(fields: [telemetryId], references: [id], onDelete: Restrict)
+  actor            User?                 @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  lifecycleAction  AlertLifecycleAction?
+  createdAt        DateTime              @default(now()) @db.Timestamptz(3)
 
   @@index([alertId, observedAt(sort: Desc), id])
+  @@index([alertId, createdAt(sort: Desc), id])
   @@index([riskAssessmentId])
   @@index([telemetryId])
+  @@index([actorId, createdAt(sort: Desc), id])
+}
+
+model AlertLifecycleAction {
+  actionId         String                   @id @db.Uuid
+  organizationId   String
+  alertId          String
+  actionType       AlertLifecycleActionType
+  payloadHash      String                   @db.Char(64)
+  eventId          String                   @unique
+  auditLogId       String                   @unique
+  actorId          String
+  originalResponse Json
+  occurredAt       DateTime                 @db.Timestamptz(3)
+  organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  alert            Alert                    @relation(fields: [alertId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  event            AlertEvent               @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  auditLog         AuditLog                 @relation(fields: [auditLogId], references: [id], onDelete: Restrict)
+  actor            User                     @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  createdAt        DateTime                 @default(now()) @db.Timestamptz(3)
+
+  @@index([organizationId, alertId, createdAt(sort: Desc)])
+  @@index([actorId, createdAt(sort: Desc)])
 }
 
 model User {
-  id              String           @id @default(cuid())
-  email           String
-  normalizedEmail String           @unique
-  name            String
-  passwordHash    String
-  isActive        Boolean          @default(true)
-  memberships     Membership[]
-  refreshSessions RefreshSession[]
-  auditLogs       AuditLog[]
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  id                    String                 @id @default(cuid())
+  email                 String
+  normalizedEmail       String                 @unique
+  name                  String
+  passwordHash          String
+  isActive              Boolean                @default(true)
+  memberships           Membership[]
+  refreshSessions       RefreshSession[]
+  auditLogs             AuditLog[]
+  alertEvents           AlertEvent[]
+  alertLifecycleActions AlertLifecycleAction[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
 
   @@index([isActive])
 }
@@ -414,21 +453,23 @@ model RefreshSession {
 }
 
 model AuditLog {
-  id             String        @id @default(cuid())
-  organizationId String?
-  actorId        String?
-  eventType      String
-  entityType     String?
-  entityId       String?
-  requestId      String
-  ipAddress      String?
-  userAgent      String?
-  metadata       Json
-  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  actor          User?         @relation(fields: [actorId], references: [id], onDelete: SetNull)
-  createdAt      DateTime      @default(now())
+  id              String                @id @default(cuid())
+  organizationId  String?
+  actorId         String?
+  eventType       String
+  entityType      String?
+  entityId        String?
+  requestId       String
+  ipAddress       String?
+  userAgent       String?
+  metadata        Json
+  organization    Organization?         @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  actor           User?                 @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  lifecycleAction AlertLifecycleAction?
+  createdAt       DateTime              @default(now())
 
   @@index([organizationId, createdAt(sort: Desc)])
+  @@index([organizationId, createdAt(sort: Desc), id])
   @@index([actorId, createdAt(sort: Desc)])
   @@index([eventType, createdAt(sort: Desc)])
   @@index([requestId])

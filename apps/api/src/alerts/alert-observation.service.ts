@@ -35,12 +35,23 @@ export class AlertObservationService {
     });
     if (priorEvent !== null) return { alert: priorEvent.alert, changed: false };
 
-    const existing = await transaction.alert.findFirst({
+    let existing = await transaction.alert.findFirst({
       where: {
         deduplicationKey,
         status: { in: [AlertStatus.ACTIVE, AlertStatus.ACKNOWLEDGED] },
       },
     });
+    if (existing !== null) {
+      await transaction.$queryRaw(
+        Prisma.sql`SELECT "id" FROM "Alert" WHERE "id" = ${existing.id} FOR UPDATE`,
+      );
+      const locked = await transaction.alert.findUnique({ where: { id: existing.id } });
+      existing =
+        locked !== null &&
+        (locked.status === AlertStatus.ACTIVE || locked.status === AlertStatus.ACKNOWLEDGED)
+          ? locked
+          : null;
+    }
     const severity = severityFor(observation.type);
     const alert =
       existing === null

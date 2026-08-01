@@ -8,11 +8,11 @@ import { AlertSort, type AlertListQueryDto } from '../risk/dto/risk-read.dto.js'
 import type { RiskReason } from '../risk/risk-engine.types.js';
 import type { AlertData, AlertListResponse, AlertResponse } from '../risk/risk-read.types.js';
 
-const include = {
+export const ALERT_INCLUDE = {
   site: true,
   monitoringPoint: true,
 } satisfies Prisma.AlertInclude;
-type AlertRow = Prisma.AlertGetPayload<{ include: typeof include }>;
+export type AlertRow = Prisma.AlertGetPayload<{ include: typeof ALERT_INCLUDE }>;
 
 @Injectable()
 export class AlertsService {
@@ -33,7 +33,7 @@ export class AlertsService {
         ...(query.severity === undefined ? {} : { severity: query.severity }),
         ...(query.status === undefined ? {} : { status: query.status }),
       },
-      include,
+      include: ALERT_INCLUDE,
     });
     rows.sort(alertComparator(query.sort));
     const context = {
@@ -70,7 +70,7 @@ export class AlertsService {
   async get(organizationId: string, alertId: string): Promise<AlertResponse> {
     const alert = await this.prisma.alert.findFirst({
       where: { id: alertId, organizationId },
-      include,
+      include: ALERT_INCLUDE,
     });
     if (alert === null) {
       throw new NotFoundException({
@@ -82,7 +82,7 @@ export class AlertsService {
   }
 }
 
-function toAlertData(alert: AlertRow): AlertData {
+export function toAlertData(alert: AlertRow): AlertData {
   return {
     id: alert.id,
     organizationId: alert.organizationId,
