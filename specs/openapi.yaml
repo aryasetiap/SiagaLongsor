@@ -1,12 +1,13 @@
 openapi: 3.1.0
 info:
   title: SiagaLongsor API
-  version: 0.3.0
+  version: 0.4.0
   description: >-
     API contract for SiagaLongsor. Phase 01 authentication and Phase 02 Site lookup,
-    MonitoringPoint, Device, credential, and telemetry capabilities are implemented. Risk profile,
-    server-side risk assessment, monitoring overview, and read-only alert paths are the approved
-    Phase 03 contract; runtime implementation follows separately.
+    MonitoringPoint, Device, credential, and telemetry capabilities are implemented. Phase 03 risk
+    profile, server-side assessment, monitoring overview, and read-only alerts are implemented.
+    Dashboard summary and MonitoringPoint sensor series are the approved Phase 04 data contract;
+    runtime implementation follows separately.
 servers:
   - url: /api/v1
 paths:
@@ -595,6 +596,57 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '500': { $ref: '#/components/responses/InternalError' }
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [Dashboard]
+      summary: Get authoritative dashboard aggregates for the active organization
+      description: >-
+        Computes every aggregate from the complete active organization and optional Site scope;
+        implementations must not aggregate a cursor page from Monitoring Overview or Alert list.
+        window.to equals generatedAt, window.from is exactly windowHours before it, and the window
+        is from-inclusive/to-exclusive. A cross-organization or unavailable Site is reported as
+        404 SITE_NOT_FOUND. Historical current-state deltas are intentionally not fabricated.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      x-aggregate-source: authoritative-full-scope
+      x-aggregate-invariants:
+        - monitoringPoints.active + monitoringPoints.inactive = monitoringPoints.total
+        - riskDistribution buckets = monitoringPoints.active
+        - devices.enabled + devices.disabled = devices.total
+        - connectivityDistribution buckets = devices.enabled
+        - alerts.activeCritical <= alerts.active
+        - alerts.newInWindow uses firstObservedAt with from inclusive and to exclusive
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - name: siteId
+          in: query
+          required: false
+          description: Optional Site filter constrained to the active organization.
+          schema: { type: string, minLength: 1 }
+        - name: windowHours
+          in: query
+          required: false
+          description: Window used only for newInWindow and response context.
+          schema: { type: integer, minimum: 1, maximum: 168, default: 24 }
+      responses:
+        '200':
+          description: Authoritative dashboard summary without totalCount or fabricated delta
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DashboardSummaryResponse' }
+              examples:
+                organization:
+                  externalValue: ./examples/phase-04/dashboard-summary.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
   /monitoring-overview:
     get:
       operationId: listMonitoringOverview
@@ -669,6 +721,74 @@ paths:
               examples:
                 history:
                   externalValue: ./examples/phase-03/risk-assessment-history.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /monitoring-points/{monitoringPointId}/sensor-series:
+    get:
+      operationId: getMonitoringPointSensorSeries
+      tags: [Dashboard]
+      summary: Get validated telemetry series for one MonitoringPoint
+      description: >-
+        Returns stored telemetry oldest first by recordedAt and stable telemetryId. Defaults to the
+        24 hours ending at server evaluation time and rejects ranges over seven days. from is
+        inclusive and to is exclusive. Data gaps remain gaps: the server does not interpolate,
+        smooth, or downsample. Cross-organization MonitoringPoint is reported as 404
+        MONITORING_POINT_NOT_FOUND.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      x-time-range-semantics:
+        default-hours: 24
+        maximum-hours: 168
+        from: inclusive
+        to: exclusive
+      x-ordering: recordedAt:asc,telemetryId:asc
+      x-cursor-context:
+        [
+          organizationId,
+          monitoringPointId,
+          from,
+          to,
+          includeLate,
+          ordering,
+          recordedAt,
+          telemetryId,
+        ]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/MonitoringPointId'
+        - name: from
+          in: query
+          required: false
+          description: Inclusive ISO 8601 lower bound; defaults to 24 hours before normalized to.
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: false
+          description: Exclusive ISO 8601 upper bound; defaults to server evaluation time.
+          schema: { type: string, format: date-time }
+        - name: includeLate
+          in: query
+          required: false
+          description: Include accepted late telemetry and mark each such point with isLate=true.
+          schema: { type: boolean, default: false }
+        - $ref: '#/components/parameters/SensorSeriesCursor'
+        - $ref: '#/components/parameters/SensorSeriesLimit'
+      responses:
+        '200':
+          description: Stable oldest-first cursor page without totalCount or fabricated sensor data
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SensorSeriesResponse' }
+              examples:
+                withLateAndGap:
+                  externalValue: ./examples/phase-04/sensor-series.response.json
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
@@ -809,6 +929,24 @@ components:
         Opaque cursor bound to organization, filters, sort, last sort value, and stable id
         tie-breaker. Clients must not parse it.
       schema: { type: string, minLength: 1 }
+    SensorSeriesCursor:
+      name: cursor
+      in: query
+      required: false
+      description: >-
+        Opaque signed cursor bound to organization, MonitoringPoint, normalized range, includeLate,
+        fixed ordering, boundary recordedAt, and stable telemetryId. Invalid, expired, or
+        context-mismatched values return INVALID_CURSOR. Clients must not parse it.
+      schema: { type: string, minLength: 1 }
+    SensorSeriesLimit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 500
     SiteSort:
       name: sort
       in: query
@@ -1650,6 +1788,152 @@ components:
           type: array
           items: { $ref: '#/components/schemas/MonitoringOverviewItem' }
         page: { $ref: '#/components/schemas/PageInfo' }
+    DashboardWindow:
+      type: object
+      additionalProperties: false
+      required: [hours, from, to]
+      description: >-
+        Reporting context for new alerts. from is inclusive, to is exclusive, and to equals the
+        enclosing summary generatedAt timestamp.
+      properties:
+        hours: { type: integer, minimum: 1, maximum: 168 }
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+    MonitoringPointCounts:
+      type: object
+      additionalProperties: false
+      required: [total, active, inactive]
+      description: All MonitoringPoints in scope; active plus inactive must equal total.
+      properties:
+        total: { type: integer, minimum: 0 }
+        active: { type: integer, minimum: 0 }
+        inactive: { type: integer, minimum: 0 }
+    RiskDistribution:
+      type: object
+      additionalProperties: false
+      required: [safe, watch, danger, unknown]
+      description: >-
+        Current server risk for active MonitoringPoints only. Buckets sum to monitoringPoints.active.
+        Active points without trusted current state and unavailable, delayed, offline, invalid, or
+        profile-unavailable state belong to unknown and must never be counted as safe.
+      properties:
+        safe: { type: integer, minimum: 0 }
+        watch: { type: integer, minimum: 0 }
+        danger: { type: integer, minimum: 0 }
+        unknown: { type: integer, minimum: 0 }
+    DeviceCounts:
+      type: object
+      additionalProperties: false
+      required: [total, enabled, disabled]
+      description: >-
+        Devices currently assigned to MonitoringPoints in scope. enabled plus disabled equals total.
+      properties:
+        total: { type: integer, minimum: 0 }
+        enabled: { type: integer, minimum: 0 }
+        disabled: { type: integer, minimum: 0 }
+    ConnectivityDistribution:
+      type: object
+      additionalProperties: false
+      required: [online, delayed, offline, unknown]
+      description: >-
+        Connectivity for ENABLED Devices only. Buckets sum to devices.enabled. Enabled Devices
+        without trusted connectivity belong to unknown; DISABLED Devices must never be offline.
+      properties:
+        online: { type: integer, minimum: 0 }
+        delayed: { type: integer, minimum: 0 }
+        offline: { type: integer, minimum: 0 }
+        unknown: { type: integer, minimum: 0 }
+    DashboardAlertCounts:
+      type: object
+      additionalProperties: false
+      required: [active, activeCritical, newInWindow]
+      description: >-
+        active counts unresolved Alerts. activeCritical is the unresolved CRITICAL subset and cannot
+        exceed active. newInWindow counts Alerts by firstObservedAt in [from,to), not repeated
+        observations or occurrenceCount.
+      properties:
+        active: { type: integer, minimum: 0 }
+        activeCritical: { type: integer, minimum: 0 }
+        newInWindow: { type: integer, minimum: 0 }
+    DashboardSummary:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          generatedAt,
+          window,
+          monitoringPoints,
+          riskDistribution,
+          devices,
+          connectivityDistribution,
+          alerts,
+        ]
+      description: >-
+        Authoritative complete-scope aggregate. It must not be derived from a cursor page and does
+        not contain fabricated period deltas or historical current-state estimates.
+      properties:
+        generatedAt: { type: string, format: date-time }
+        window: { $ref: '#/components/schemas/DashboardWindow' }
+        monitoringPoints: { $ref: '#/components/schemas/MonitoringPointCounts' }
+        riskDistribution: { $ref: '#/components/schemas/RiskDistribution' }
+        devices: { $ref: '#/components/schemas/DeviceCounts' }
+        connectivityDistribution: { $ref: '#/components/schemas/ConnectivityDistribution' }
+        alerts: { $ref: '#/components/schemas/DashboardAlertCounts' }
+    DashboardSummaryResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/DashboardSummary' }
+    SensorSeriesPoint:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          telemetryId,
+          deviceId,
+          recordedAt,
+          serverReceivedAt,
+          isLate,
+          tiltMagnitudeDeg,
+          soilMoisturePct,
+          rainfallMmHour,
+          batteryVoltage,
+        ]
+      description: >-
+        One validated stored telemetry point. recordedAt is the device timestamp. Values are never
+        interpolated, smoothed, or fabricated; isLate identifies accepted historical telemetry.
+      properties:
+        telemetryId: { type: string, minLength: 1 }
+        deviceId: { type: string, minLength: 1 }
+        recordedAt: { type: string, format: date-time }
+        serverReceivedAt: { type: string, format: date-time }
+        isLate: { type: boolean }
+        tiltMagnitudeDeg: { type: number }
+        soilMoisturePct: { type: number }
+        rainfallMmHour: { type: number }
+        batteryVoltage:
+          type: [number, 'null']
+          description: Null remains null and must not be rendered as zero.
+    SensorSeriesPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor, hasMore]
+      description: >-
+        Oldest-first stable page. The signed cursor prevents duplicate or skipped telemetry when
+        recordedAt values are equal by using telemetryId as the tie-breaker.
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/SensorSeriesPoint' }
+        nextCursor: { type: [string, 'null'] }
+        hasMore: { type: boolean }
+    SensorSeriesResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SensorSeriesPage' }
     Alert:
       type: object
       additionalProperties: false

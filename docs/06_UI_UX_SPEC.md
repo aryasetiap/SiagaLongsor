@@ -70,9 +70,13 @@ Setiap card:
 
 - Label kecil.
 - Nilai besar.
-- Delta periode.
-- Mini visualization.
+- Context `generatedAt`/window bila membantu pengguna.
+- Delta periode dan mini visualization hanya bila API menyediakan data historis authoritative.
 - Klik menuju filter terkait.
+
+Phase 04 tidak memiliki historical snapshot untuk aggregate current risk/connectivity. UI tidak
+boleh membuat delta, tren, atau mini visualization perkiraan. KPI wajib memakai
+`GET /dashboard/summary`, bukan menghitung satu halaman Monitoring Overview atau Alert list.
 
 ### Main content
 
@@ -85,6 +89,29 @@ Grid desktop:
 
 - Kiri 2/3: Sensor Trend.
 - Kanan 1/3: Alert & Notification list.
+
+Mapping data Phase 04:
+
+- KPI dan Risk Distribution: `GET /dashboard/summary`;
+- Monitoring table: `GET /monitoring-overview`;
+- Sensor Trend: `GET /monitoring-points/{monitoringPointId}/sensor-series`;
+- Recent Alerts: `GET /alerts` dengan sort terbaru dan limit kecil;
+- Alert detail dan assessment history memakai endpoint Phase 03 existing.
+
+## 4.1 Sensor Trend presentation
+
+- Chart wajib memiliki ringkasan tekstual yang dapat dibaca screen reader.
+- Satu data point tetap ditampilkan sebagai point dengan unit, bukan garis atau tren palsu.
+- Empty series menampilkan empty state, bukan grafik bernilai nol.
+- Gap waktu harus terlihat sebagai gap; frontend tidak menginterpolasi atau menghubungkan gap
+  seolah data tersedia.
+- Saat `includeLate=true`, late point memiliki label atau legend yang dapat dipahami tanpa warna.
+- Nullable sensor tetap ditampilkan sebagai tidak tersedia, bukan nol.
+- No-data dan offline tidak divisualisasikan sebagai nilai nol atau SAFE.
+- Timestamp ditampilkan memakai timezone Site bila tersedia, sambil mempertahankan timestamp UTC
+  dari API sebagai sumber.
+- Unit baku: tilt derajat, soil moisture persen, rainfall mm/jam, dan battery volt.
+- Pemilihan chart library ditunda ke implementation PR.
 
 ## 5. Monitoring table
 
@@ -191,7 +218,7 @@ Tabs:
 
 ## 10. Responsive rules
 
-- >= 1280 px: layout penuh seperti referensi.
+- > = 1280 px: layout penuh seperti referensi.
 - 768–1279 px: KPI 2x2, main grid 2/3 + 1/3.
 - < 768 px: semua card stack, table menjadi cards atau horizontal scroll.
 - Aksi critical tetap terlihat tanpa scroll panjang.
@@ -202,6 +229,7 @@ Tabs:
 - Focus ring terlihat.
 - ARIA label pada icon-only button.
 - Chart memiliki ringkasan tekstual.
+- Status dan late-data legend memakai ikon serta label, bukan warna saja.
 - Kontras minimum sesuai WCAG AA.
 - Jangan hanya mengandalkan warna.
 - Gunakan format angka dan unit konsisten.
