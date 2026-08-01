@@ -24,6 +24,10 @@ import {
 import { RedisService } from '../redis/redis.service.js';
 import type { TelemetryDto } from '../telemetry/dto/telemetry.dto.js';
 import { TelemetryService } from '../telemetry/telemetry.service.js';
+import {
+  acquireGlobalConnectivityFixtureLock,
+  type IntegrationSuiteLock,
+} from '../../test/integration-suite-lock.js';
 import { RealtimeConnectionRegistry } from './realtime-connection.registry.js';
 import { RealtimePostCommitService } from './realtime-post-commit.service.js';
 import { REALTIME_REDIS_CHANNEL, RealtimeRedisService } from './realtime-redis.service.js';
@@ -57,8 +61,10 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
   let deviceCredentialHash: string;
   const hardwareId = `RT_${runId}`.toUpperCase();
   let telemetrySequence = 0;
+  let fixtureLock: IntegrationSuiteLock | undefined;
 
   beforeAll(async () => {
+    fixtureLock = await acquireGlobalConnectivityFixtureLock();
     instanceA = await createApplication();
     instanceB = await createApplication();
     prisma = instanceA.get(PrismaService);
@@ -159,49 +165,53 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
   }, 40_000);
 
   afterAll(async () => {
-    if (prisma !== undefined) {
-      await prisma.alertLifecycleAction.deleteMany({
-        where: { organizationId: { in: [organizationAId, organizationBId] } },
-      });
-      await prisma.alertEvent.deleteMany({
-        where: { alert: { organizationId: { in: [organizationAId, organizationBId] } } },
-      });
-      await prisma.auditLog.deleteMany({
-        where: { organizationId: { in: [organizationAId, organizationBId] } },
-      });
-      await prisma.alert.deleteMany({
-        where: { organizationId: { in: [organizationAId, organizationBId] } },
-      });
-      await prisma.currentMonitoringPointState.deleteMany({
-        where: { organizationId: { in: [organizationAId, organizationBId] } },
-      });
-      await prisma.riskAssessment.deleteMany({
-        where: { organizationId: { in: [organizationAId, organizationBId] } },
-      });
-      await prisma.telemetry.deleteMany({
-        where: { device: { organizationId: { in: [organizationAId, organizationBId] } } },
-      });
-      await prisma.device.deleteMany({
-        where: { organizationId: { in: [organizationAId, organizationBId] } },
-      });
-      await prisma.riskProfile.deleteMany({
-        where: { organizationId: { in: [organizationAId, organizationBId] } },
-      });
-      await prisma.refreshSession.deleteMany({
-        where: { userId: { in: [ownerAId, adminAId, ownerBId] } },
-      });
-      await prisma.membership.deleteMany({
-        where: { userId: { in: [ownerAId, adminAId, ownerBId] } },
-      });
-      await prisma.user.deleteMany({ where: { id: { in: [ownerAId, adminAId, ownerBId] } } });
-      await prisma.monitoringPoint.deleteMany({ where: { id: { in: [pointAId, pointBId] } } });
-      await prisma.site.deleteMany({ where: { id: { in: [siteAId, siteBId] } } });
-      await prisma.organization.deleteMany({
-        where: { id: { in: [organizationAId, organizationBId] } },
-      });
+    try {
+      if (prisma !== undefined) {
+        await prisma.alertLifecycleAction.deleteMany({
+          where: { organizationId: { in: [organizationAId, organizationBId] } },
+        });
+        await prisma.alertEvent.deleteMany({
+          where: { alert: { organizationId: { in: [organizationAId, organizationBId] } } },
+        });
+        await prisma.auditLog.deleteMany({
+          where: { organizationId: { in: [organizationAId, organizationBId] } },
+        });
+        await prisma.alert.deleteMany({
+          where: { organizationId: { in: [organizationAId, organizationBId] } },
+        });
+        await prisma.currentMonitoringPointState.deleteMany({
+          where: { organizationId: { in: [organizationAId, organizationBId] } },
+        });
+        await prisma.riskAssessment.deleteMany({
+          where: { organizationId: { in: [organizationAId, organizationBId] } },
+        });
+        await prisma.telemetry.deleteMany({
+          where: { device: { organizationId: { in: [organizationAId, organizationBId] } } },
+        });
+        await prisma.device.deleteMany({
+          where: { organizationId: { in: [organizationAId, organizationBId] } },
+        });
+        await prisma.riskProfile.deleteMany({
+          where: { organizationId: { in: [organizationAId, organizationBId] } },
+        });
+        await prisma.refreshSession.deleteMany({
+          where: { userId: { in: [ownerAId, adminAId, ownerBId] } },
+        });
+        await prisma.membership.deleteMany({
+          where: { userId: { in: [ownerAId, adminAId, ownerBId] } },
+        });
+        await prisma.user.deleteMany({ where: { id: { in: [ownerAId, adminAId, ownerBId] } } });
+        await prisma.monitoringPoint.deleteMany({ where: { id: { in: [pointAId, pointBId] } } });
+        await prisma.site.deleteMany({ where: { id: { in: [siteAId, siteBId] } } });
+        await prisma.organization.deleteMany({
+          where: { id: { in: [organizationAId, organizationBId] } },
+        });
+      }
+    } finally {
+      await instanceB?.close();
+      await instanceA?.close();
+      await fixtureLock?.release();
     }
-    await instanceB?.close();
-    await instanceA?.close();
   }, 30_000);
 
   it('enforces bearer and organization authorization without accepting query credentials', async () => {
@@ -238,7 +248,7 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
       expect(stream.response.headers.get('content-type')).toContain('text/event-stream');
       expect(stream.response.headers.get('cache-control')).toBe('no-cache');
       expect(await stream.reader.nextFrame()).toBe(': keepalive');
-      stream.close();
+      await stream.close();
     }
   });
 
@@ -278,9 +288,7 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
     expect(ownerEvent).not.toHaveProperty('organizationId');
     await expect(otherStream.reader.nextEvent(400)).rejects.toThrow('SSE timeout');
 
-    ownerStream.close();
-    adminStream.close();
-    otherStream.close();
+    await Promise.all([ownerStream.close(), adminStream.close(), otherStream.close()]);
   });
 
   it('does not republish an exact lifecycle retry and accepts Last-Event-ID without replay', async () => {
@@ -320,7 +328,7 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
       ).status,
     ).toBe(200);
     await expect(stream.reader.nextEvent(400)).rejects.toThrow('SSE timeout');
-    stream.close();
+    await stream.close();
   });
 
   it('serializes concurrent lifecycle mutations with one committed event and no HTTP 500', async () => {
@@ -343,7 +351,7 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
     expect((await stream.reader.nextEvent()).eventType).toBe('ALERT_ACKNOWLEDGED');
     await expect(stream.reader.nextEvent(350)).rejects.toThrow('SSE timeout');
     expect(await prisma.alertLifecycleAction.count({ where: { alertId: alert.id } })).toBe(1);
-    stream.close();
+    await stream.close();
   });
 
   it.each([
@@ -373,7 +381,7 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
     );
     expect(result.status).toBe(200);
     expect(await stream.reader.nextEvent()).toMatchObject({ eventType, alertId: alert.id });
-    stream.close();
+    await stream.close();
   });
 
   it('keeps a committed lifecycle mutation successful when Redis publication fails', async () => {
@@ -424,7 +432,7 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
       sopExecuted: true,
     });
     expect((await stream.reader.nextEvent()).eventType).toBe('ALERT_ACKNOWLEDGED');
-    stream.close();
+    await stream.close();
   });
 
   it('publishes alert creation, observation, and state invalidation only from the outer post-commit boundary', async () => {
@@ -507,7 +515,7 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
       await prisma.alertEvent.findUnique({ where: { observationKey: rollbackKey } }),
     ).toBeNull();
     await expect(stream.reader.nextEvent(250)).rejects.toThrow('SSE timeout');
-    stream.close();
+    await stream.close();
   });
 
   it('publishes telemetry risk transitions while suppressing duplicates and late data', async () => {
@@ -540,7 +548,7 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
       'ALERT_OBSERVED',
     ]);
 
-    stream.close();
+    await stream.close();
   });
 
   it('closes streams at token expiry and after membership deactivation, then cleans registry state', async () => {
@@ -550,19 +558,26 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
     });
     const jwt = instanceB.get(JwtService);
     const config = instanceB.get<AppConfig>(APP_CONFIG);
+    const expirySeconds = Math.ceil(Date.now() / 1_000) + 2;
     const shortToken = await jwt.signAsync(
-      { sub: adminAId, sid: session.id, type: 'access', jti: randomUUID() },
+      {
+        sub: adminAId,
+        sid: session.id,
+        type: 'access',
+        jti: randomUUID(),
+        exp: expirySeconds,
+      },
       {
         secret: config.auth.accessTokenSecret,
         issuer: config.auth.issuer,
         audience: config.auth.audience,
-        expiresIn: 1,
       },
     );
     const expiring = await openStream(baseB, shortToken, organizationAId);
     await expiring.reader.nextFrame();
-    await expect(expiring.reader.waitForEnd(2_500)).resolves.toBeUndefined();
-    expiring.close();
+    const expiryWaitMilliseconds = Math.max(1_000, expirySeconds * 1_000 - Date.now() + 1_000);
+    await expect(expiring.reader.waitForEnd(expiryWaitMilliseconds)).resolves.toBeUndefined();
+    await expiring.close();
 
     const registry = instanceB.get(RealtimeConnectionRegistry);
     const baselineConnections = registry.diagnostics().activeConnections;
@@ -574,7 +589,7 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
     });
     await registry.revalidateConnections();
     await expect(membershipStream.reader.waitForEnd()).resolves.toBeUndefined();
-    membershipStream.close();
+    await membershipStream.close();
     expect(registry.diagnostics().activeConnections).toBe(baselineConnections);
   });
 
@@ -710,7 +725,14 @@ async function openStream(
   });
   if (response.body === null) throw new Error('SSE response body unavailable');
   const reader = new SseReader(response.body.getReader());
-  return { response, reader, close: () => controller.abort() };
+  return {
+    response,
+    reader,
+    async close(): Promise<void> {
+      controller.abort();
+      await reader.waitForEnd();
+    },
+  };
 }
 
 class SseReader {

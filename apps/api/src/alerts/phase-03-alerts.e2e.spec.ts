@@ -24,6 +24,10 @@ import {
 } from '../generated/prisma/enums.js';
 import { RedisService } from '../redis/redis.service.js';
 import { RealtimePostCommitService } from '../realtime/realtime-post-commit.service.js';
+import {
+  acquireGlobalConnectivityFixtureLock,
+  type IntegrationSuiteLock,
+} from '../../test/integration-suite-lock.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { AlertObservationService } from './alert-observation.service.js';
 
@@ -64,8 +68,10 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
   let raceSecret: string;
   let requestSequence = 0;
   let telemetrySequence = 0;
+  let fixtureLock: IntegrationSuiteLock | undefined;
 
   beforeAll(async () => {
+    fixtureLock = await acquireGlobalConnectivityFixtureLock();
     setTestEnvironment();
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = module.createNestApplication<NestExpressApplication>();
@@ -174,43 +180,47 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
   }, 40_000);
 
   afterAll(async () => {
-    if (prisma !== undefined) {
-      await prisma.alertEvent.deleteMany({
-        where: { alert: { organizationId: { in: [organizationAId, organizationBId] } } },
-      });
-      await prisma.auditLog.deleteMany({
-        where: { organizationId: { in: [organizationAId, organizationBId] } },
-      });
-      await prisma.alert.deleteMany({
-        where: { organizationId: { in: [organizationAId, organizationBId] } },
-      });
-      await prisma.currentMonitoringPointState.deleteMany({
-        where: { organizationId: { in: [organizationAId, organizationBId] } },
-      });
-      await prisma.riskAssessment.deleteMany({
-        where: { organizationId: { in: [organizationAId, organizationBId] } },
-      });
-      await prisma.telemetry.deleteMany({
-        where: { device: { organizationId: { in: [organizationAId, organizationBId] } } },
-      });
-      await prisma.device.deleteMany({
-        where: { organizationId: { in: [organizationAId, organizationBId] } },
-      });
-      await prisma.riskProfile.deleteMany({
-        where: { organizationId: { in: [organizationAId, organizationBId] } },
-      });
-      await prisma.refreshSession.deleteMany({ where: { userId: { in: [ownerId, adminId] } } });
-      await prisma.membership.deleteMany({ where: { userId: { in: [ownerId, adminId] } } });
-      await prisma.user.deleteMany({ where: { id: { in: [ownerId, adminId] } } });
-      await prisma.monitoringPoint.deleteMany({
-        where: { organizationId: { in: [organizationAId, organizationBId] } },
-      });
-      await prisma.site.deleteMany({ where: { id: { in: [siteAId, siteBId] } } });
-      await prisma.organization.deleteMany({
-        where: { id: { in: [organizationAId, organizationBId] } },
-      });
+    try {
+      if (prisma !== undefined) {
+        await prisma.alertEvent.deleteMany({
+          where: { alert: { organizationId: { in: [organizationAId, organizationBId] } } },
+        });
+        await prisma.auditLog.deleteMany({
+          where: { organizationId: { in: [organizationAId, organizationBId] } },
+        });
+        await prisma.alert.deleteMany({
+          where: { organizationId: { in: [organizationAId, organizationBId] } },
+        });
+        await prisma.currentMonitoringPointState.deleteMany({
+          where: { organizationId: { in: [organizationAId, organizationBId] } },
+        });
+        await prisma.riskAssessment.deleteMany({
+          where: { organizationId: { in: [organizationAId, organizationBId] } },
+        });
+        await prisma.telemetry.deleteMany({
+          where: { device: { organizationId: { in: [organizationAId, organizationBId] } } },
+        });
+        await prisma.device.deleteMany({
+          where: { organizationId: { in: [organizationAId, organizationBId] } },
+        });
+        await prisma.riskProfile.deleteMany({
+          where: { organizationId: { in: [organizationAId, organizationBId] } },
+        });
+        await prisma.refreshSession.deleteMany({ where: { userId: { in: [ownerId, adminId] } } });
+        await prisma.membership.deleteMany({ where: { userId: { in: [ownerId, adminId] } } });
+        await prisma.user.deleteMany({ where: { id: { in: [ownerId, adminId] } } });
+        await prisma.monitoringPoint.deleteMany({
+          where: { organizationId: { in: [organizationAId, organizationBId] } },
+        });
+        await prisma.site.deleteMany({ where: { id: { in: [siteAId, siteBId] } } });
+        await prisma.organization.deleteMany({
+          where: { id: { in: [organizationAId, organizationBId] } },
+        });
+      }
+    } finally {
+      await app?.close();
+      await fixtureLock?.release();
     }
-    await app?.close();
   });
 
   it('generates WATCH, DANGER, and thresholded mismatch alerts without duplicate/late effects', async () => {
