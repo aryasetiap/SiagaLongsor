@@ -4,6 +4,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { AuthorizationModule } from './authorization/authorization.module.js';
 import { AppConfigModule } from './config/app-config.module.js';
 import { DatabaseModule } from './database/database.module.js';
+import { DashboardModule } from './dashboard/dashboard.module.js';
 import { DevicesModule } from './devices/devices.module.js';
 import { HealthModule } from './health/health.module.js';
 import { MonitoringPointsModule } from './monitoring-points/monitoring-points.module.js';
@@ -17,6 +18,7 @@ import { TelemetryModule } from './telemetry/telemetry.module.js';
   imports: [
     AppConfigModule,
     DatabaseModule,
+    DashboardModule,
     DevicesModule,
     RedisModule,
     RateLimitModule,
