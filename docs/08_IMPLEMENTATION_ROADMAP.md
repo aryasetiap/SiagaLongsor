@@ -160,7 +160,7 @@ Chromium full acceptance, dan repository exit gate telah PASS. Root formatting s
 reproducible melalui kebijakan LF repository. Bukti berada di
 [`docs/16_PHASE_04_ACCEPTANCE_REPORT.md`](16_PHASE_04_ACCEPTANCE_REPORT.md).
 
-## Phase 5 — Alert operations and realtime — contract/implementation active
+## Phase 5 — Alert operations and realtime — selesai
 
 Output:
 
@@ -181,17 +181,22 @@ Exit criteria:
 
 Workstream:
 
-| ID    | Task                                                                    | Status   |
-| ----- | ----------------------------------------------------------------------- | -------- |
-| P5-01 | Contract lifecycle, event history, audit projection, SSE, dan UI states | selesai  |
-| P5-02 | Backend schema/migration serta alert lifecycle service/API              | aktif    |
-| P5-03 | Redis Pub/Sub SSE gateway dan resilience                                | menunggu |
-| P5-04 | Frontend operations, audit UI, realtime, dan full acceptance            | menunggu |
+| ID    | Task                                                                    | Status  |
+| ----- | ----------------------------------------------------------------------- | ------- |
+| P5-01 | Contract lifecycle, event history, audit projection, SSE, dan UI states | selesai |
+| P5-02 | Backend schema/migration serta alert lifecycle service/API              | selesai |
+| P5-03 | Redis Pub/Sub SSE gateway dan resilience                                | selesai |
+| P5-04 | Frontend operations, audit UI, realtime, dan full acceptance            | selesai |
 
-Phase 05 belum selesai sampai P5-02 sampai P5-04 dan seluruh exit criteria lulus. SOP quick access
-hanya memakai dokumen yang sudah tersedia; upload/persistence SOP tetap Phase 06.
+Status: contract, lifecycle/audit backend, Redis Pub/Sub SSE backend, frontend operations,
+component/integration test, dan Chromium full acceptance telah PASS. REST tetap authoritative;
+SSE berfungsi sebagai invalidation signal dengan reconnect/refetch. SOP quick access menampilkan
+batas unavailable secara jujur; upload/persistence SOP tetap Phase 06. Bukti berada di
+[`docs/17_PHASE_05_ACCEPTANCE_REPORT.md`](17_PHASE_05_ACCEPTANCE_REPORT.md).
 
 ## Phase 6 — Map, documents, reports
+
+Status: fase berikutnya; implementasi belum dimulai.
 
 Output:
 

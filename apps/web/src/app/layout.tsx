@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 
 import { AuthProvider } from '../auth/auth-context';
 import { OrganizationProvider } from '../organization/organization-context';
+import { RealtimeProvider } from '../realtime/realtime-context';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -19,7 +20,9 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html lang="id">
       <body>
         <AuthProvider>
-          <OrganizationProvider>{children}</OrganizationProvider>
+          <OrganizationProvider>
+            <RealtimeProvider>{children}</RealtimeProvider>
+          </OrganizationProvider>
         </AuthProvider>
       </body>
     </html>

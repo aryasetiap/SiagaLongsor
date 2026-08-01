@@ -2,12 +2,14 @@ import type { DataEnvelope, ListEnvelope, OrganizationApiClient } from '../api/c
 import { appendQuery } from '../api/query-string';
 import type {
   Alert,
+  AlertEvent,
   AlertListQuery,
   MonitoringOverviewItem,
   MonitoringOverviewQuery,
   RiskAssessment,
   RiskProfile,
   UpdateRiskProfileInput,
+  AlertMutationResponse,
 } from './risk-contracts';
 
 export function listMonitoringOverview(
@@ -70,6 +72,71 @@ export function getAlert(
   alertId: string,
 ): Promise<DataEnvelope<Alert>> {
   return client.organizationRequest(`/alerts/${encodeURIComponent(alertId)}`, organizationId);
+}
+
+export function listAlertEvents(
+  client: OrganizationApiClient,
+  organizationId: string,
+  alertId: string,
+  query: { readonly cursor?: string; readonly limit?: number } = {},
+): Promise<ListEnvelope<AlertEvent>> {
+  return client.organizationRequest(
+    appendQuery(`/alerts/${encodeURIComponent(alertId)}/events`, query),
+    organizationId,
+  );
+}
+
+export function acknowledgeAlert(
+  client: OrganizationApiClient,
+  organizationId: string,
+  alertId: string,
+  input: {
+    readonly actionId: string;
+    readonly note: string;
+    readonly fieldCondition: string;
+    readonly sopExecuted: boolean;
+  },
+): Promise<AlertMutationResponse> {
+  return mutateAlert(client, organizationId, alertId, 'acknowledge', input);
+}
+
+export function resolveAlert(
+  client: OrganizationApiClient,
+  organizationId: string,
+  alertId: string,
+  input: { readonly actionId: string; readonly resolutionNote: string },
+): Promise<AlertMutationResponse> {
+  return mutateAlert(client, organizationId, alertId, 'resolve', input);
+}
+
+export function markAlertFalseAlarm(
+  client: OrganizationApiClient,
+  organizationId: string,
+  alertId: string,
+  input: { readonly actionId: string; readonly reason: string },
+): Promise<AlertMutationResponse> {
+  return mutateAlert(client, organizationId, alertId, 'false-alarm', input);
+}
+
+function mutateAlert<T extends { readonly actionId: string }>(
+  client: OrganizationApiClient,
+  organizationId: string,
+  alertId: string,
+  action: 'acknowledge' | 'resolve' | 'false-alarm',
+  input: T,
+): Promise<AlertMutationResponse> {
+  return client.organizationRequest(
+    `/alerts/${encodeURIComponent(alertId)}/${action}`,
+    organizationId,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'idempotency-key': input.actionId,
+      },
+      body: JSON.stringify(input),
+    },
+  );
 }
 
 export function getRiskProfile(

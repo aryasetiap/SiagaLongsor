@@ -281,8 +281,10 @@ Admin sekolah harus dapat:
 
 ## 8. Phase 05 alert operations and realtime acceptance
 
-Contract foundation ini membekukan 48 acceptance criteria. Status implementasi tetap pending sampai
-backend, frontend, dan full acceptance membuktikannya.
+Contract foundation ini membekukan 48 acceptance criteria. Status final: **PASS** pada 1 Agustus
+2026. Evidence contract, backend lifecycle/audit, Redis Pub/Sub SSE, frontend, pengulangan API
+integration, dan Chromium serial dicatat pada
+[`docs/17_PHASE_05_ACCEPTANCE_REPORT.md`](17_PHASE_05_ACCEPTANCE_REPORT.md).
 
 1. Kedua role dapat membaca Alert dan Alert events dalam organisasi aktif.
 2. Kedua role dapat acknowledge Alert `ACTIVE`.
@@ -333,3 +335,9 @@ backend, frontend, dan full acceptance membuktikannya.
 47. Tidak ada secret atau token baru di browser storage, URL, artifact, log, maupun response.
 48. Tidak ada capability Phase 06+ seperti SOP upload, map, report, notification provider, heartbeat,
     remote siren, atau firmware command.
+
+Hasil akhir: seluruh kriteria di atas memiliki evidence berlapis melalui contract validator, unit/
+component test, API integration test, dan/atau Chromium acceptance sesuai boundary masing-masing.
+Lima full API integration run berturut-turut lulus; realtime frontend targeted suite lulus 20 run;
+Chromium membuktikan lifecycle owner/admin, reconnect, REST convergence, organization header,
+storage/artifact safety, serta Audit Log yang tersanitasi.

@@ -7,6 +7,7 @@ import { type ReactNode, useState } from 'react';
 import { useAuth } from '../auth/auth-context';
 import type { Principal, Role } from '../auth/auth-types';
 import { useOrganization } from '../organization/organization-context';
+import { RealtimeIndicator } from '../realtime/realtime-indicator';
 import { BrandMark } from './brand-mark';
 
 interface ApplicationShellProps {
@@ -41,6 +42,11 @@ const navigation: readonly NavigationItem[] = [
     label: 'Profil Risiko',
     href: '/settings/risk-profile',
     roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+  },
+  {
+    label: 'Audit Log',
+    href: '/settings/audit-log',
+    roles: ['PROJECT_OWNER'],
   },
 ];
 
@@ -141,12 +147,15 @@ export function ApplicationShell({ principal, title, subtitle, children }: Appli
       </aside>
 
       <div className="min-w-0">
-        <header className="flex min-h-20 items-center justify-between border-b border-slate-200 bg-white px-5 py-3 sm:px-8">
+        <header className="flex min-h-20 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white px-5 py-3 sm:px-8">
           <div>
             <p className="text-xs font-semibold text-slate-500">{subtitle ?? 'Ruang kerja'}</p>
             <h1 className="mt-1 text-lg font-bold text-slate-950">{title}</h1>
           </div>
 
+          <div className="ml-auto hidden md:block">
+            <RealtimeIndicator />
+          </div>
           <details className="group relative">
             <summary className="flex cursor-pointer list-none items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
               <span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-sm font-bold text-blue-700">
@@ -182,6 +191,10 @@ export function ApplicationShell({ principal, title, subtitle, children }: Appli
             </div>
           </details>
         </header>
+
+        <div className="border-b border-slate-200 bg-white px-5 pb-3 md:hidden">
+          <RealtimeIndicator />
+        </div>
 
         <main className="px-5 py-6 sm:px-8 sm:py-8">{children}</main>
       </div>

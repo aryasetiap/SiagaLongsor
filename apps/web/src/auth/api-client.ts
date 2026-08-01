@@ -95,6 +95,28 @@ export class ApiClient {
     return this.requestWithRefresh<T>(path, { ...init, headers }, true);
   }
 
+  async openOrganizationStream(
+    path: string,
+    organizationId: string,
+    signal: AbortSignal,
+  ): Promise<Response> {
+    const normalizedOrganizationId = organizationId.trim();
+    if (normalizedOrganizationId.length === 0) {
+      throw new ApiClientError(
+        'Organisasi aktif harus dipilih sebelum membuka realtime.',
+        'configuration',
+        undefined,
+        'ORGANIZATION_CONTEXT_REQUIRED',
+      );
+    }
+
+    return this.openStreamWithRefresh(path, normalizedOrganizationId, signal, true);
+  }
+
+  refreshSession(): Promise<boolean> {
+    return this.refreshAccessToken();
+  }
+
   clearSession(): void {
     this.accessToken = null;
   }
@@ -129,6 +151,64 @@ export class ApiClient {
 
       return this.requestWithRefresh<T>(path, init, false);
     }
+  }
+
+  private async openStreamWithRefresh(
+    path: string,
+    organizationId: string,
+    signal: AbortSignal,
+    allowRefresh: boolean,
+  ): Promise<Response> {
+    const tokenUsed = this.accessToken;
+    if (tokenUsed === null) {
+      if (!allowRefresh || !(await this.refreshAccessToken())) {
+        throw new ApiClientError(
+          'Sesi realtime tidak tersedia.',
+          'api',
+          401,
+          'ACCESS_TOKEN_INVALID',
+        );
+      }
+      return this.openStreamWithRefresh(path, organizationId, signal, false);
+    }
+
+    let response: Response;
+    try {
+      response = await this.fetchImplementation.call(globalThis, `${this.apiBaseUrl}${path}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          accept: 'text/event-stream',
+          authorization: `Bearer ${tokenUsed}`,
+          'x-organization-id': organizationId,
+        },
+        signal,
+      });
+    } catch (error) {
+      if (signal.aborted) throw error;
+      throw new ApiClientError('Stream realtime tidak dapat dijangkau.', 'network');
+    }
+
+    if (response.status === 401 && allowRefresh) {
+      if (this.accessToken !== tokenUsed) {
+        return this.openStreamWithRefresh(path, organizationId, signal, false);
+      }
+      if (await this.refreshAccessToken()) {
+        return this.openStreamWithRefresh(path, organizationId, signal, false);
+      }
+    }
+    if (!response.ok) {
+      const envelope = await readErrorEnvelope(response);
+      throw new ApiClientError(
+        envelope.message,
+        'api',
+        response.status,
+        envelope.code,
+        envelope.requestId,
+        envelope.details,
+      );
+    }
+    return response;
   }
 
   private refreshAccessToken(): Promise<boolean> {
