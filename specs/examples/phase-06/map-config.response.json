@@ -1,0 +1,48 @@
+{
+  "data": {
+    "id": "mapcfg-site-01-v3",
+    "siteId": "site-sman17",
+    "version": 3,
+    "center": { "position": [105.2667, -5.3971], "zoom": 17 },
+    "monitoringPointLocations": [
+      { "monitoringPointId": "mp-slope-east", "position": [105.267, -5.3974] }
+    ],
+    "riskZones": [
+      {
+        "featureId": "11111111-1111-4111-8111-111111111111",
+        "name": "Zona referensi lereng timur",
+        "description": "Batas referensi manual hasil verifikasi sekolah.",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [105.2665, -5.397],
+              [105.2674, -5.397],
+              [105.2674, -5.3978],
+              [105.2665, -5.397]
+            ]
+          ]
+        }
+      }
+    ],
+    "evacuationRoutes": [
+      {
+        "featureId": "22222222-2222-4222-8222-222222222222",
+        "name": "Rute manual ke titik kumpul",
+        "description": "Rute referensi yang disetujui sekolah.",
+        "destinationLabel": "Titik kumpul utama",
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [105.267, -5.3974],
+            [105.2659, -5.3966]
+          ]
+        }
+      }
+    ],
+    "notes": "Konfigurasi referensi yang telah ditinjau sekolah.",
+    "createdAt": "2026-08-01T02:00:00.000Z",
+    "activatedAt": "2026-08-01T02:00:00.000Z",
+    "createdBy": { "id": "user-owner", "name": "Arya Setia Pratama" }
+  }
+}

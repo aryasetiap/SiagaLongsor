@@ -341,3 +341,85 @@ component test, API integration test, dan/atau Chromium acceptance sesuai bounda
 Lima full API integration run berturut-turut lulus; realtime frontend targeted suite lulus 20 run;
 Chromium membuktikan lifecycle owner/admin, reconnect, REST convergence, organization header,
 storage/artifact safety, serta Audit Log yang tersanitasi.
+
+## 9. Phase 06 map, SOP documents, dan reports acceptance
+
+Contract P6-01 membekukan 72 acceptance criteria berikut. Status implementasi: **PENDING** sampai
+P6-02, P6-03, dan P6-04 memberikan evidence unit, integration, component, dan Chromium yang sesuai.
+
+1. Semua endpoint Phase 06 membutuhkan bearer authentication.
+2. Semua endpoint Phase 06 membutuhkan `X-Organization-Id`.
+3. Resource cross-organization dilaporkan 404 tanpa data leakage.
+4. Kedua role dapat membaca active map configuration.
+5. Hanya `PROJECT_OWNER` dapat mengubah map configuration.
+6. `expectedVersion:null` hanya diterima ketika Site belum memiliki versi aktif.
+7. Stale `expectedVersion` menghasilkan `MAP_CONFIG_VERSION_CONFLICT`.
+8. Update berbeda membuat immutable version berikutnya secara monotonik.
+9. Update canonical-identical menghasilkan `changed:false` tanpa versi baru.
+10. Canonical no-op tidak membuat AuditLog baru.
+11. Update berbeda membuat satu AuditLog tersanitasi dalam transaksi yang benar.
+12. Dua update map paralel tidak membuat dua active version.
+13. Versi map lama tetap dapat diaudit dan tidak diubah.
+14. Semua posisi menerima urutan `[longitude, latitude]` WGS84/EPSG:4326.
+15. Longitude di luar `-180..180` ditolak.
+16. Latitude di luar `-90..90` ditolak.
+17. NaN, infinity, altitude, dan posisi bukan dua angka ditolak.
+18. Polygon dengan ring tidak tertutup atau topology invalid ditolak.
+19. LineString dengan kurang dari dua posisi berbeda ditolak.
+20. MonitoringPoint dari Site/organisasi lain atau ID MonitoringPoint duplicate dalam satu config
+    ditolak.
+21. Map overview tanpa konfigurasi mengembalikan `configured:false` dan geometry/marker kosong.
+22. Map overview tidak membuat koordinat default atau fabricated marker.
+23. Marker hanya memuat MonitoringPoint yang memiliki konfigurasi koordinat.
+24. Marker memakai current risk/connectivity projection authoritative.
+25. Data unknown, delayed, atau offline tidak pernah dipresentasikan sebagai `SAFE`.
+26. Polygon diberi makna zona referensi manual statis, bukan prediksi realtime.
+27. Evacuation route diberi makna rute manual, bukan hasil automatic routing.
+28. Map overview tidak memuat raw telemetry, credential, hash, atau `totalCount`.
+29. Map provider/WebGL gagal tetap menghasilkan accessible fallback list.
+30. Map legend dan marker tidak mengandalkan warna saja.
+31. Kedua role dapat membaca active SOP metadata.
+32. Site tanpa active SOP menghasilkan `SOP_NOT_FOUND` dan UI unavailable yang jujur.
+33. Hanya `PROJECT_OWNER` dapat mengunggah SOP.
+34. Upload selain declared `application/pdf` ditolak.
+35. Filename tanpa ekstensi `.pdf` tersanitasi/ditolak sesuai contract.
+36. File tanpa PDF magic signature ditolak walaupun MIME dan ekstensi benar.
+37. File kosong ditolak.
+38. File lebih dari 10 MiB ditolak dengan 413.
+39. Upload menghitung dan menyimpan SHA-256 yang benar.
+40. Object storage key opaque dan tidak berasal dari filename pengguna.
+41. SOP object berada pada storage privat tanpa public/permanent URL.
+42. Metadata dan active pointer SOP berubah secara atomik.
+43. Kegagalan persistence setelah upload membersihkan orphan object.
+44. Setiap upload sukses membuat immutable version baru dan versi lama tetap ada.
+45. SOP version list newest-first memakai cursor tanpa `totalCount`.
+46. Download SOP melalui API terautentikasi menghasilkan PDF dan `nosniff`.
+47. Cross-organization SOP content tidak dapat diunduh.
+48. SOP response/audit tidak memuat object key, bytes, token, atau provider detail.
+49. Dokumentasi/UI tidak mengklaim pemeriksaan PDF menjamin malware-free.
+50. Frontend merevoke temporary Blob URL setelah SOP selesai digunakan.
+51. Kedua role dapat mengekspor telemetry CSV dalam organization scope.
+52. CSV menolak `from >= to` dan rentang lebih dari 31 hari.
+53. CSV memakai rentang `[from,to)` dan urutan oldest-first dengan stable ID tie-breaker.
+54. CSV kosong tetap memiliki header row.
+55. CSV memenuhi quoting/escaping RFC 4180.
+56. Text diawali `=`, `+`, `-`, atau `@` dinetralkan terhadap formula injection.
+57. Null diekspor sebagai field kosong dan tidak diubah menjadi nol.
+58. Risk `UNKNOWN` tetap `UNKNOWN` dan tidak diubah menjadi `SAFE`.
+59. CSV tidak memuat raw payload, credential, hash, atau Authorization.
+60. Kedua role dapat membuat report job dan menerima 202 tanpa menunggu PDF.
+61. Job baru mulai pada `QUEUED` dan durable status mengikuti enum contract.
+62. Rentang report memakai `[from,to)` dan maksimum 31 hari.
+63. Worker BullMQ retry terbatas serta idempotent terhadap duplicate processing.
+64. Job sukses menghasilkan private PDF artifact dengan checksum dan expiry.
+65. Artifact report tidak dapat diakses melalui public/permanent URL.
+66. Job gagal hanya mengekspos failure code tersanitasi, bukan stack/provider detail.
+67. Report list organization-wide newest-first memakai cursor tanpa `totalCount`.
+68. Download hanya tersedia untuk job `SUCCEEDED` yang belum expired.
+69. Artifact expired menghasilkan 410 dan durable job metadata tetap `EXPIRED`.
+70. Regenerate selalu membuat job baru, termasuk setelah `FAILED` atau `EXPIRED`.
+71. PDF mempertahankan missing data dan memberi label “Status saat laporan dibuat” tanpa
+    merekonstruksi current-state historis atau kesimpulan geoteknis.
+72. UI polling 3 detik/backoff berhenti pada terminal state, navigasi, organization switch, atau
+    unmount; seluruh flow map/SOP/report accessible dan tidak membocorkan secret ke browser
+    storage, URL, log, artifact test, response, atau repository.

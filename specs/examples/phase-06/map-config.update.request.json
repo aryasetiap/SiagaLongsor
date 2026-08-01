@@ -1,0 +1,10 @@
+{
+  "expectedVersion": 3,
+  "center": { "position": [105.2667, -5.3971], "zoom": 17 },
+  "monitoringPointLocations": [
+    { "monitoringPointId": "mp-slope-east", "position": [105.2671, -5.3975] }
+  ],
+  "riskZones": [],
+  "evacuationRoutes": [],
+  "notes": "Koordinat titik monitoring diperbarui setelah verifikasi lapangan."
+}

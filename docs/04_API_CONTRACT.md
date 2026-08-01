@@ -499,3 +499,79 @@ resource yang harus di-refetch.
 UI menyediakan quick access ke SOP yang sudah tersedia. Bila dokumen belum tersedia, UI harus
 menampilkan keadaan jujur bahwa SOP belum tersedia. Phase 05 tidak membuat upload/persistence SOP,
 tidak menghasilkan isi prosedur darurat sintetis, dan tidak menggantikan prosedur sekolah.
+
+## 18. Phase 06 map, SOP documents, dan reports
+
+Semua endpoint berikut memakai bearer authentication dan `X-Organization-Id`. Resource milik
+organisasi lain dilaporkan `404`; kedua role dapat membaca, sedangkan mutation konfigurasi map dan
+upload SOP hanya `PROJECT_OWNER`.
+
+### 18.1 Map configuration dan overview
+
+- `GET /sites/{siteId}/map-config` membaca versi aktif; Site tanpa konfigurasi menghasilkan
+  `404 MAP_CONFIG_NOT_FOUND`.
+- `PUT /sites/{siteId}/map-config` menerima `expectedVersion` (`null` hanya untuk versi pertama).
+  Stale version menghasilkan `409 MAP_CONFIG_VERSION_CONFLICT`. Canonical-identical payload
+  menghasilkan `changed:false`; payload berbeda membuat versi immutable baru dan audit
+  `MAP_CONFIG_VERSION_CREATED` tanpa menyalin geometry penuh ke metadata audit.
+- `GET /map/overview?siteId=...` mengembalikan snapshot whole-Site tanpa pagination atau
+  `totalCount`. Tanpa konfigurasi, response tetap `200` dengan `configured:false`, center/version
+  null, dan geometry/markers kosong.
+
+Geometry mengikuti GeoJSON WGS84/EPSG:4326 dengan posisi `[longitude, latitude]`; altitude,
+NaN/infinity, koordinat di luar rentang, ring terbuka, dan LineString tidak valid ditolak.
+Validation portable Phase 06 tidak menjamin deteksi topology/self-intersection GIS penuh. Polygon
+dan evacuation route adalah referensi manual statis, bukan prediksi atau automatic route.
+Marker hanya dibuat untuk MonitoringPoint dengan koordinat dan memakai current projection
+authoritative; tidak ada fabricated coordinates maupun status `SAFE` untuk data unknown/stale.
+
+Risk-zone feature memakai `featureId` UUID v4, name, description nullable, dan GeoJSON Polygon;
+ia sengaja tidak memiliki dynamic `riskLevel`. Evacuation-route feature memakai `featureId` UUID
+v4, name, description/destination label nullable, dan GeoJSON LineString. ID MonitoringPoint wajib
+unik dalam satu config serta harus berasal dari Site dan organisasi yang sama. Audit perubahan map
+hanya menyimpan Site, previous/new version, dan jumlah point/zone/route—bukan full GeoJSON.
+
+### 18.2 SOP PDF
+
+- `GET /sites/{siteId}/sop` membaca active metadata; belum ada dokumen menghasilkan
+  `404 SOP_NOT_FOUND`.
+- `POST /sites/{siteId}/sop` adalah multipart upload owner-only dan selalu membuat versi baru.
+- `GET /sites/{siteId}/sop/versions` memakai opaque cursor, default 25, maksimum 100,
+  newest-first, tanpa `totalCount`.
+- `GET /sop-documents/{documentId}/content` mengalirkan private PDF melalui authenticated API.
+
+Upload dibatasi PDF non-empty maksimal 10 MiB. Server memeriksa declared MIME, ekstensi filename
+tersanitasi, PDF magic signature, menghitung SHA-256, dan membuat opaque object key. Tidak ada
+public/permanent signed URL. Version metadata dan active pointer berubah atomik; orphan object
+dibersihkan bila persistence gagal. Audit `SOP_VERSION_UPLOADED` tidak memuat byte, key, hash
+credential, atau request mentah. Validasi ini tidak menyatakan dokumen bebas malware.
+Metadata audit upload dibatasi pada Site, document ID, version, ukuran, dan SHA-256.
+
+### 18.3 CSV export
+
+`GET /reports/telemetry.csv` tersedia bagi kedua role untuk satu Site dan rentang `[from,to)`
+maksimum **31 hari**. Output stabil oldest-first (`recordedAt`, lalu telemetry ID), RFC
+4180-compatible, tetap mengirim header untuk hasil kosong, mempertahankan null sebagai field kosong
+dan `UNKNOWN` apa adanya. Text yang dimulai `=`, `+`, `-`, atau `@` dinetralkan untuk mencegah
+formula injection. Raw payload, credential, hash, dan header tidak diekspor.
+
+### 18.4 Asynchronous PDF reports
+
+- `POST /report-jobs` menerima `SITE_PERIOD_SUMMARY_PDF`, Site, dan `[from,to)` maksimum 31 hari;
+  response `202` dengan job `QUEUED` dan audit `REPORT_JOB_CREATED`.
+- `GET /report-jobs` adalah organization-visible cursor list newest-first tanpa `totalCount`.
+- `GET /report-jobs/{reportJobId}` membaca durable status.
+- `GET /report-jobs/{reportJobId}/content` hanya mengunduh artifact `SUCCEEDED` yang belum expired;
+  expired menghasilkan `410 REPORT_ARTIFACT_UNAVAILABLE`.
+
+Kedua role dapat membuat/membaca job organisasi. Pembuatan tidak menunggu PDF; BullMQ worker
+menjalankan retry terbatas dan idempotent. Regenerasi selalu membuat job baru. Artifact private
+berumur 90 hari. PDF memakai persisted Telemetry/RiskAssessment/Alert history, menjaga nilai
+missing, serta memberi label current snapshot sebagai **“Status saat laporan dibuat”**; sistem
+tidak merekonstruksi current-state historis atau membuat kesimpulan geoteknis. Failure detail
+yang keluar hanya kode tersanitasi.
+
+Stable failure code Phase 06 adalah `REPORT_GENERATION_FAILED` dan
+`REPORT_ARTIFACT_UNAVAILABLE`. Public projection boleh memuat failure message tersanitasi maksimal
+500 karakter, tetapi tidak memuat exception, stack trace, queue internals, Redis key, object key,
+atau provider path.

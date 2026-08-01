@@ -11,6 +11,7 @@ const phase02ExamplesDirectory = join(specificationsDirectory, 'examples', 'phas
 const phase03ExamplesDirectory = join(specificationsDirectory, 'examples', 'phase-03');
 const phase04ExamplesDirectory = join(specificationsDirectory, 'examples', 'phase-04');
 const phase05ExamplesDirectory = join(specificationsDirectory, 'examples', 'phase-05');
+const phase06ExamplesDirectory = join(specificationsDirectory, 'examples', 'phase-06');
 
 const expectedPhase02ExampleFiles = [
   'device-register.request.json',
@@ -46,6 +47,18 @@ const expectedPhase05ExampleFiles = [
   'audit-logs.response.json',
   'realtime-event.alert-acknowledged.json',
   'realtime-event.alert-created.json',
+];
+const expectedPhase06ExampleFiles = [
+  'map-config.response.json',
+  'map-config.update.request.json',
+  'map-config.update.response.json',
+  'map-overview.response.json',
+  'report-job.create.request.json',
+  'report-job.create.response.json',
+  'report-job.response.json',
+  'report-jobs.response.json',
+  'sop-versions.response.json',
+  'sop.response.json',
 ];
 
 function assert(condition, message) {
@@ -97,6 +110,25 @@ function matchesType(value, type) {
 function validateExample(value, schema, path = '$') {
   assert(schema && typeof schema === 'object', `${path}: schema is missing or invalid.`);
   assert(!('$ref' in schema), `${path}: unresolved $ref remains in example schema.`);
+
+  if (schema.allOf) {
+    const merged = {
+      ...schema,
+      properties: {},
+      required: [],
+      additionalProperties: schema.unevaluatedProperties,
+    };
+    delete merged.allOf;
+    delete merged.unevaluatedProperties;
+    for (const candidate of schema.allOf) {
+      Object.assign(merged.properties, candidate.properties ?? {});
+      merged.required.push(...(candidate.required ?? []));
+      merged.type ??= candidate.type;
+    }
+    merged.required = [...new Set(merged.required)];
+    validateExample(value, merged, path);
+    return;
+  }
 
   if (schema.oneOf) {
     const results = schema.oneOf.map((candidate) => {
@@ -173,7 +205,14 @@ function validateExample(value, schema, path = '$') {
     if (schema.minItems !== undefined) {
       assert(value.length >= schema.minItems, `${path}: fewer than minItems.`);
     }
-    if (schema.items) {
+    if (schema.prefixItems) {
+      schema.prefixItems.forEach((itemSchema, index) => {
+        if (index < value.length) {
+          validateExample(value[index], itemSchema, `${path}[${index}]`);
+        }
+      });
+    }
+    if (schema.items && typeof schema.items === 'object') {
       value.forEach((item, index) => validateExample(item, schema.items, `${path}[${index}]`));
     }
     if (schema.uniqueItems === true) {
@@ -296,6 +335,7 @@ try {
     phase03ExampleFileNames,
     phase04ExampleFileNames,
     phase05ExampleFileNames,
+    phase06ExampleFileNames,
   ] = await Promise.all([
     SwaggerParser.parse(specificationPath),
     readJson(telemetrySchemaPath),
@@ -303,6 +343,7 @@ try {
     readdir(phase03ExamplesDirectory),
     readdir(phase04ExamplesDirectory),
     readdir(phase05ExamplesDirectory),
+    readdir(phase06ExamplesDirectory),
   ]);
 
   assert(rawSpecification.openapi === '3.1.0', 'OpenAPI version must be 3.1.0.');
@@ -392,6 +433,36 @@ try {
       get: ['PROJECT_OWNER'],
     },
     '/realtime/stream': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
+    '/sites/{siteId}/map-config': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+      put: ['PROJECT_OWNER'],
+    },
+    '/map/overview': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
+    '/sites/{siteId}/sop': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+      post: ['PROJECT_OWNER'],
+    },
+    '/sites/{siteId}/sop/versions': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
+    '/sop-documents/{documentId}/content': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
+    '/reports/telemetry.csv': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
+    '/report-jobs': {
+      post: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
+    '/report-jobs/{reportJobId}': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
+    '/report-jobs/{reportJobId}/content': {
       get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
     },
   };
@@ -717,15 +788,12 @@ try {
     '/notifications',
     '/websocket',
     '/siren',
-    '/maps',
-    '/sop',
-    '/reports',
     '/iot/heartbeat',
     '/firmware',
   ]) {
     assert(
       !Object.keys(rawSpecification.paths).some((path) => path.includes(forbiddenFragment)),
-      `Phase 06+ or deferred capability leaked into OpenAPI: ${forbiddenFragment}`,
+      `Deferred capability leaked into OpenAPI: ${forbiddenFragment}`,
     );
   }
 
@@ -774,6 +842,13 @@ try {
     JSON.stringify(sortedPhase05Examples) === JSON.stringify(expectedPhase05ExampleFiles),
     `Phase 05 example set differs from the expected files: ${sortedPhase05Examples.join(', ')}`,
   );
+  const sortedPhase06Examples = phase06ExampleFileNames
+    .filter((name) => name.endsWith('.json'))
+    .sort();
+  assert(
+    JSON.stringify(sortedPhase06Examples) === JSON.stringify(expectedPhase06ExampleFiles),
+    `Phase 06 example set differs from the expected files: ${sortedPhase06Examples.join(', ')}`,
+  );
 
   await SwaggerParser.validate(specificationPath);
   const dereferenced = await SwaggerParser.dereference(specificationPath);
@@ -807,6 +882,14 @@ try {
       expectedPhase05ExampleFiles.map(async (name) => [
         name,
         await readJson(join(phase05ExamplesDirectory, name)),
+      ]),
+    ),
+  );
+  const phase06Examples = Object.fromEntries(
+    await Promise.all(
+      expectedPhase06ExampleFiles.map(async (name) => [
+        name,
+        await readJson(join(phase06ExamplesDirectory, name)),
       ]),
     ),
   );
@@ -883,6 +966,177 @@ try {
   validateExample(phase05Examples['audit-logs.response.json'], schemas.AuditLogListResponse);
   validateExample(phase05Examples['realtime-event.alert-created.json'], schemas.RealtimeEvent);
   validateExample(phase05Examples['realtime-event.alert-acknowledged.json'], schemas.RealtimeEvent);
+  validateExample(
+    phase06Examples['map-config.response.json'],
+    schemas.SiteMapConfigurationResponse,
+  );
+  validateExample(
+    phase06Examples['map-config.update.request.json'],
+    schemas.UpdateSiteMapConfigurationRequest,
+  );
+  validateExample(
+    phase06Examples['map-config.update.response.json'],
+    schemas.SiteMapConfigurationMutationResponse,
+  );
+  validateExample(phase06Examples['map-overview.response.json'], schemas.MapOverviewResponse);
+  validateExample(phase06Examples['sop.response.json'], schemas.SopDocumentResponse);
+  validateExample(phase06Examples['sop-versions.response.json'], schemas.SopDocumentListResponse);
+  validateExample(
+    phase06Examples['report-job.create.request.json'],
+    schemas.CreateReportJobRequest,
+  );
+  validateExample(phase06Examples['report-job.create.response.json'], schemas.ReportJobResponse);
+  validateExample(phase06Examples['report-job.response.json'], schemas.ReportJobResponse);
+  validateExample(phase06Examples['report-jobs.response.json'], schemas.ReportJobListResponse);
+
+  const mapConfigurationPut = rawSpecification.paths['/sites/{siteId}/map-config'].put;
+  assert(
+    mapConfigurationPut['x-versioning-semantics'] === 'immutable-new-version-or-canonical-no-op' &&
+      mapConfigurationPut['x-concurrency-control'] ===
+        'serialize-per-site-and-match-expected-version' &&
+      Object.hasOwn(mapConfigurationPut.responses, '409'),
+    'Map configuration immutable versioning or optimistic concurrency contract drifted.',
+  );
+  assert(
+    rawSpecification.components.schemas.UpdateSiteMapConfigurationRequest.allOf[1].required.includes(
+      'expectedVersion',
+    ) &&
+      rawSpecification.components.schemas.UpdateSiteMapConfigurationRequest.allOf[1].properties.expectedVersion.type.includes(
+        'null',
+      ) &&
+      JSON.stringify(mapConfigurationPut['x-audit-metadata']) ===
+        JSON.stringify([
+          'siteId',
+          'previousVersion',
+          'newVersion',
+          'monitoringPointCount',
+          'riskZoneCount',
+          'routeCount',
+        ]),
+    'Map expectedVersion or sanitized audit metadata contract drifted.',
+  );
+  assert(
+    rawSpecification.components.schemas.GeoJsonPosition.minItems === 2 &&
+      rawSpecification.components.schemas.GeoJsonPosition.maxItems === 2 &&
+      rawSpecification.components.schemas.GeoJsonPosition.prefixItems[0].minimum === -180 &&
+      rawSpecification.components.schemas.GeoJsonPosition.prefixItems[0].maximum === 180 &&
+      rawSpecification.components.schemas.GeoJsonPosition.prefixItems[1].minimum === -90 &&
+      rawSpecification.components.schemas.GeoJsonPosition.prefixItems[1].maximum === 90,
+    'Map geometry must use bounded [longitude, latitude] WGS84 positions without altitude.',
+  );
+  assert(
+    rawSpecification.components.schemas.GeoJsonPolygon.properties.type.const === 'Polygon' &&
+      rawSpecification.components.schemas.GeoJsonPolygon.properties.coordinates.minItems === 1 &&
+      rawSpecification.components.schemas.GeoJsonPolygon.properties.coordinates.items.minItems ===
+        4 &&
+      rawSpecification.components.schemas.GeoJsonLineString.properties.type.const ===
+        'LineString' &&
+      rawSpecification.components.schemas.GeoJsonLineString.properties.coordinates.minItems === 2 &&
+      !Object.hasOwn(rawSpecification.components.schemas.RiskZoneFeature.properties, 'riskLevel') &&
+      !Object.hasOwn(rawSpecification.components.schemas.RiskZoneFeature.properties, 'level') &&
+      rawSpecification.components.schemas.SiteMapConfigurationInput.properties
+        .monitoringPointLocations['x-unique-by'] === 'monitoringPointId',
+    'GeoJSON shape, static risk-zone, or unique MonitoringPoint location contract drifted.',
+  );
+  const mapOverview = rawSpecification.paths['/map/overview'].get;
+  assert(
+    mapOverview['x-unconfigured-semantics'] ===
+      'configured-false-null-center-version-empty-geometry-markers' &&
+      mapOverview['x-safety-boundary'] ===
+        'static-manual-geometry-current-state-authoritative-no-prediction-routing-geocoding' &&
+      schemas.MapOverview.required.includes('generatedAt') &&
+      !containsProperty(schemas.MapOverviewResponse, 'totalCount'),
+    'Map honest-empty-state, safety boundary, generatedAt, or no-totalCount contract drifted.',
+  );
+  assert(
+    rawSpecification.paths['/sites/{siteId}/sop'].post['x-upload-maximum-bytes'] === 10485760 &&
+      rawSpecification.paths['/sites/{siteId}/sop'].post['x-content-validation'] ===
+        'declared-mime-extension-and-pdf-magic-signature' &&
+      schemas.SopDocument.properties.mediaType.const === 'application/pdf',
+    'SOP PDF size, content validation, or media type boundary drifted.',
+  );
+  assert(
+    rawSpecification.paths['/sites/{siteId}/sop'].post.requestBody.content['multipart/form-data']
+      .schema.$ref === '#/components/schemas/UploadSopDocumentRequest' &&
+      rawSpecification.paths['/sop-documents/{documentId}/content'].get.responses['200'].content[
+        'application/pdf'
+      ].schema.format === 'binary' &&
+      rawSpecification.paths['/sop-documents/{documentId}/content'].get[
+        'x-private-authenticated-content'
+      ] === true &&
+      !containsProperty(schemas.SopDocument, 'storageKey') &&
+      !containsProperty(schemas.SopDocument, 'bucket') &&
+      !containsProperty(schemas.SopDocument, 'localPath') &&
+      !containsProperty(schemas.SopDocument, 'presignedUrl') &&
+      !containsProperty(schemas.SopDocument, 'provider') &&
+      !containsProperty(schemas.SopDocument, 'url'),
+    'SOP multipart, private PDF, or safe metadata boundary drifted.',
+  );
+  assert(
+    rawSpecification.paths['/reports/telemetry.csv'].get['x-time-range-semantics'][
+      'maximum-days'
+    ] === 31 &&
+      rawSpecification.paths['/reports/telemetry.csv'].get['x-csv-escaping'] ===
+        'rfc4180-and-formula-prefix-neutralization' &&
+      rawSpecification.paths['/report-jobs'].post.responses['202'] &&
+      rawSpecification.paths['/report-jobs/{reportJobId}/content'].get[
+        'x-artifact-retention-days'
+      ] === 90,
+    'Phase 06 export range, CSV safety, asynchronous status, or retention drifted.',
+  );
+  assert(
+    rawSpecification.paths['/reports/telemetry.csv'].get.responses['200'].content[
+      'text/csv; charset=utf-8'
+    ] &&
+      /raw payload/.test(rawSpecification.paths['/reports/telemetry.csv'].get.description) &&
+      /null as an empty field/.test(
+        rawSpecification.paths['/reports/telemetry.csv'].get.description,
+      ) &&
+      JSON.stringify(rawSpecification.components.schemas.ReportJobStatus.enum) ===
+        JSON.stringify(['QUEUED', 'PROCESSING', 'SUCCEEDED', 'FAILED', 'EXPIRED']) &&
+      JSON.stringify(rawSpecification.components.schemas.ReportFailureCode.enum) ===
+        JSON.stringify(['REPORT_GENERATION_FAILED', 'REPORT_ARTIFACT_UNAVAILABLE']) &&
+      !containsProperty(schemas.ReportJob, 'storageKey') &&
+      !containsProperty(schemas.ReportJob, 'redisKey') &&
+      !containsProperty(schemas.ReportJob, 'bullmqJobId') &&
+      !containsProperty(schemas.ReportJob, 'queue') &&
+      !containsProperty(schemas.ReportJob, 'url') &&
+      !containsProperty(schemas.ReportJobListResponse, 'totalCount'),
+    'CSV media/safety or report status/sensitive-field/no-totalCount contract drifted.',
+  );
+  assert(
+    schemas.ReportJob.required.includes('createdBy') &&
+      schemas.ReportJob.required.includes('expiresAt') &&
+      schemas.ReportJob.required.includes('failureMessage') &&
+      schemas.ReportJob.properties.failureMessage.maxLength === 500 &&
+      rawSpecification.paths['/report-jobs'].get['x-cursor-context'].includes('organizationId') &&
+      rawSpecification.paths['/sites/{siteId}/sop/versions'].get['x-cursor-context'].includes(
+        'siteId',
+      ),
+    'Report safe projection or context-bound cursor contract drifted.',
+  );
+  const polygonRing =
+    phase06Examples['map-config.response.json'].data.riskZones[0].geometry.coordinates[0];
+  assert(
+    JSON.stringify(polygonRing[0]) === JSON.stringify(polygonRing.at(-1)),
+    'Map configuration example polygon ring must be closed.',
+  );
+  for (const name of expectedPhase06ExampleFiles) {
+    for (const forbidden of [
+      'secret',
+      'credentialHash',
+      'storageKey',
+      'Authorization',
+      'rawPayload',
+      'signedUrl',
+      'totalCount',
+    ]) {
+      assert(
+        !containsProperty(phase06Examples[name], forbidden),
+        `${name} must not expose ${forbidden}.`,
+      );
+    }
+  }
 
   assert(
     phase02Examples['telemetry-accepted.response.json'].duplicate === false &&
@@ -1129,7 +1383,7 @@ try {
   }
 
   process.stdout.write(
-    `OpenAPI, external telemetry schema, ${expectedPhase02ExampleFiles.length} Phase 02 examples, ${expectedPhase03ExampleFiles.length} Phase 03 examples, ${expectedPhase04ExampleFiles.length} Phase 04 examples, and ${expectedPhase05ExampleFiles.length} Phase 05 examples are valid.\n`,
+    `OpenAPI, external telemetry schema, ${expectedPhase02ExampleFiles.length} Phase 02 examples, ${expectedPhase03ExampleFiles.length} Phase 03 examples, ${expectedPhase04ExampleFiles.length} Phase 04 examples, ${expectedPhase05ExampleFiles.length} Phase 05 examples, and ${expectedPhase06ExampleFiles.length} Phase 06 examples are valid.\n`,
   );
 } catch (error) {
   process.stderr.write('OpenAPI contract validation failed.\n');

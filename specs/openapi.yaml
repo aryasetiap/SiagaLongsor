@@ -1,14 +1,15 @@
 openapi: 3.1.0
 info:
   title: SiagaLongsor API
-  version: 0.5.0
+  version: 0.6.0
   description: >-
     API contract for SiagaLongsor. Phase 01 authentication and Phase 02 Site lookup,
     MonitoringPoint, Device, credential, and telemetry capabilities are implemented. Phase 03 risk
     profile, server-side assessment, monitoring overview, and alert reads are implemented. Phase 04
     dashboard summary and MonitoringPoint sensor series are implemented. Phase 05 alert lifecycle,
-    audit reads, and notification-only SSE are contract-frozen; runtime implementation follows
-    separately.
+    audit reads, and notification-only SSE are implemented. Phase 06 provider-agnostic map
+    configuration, private versioned SOP documents, telemetry CSV export, and asynchronous PDF
+    report jobs are contract-frozen; runtime implementation follows separately.
 servers:
   - url: /api/v1
 paths:
@@ -1139,6 +1140,486 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalError' }
+  /sites/{siteId}/map-config:
+    get:
+      operationId: getActiveSiteMapConfiguration
+      tags: [Map]
+      summary: Read the active immutable Site map configuration
+      description: >-
+        Returns the active version to both roles. Geometry uses WGS84/EPSG:4326 GeoJSON positions
+        in [longitude, latitude] order. A Site without a configuration returns 404
+        MAP_CONFIG_NOT_FOUND; cross-organization Site returns 404 SITE_NOT_FOUND.
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      x-error-codes: [MAP_CONFIG_NOT_FOUND, SITE_NOT_FOUND]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/SiteId'
+      responses:
+        '200':
+          description: Active immutable map configuration
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SiteMapConfigurationResponse' }
+              examples:
+                active:
+                  externalValue: ./examples/phase-06/map-config.response.json
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    put:
+      operationId: replaceActiveSiteMapConfiguration
+      tags: [Map]
+      summary: Create and activate an immutable map configuration version
+      description: >-
+        PROJECT_OWNER only. expectedVersion is null for the first version and must equal the active
+        version thereafter. A canonical-identical request is a no-op with changed false and no
+        audit row. A different request is serialized per Site, atomically creates the next
+        monotonically increasing immutable version, keeps history, activates it, and writes one
+        sanitized MAP_CONFIG_VERSION_CREATED audit row. A stale expectedVersion returns 409
+        MAP_CONFIG_VERSION_CONFLICT. Full GeoJSON is never copied to AuditLog.
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER]
+      x-versioning-semantics: immutable-new-version-or-canonical-no-op
+      x-concurrency-control: serialize-per-site-and-match-expected-version
+      x-audit-event: MAP_CONFIG_VERSION_CREATED
+      x-error-codes: [MAP_CONFIG_VERSION_CONFLICT, SITE_NOT_FOUND]
+      x-audit-metadata:
+        [siteId, previousVersion, newVersion, monitoringPointCount, riskZoneCount, routeCount]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/SiteId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateSiteMapConfigurationRequest' }
+            examples:
+              update:
+                externalValue: ./examples/phase-06/map-config.update.request.json
+      responses:
+        '200':
+          description: Active configuration; changed states whether a new version was created
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SiteMapConfigurationMutationResponse' }
+              examples:
+                changed:
+                  externalValue: ./examples/phase-06/map-config.update.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /map/overview:
+    get:
+      operationId: getMapOverview
+      tags: [Map]
+      summary: Read an authoritative whole-Site map snapshot
+      description: >-
+        Non-paginated provider-independent snapshot. Only configured MonitoringPoints with
+        coordinates become markers. Current state is read from the authoritative projection; no
+        data is UNKNOWN/null, never SAFE, and delayed/offline state cannot be presented as SAFE.
+        If no map configuration exists, returns 200 with configured false, null center/version,
+        and empty geometry/markers. Static risk polygons are approved configuration, not realtime
+        risk prediction. No raw telemetry, credential, hash, fabricated coordinate, geocoding,
+        directions, or automatic route calculation is returned.
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      x-snapshot-semantics: authoritative-whole-site-no-total-count
+      x-error-codes: [SITE_NOT_FOUND]
+      x-unconfigured-semantics: configured-false-null-center-version-empty-geometry-markers
+      x-safety-boundary: static-manual-geometry-current-state-authoritative-no-prediction-routing-geocoding
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - name: siteId
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+      responses:
+        '200':
+          description: Whole-Site map snapshot or honest unconfigured empty state
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MapOverviewResponse' }
+              examples:
+                configured:
+                  externalValue: ./examples/phase-06/map-overview.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /sites/{siteId}/sop:
+    get:
+      operationId: getActiveSiteSop
+      tags: [Documents]
+      summary: Read active authoritative Site SOP metadata
+      description: Both roles may read. No active SOP returns 404 SOP_NOT_FOUND.
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      x-error-codes: [SOP_NOT_FOUND, SITE_NOT_FOUND]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/SiteId'
+      responses:
+        '200':
+          description: Active immutable SOP version metadata
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SopDocumentResponse' }
+              examples:
+                active:
+                  externalValue: ./examples/phase-06/sop.response.json
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    post:
+      operationId: uploadSiteSopVersion
+      tags: [Documents]
+      summary: Upload and activate a new immutable PDF SOP version
+      description: >-
+        PROJECT_OWNER only. Accepts a non-empty PDF no larger than 10 MiB. Runtime must validate
+        declared application/pdf, sanitized .pdf filename, and PDF magic signature; compute
+        SHA-256; generate an opaque random private-object key; and never use the user filename as a
+        storage path. Validation and containment do not claim malware-free content. The database
+        version and active pointer change atomically; an uploaded orphan is removed with a
+        compensating delete if persistence fails. Success writes one sanitized SOP_VERSION_UPLOADED
+        audit row without bytes or storage metadata.
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER]
+      x-error-codes: [SITE_NOT_FOUND, FILE_VALIDATION_FAILED, PAYLOAD_TOO_LARGE]
+      x-versioning-semantics: immutable-new-version-only
+      x-upload-maximum-bytes: 10485760
+      x-content-validation: declared-mime-extension-and-pdf-magic-signature
+      x-object-storage: private-opaque-key-with-compensating-orphan-cleanup
+      x-audit-event: SOP_VERSION_UPLOADED
+      x-audit-metadata: [siteId, documentId, version, sizeBytes, sha256]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/SiteId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/UploadSopDocumentRequest' }
+            encoding:
+              file:
+                contentType: application/pdf
+      responses:
+        '201':
+          description: New active immutable SOP version
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SopDocumentResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '413': { $ref: '#/components/responses/PayloadTooLarge' }
+        '415': { $ref: '#/components/responses/UnsupportedMediaType' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /sites/{siteId}/sop/versions:
+    get:
+      operationId: listSiteSopVersions
+      tags: [Documents]
+      summary: List immutable SOP versions newest first
+      description: Both roles may list immutable versions; no physical delete exists in Phase 06.
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      x-error-codes: [SITE_NOT_FOUND, INVALID_CURSOR]
+      x-ordering: uploadedAt:desc,id:desc
+      x-cursor-context: [organizationId, siteId, uploadedAt, id]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/SiteId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Newest-first SOP version page without totalCount
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SopDocumentListResponse' }
+              examples:
+                versions:
+                  externalValue: ./examples/phase-06/sop-versions.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /sop-documents/{documentId}/content:
+    get:
+      operationId: downloadSopDocumentContent
+      tags: [Documents]
+      summary: Download authenticated private SOP PDF content
+      description: >-
+        Both roles may stream an organization-scoped private object through the API. There is no
+        public or permanent signed URL and no token query. Cross-organization or unknown document
+        returns 404 SOP_DOCUMENT_NOT_FOUND. Frontends use authenticated fetch, create a temporary
+        Blob URL, and revoke it after use.
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      x-error-codes: [SOP_DOCUMENT_NOT_FOUND]
+      x-private-authenticated-content: true
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/DocumentId'
+      responses:
+        '200':
+          description: PDF bytes from private object storage
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+            X-Content-Type-Options:
+              schema: { type: string, const: nosniff }
+            Content-Disposition:
+              description: Attachment or inline disposition using a sanitized PDF filename.
+              schema: { type: string }
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /reports/telemetry.csv:
+    get:
+      operationId: exportTelemetryCsv
+      tags: [Reports]
+      summary: Export organization-scoped telemetry as CSV
+      description: >-
+        Both roles may export a [from,to) range of at most 31 days, ordered oldest-first with a
+        stable telemetry id tie-breaker. Output is RFC 4180-compatible, preserves null as an empty
+        field and UNKNOWN as UNKNOWN, never SAFE, and neutralizes text beginning with =, +, -, or @
+        to prevent spreadsheet formula injection. It excludes raw payload, credentials, hashes,
+        and headers. Empty results still return the header row.
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      x-error-codes: [SITE_NOT_FOUND, MONITORING_POINT_NOT_FOUND, INVALID_TIME_RANGE]
+      x-time-range-semantics: { from: inclusive, to: exclusive, maximum-days: 31 }
+      x-ordering: recordedAt:asc,telemetryId:asc
+      x-csv-escaping: rfc4180-and-formula-prefix-neutralization
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - name: siteId
+          in: query
+          required: true
+          schema: { type: string, minLength: 1 }
+        - name: monitoringPointId
+          in: query
+          required: false
+          schema: { type: string, minLength: 1 }
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Header plus zero or more stable oldest-first telemetry rows
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+            Content-Disposition:
+              description: Attachment disposition with a sanitized .csv filename.
+              schema: { type: string }
+          content:
+            text/csv; charset=utf-8:
+              schema: { type: string }
+              x-columns:
+                [
+                  recordedAt,
+                  serverReceivedAt,
+                  monitoringPointName,
+                  hardwareId,
+                  tiltMagnitudeDeg,
+                  soilMoisturePct,
+                  rainfallMmHour,
+                  batteryVoltage,
+                  firmwareVersion,
+                  serverRisk,
+                  riskProfileVersion,
+                  affectsCurrentState,
+                ]
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /report-jobs:
+    post:
+      operationId: createReportJob
+      tags: [Reports]
+      summary: Queue an asynchronous Site PDF report
+      description: >-
+        Both roles create an organization-visible job and receive 202 immediately; HTTP never waits
+        for PDF generation. The [from,to) range is at most 31 days. A new request always creates a
+        new job, including regeneration after failure or expiry. Creation writes one sanitized
+        REPORT_JOB_CREATED audit row. Worker retries are bounded and status transitions durable;
+        duplicate processing cannot create inconsistent records.
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      x-error-codes: [SITE_NOT_FOUND, INVALID_TIME_RANGE]
+      x-execution: asynchronous-bullmq-bounded-retry-idempotent-worker
+      x-time-range-semantics: { from: inclusive, to: exclusive, maximum-days: 31 }
+      x-audit-event: REPORT_JOB_CREATED
+      x-audit-metadata: [reportJobId, reportType, siteId, from, to]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateReportJobRequest' }
+            examples:
+              create:
+                externalValue: ./examples/phase-06/report-job.create.request.json
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+      responses:
+        '202':
+          description: Report job accepted and queued
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportJobResponse' }
+              examples:
+                queued:
+                  externalValue: ./examples/phase-06/report-job.create.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+    get:
+      operationId: listReportJobs
+      tags: [Reports]
+      summary: List organization-visible report jobs newest first
+      description: >-
+        Both roles see organization-wide jobs. Cursor is context-bound to organization, filters,
+        requestedAt boundary, and stable id tie-breaker. No totalCount.
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      x-error-codes: [INVALID_CURSOR]
+      x-ordering: requestedAt:desc,id:desc
+      x-cursor-context: [organizationId, siteId, status, reportType, requestedAt, id]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: siteId
+          in: query
+          schema: { type: string, minLength: 1 }
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/ReportJobStatus' }
+        - name: reportType
+          in: query
+          schema: { $ref: '#/components/schemas/ReportType' }
+      responses:
+        '200':
+          description: Organization-visible newest-first report job page without totalCount
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportJobListResponse' }
+              examples:
+                page:
+                  externalValue: ./examples/phase-06/report-jobs.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /report-jobs/{reportJobId}:
+    get:
+      operationId: getReportJob
+      tags: [Reports]
+      summary: Read an organization-scoped report job
+      description: Both roles may read organization-visible jobs; cross-organization returns 404 REPORT_JOB_NOT_FOUND.
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      x-error-codes: [REPORT_JOB_NOT_FOUND]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/ReportJobId'
+      responses:
+        '200':
+          description: Durable report job state
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportJobResponse' }
+              examples:
+                succeeded:
+                  externalValue: ./examples/phase-06/report-job.response.json
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /report-jobs/{reportJobId}/content:
+    get:
+      operationId: downloadReportJobContent
+      tags: [Reports]
+      summary: Download a successful unexpired private PDF report
+      description: >-
+        Both roles may download through authenticated API fetch. Only SUCCEEDED and unexpired jobs
+        have content. FAILED has no artifact; expired content returns 410
+        REPORT_ARTIFACT_UNAVAILABLE while durable job metadata remains EXPIRED. There is no public
+        permanent URL or token query. Generated PDF labels generation-time state as "Status saat
+        laporan dibuat", uses persisted Telemetry/RiskAssessment/Alert history, preserves missing
+        values, and does not fabricate historical current state or geotechnical conclusions.
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      x-error-codes: [REPORT_JOB_NOT_FOUND, REPORT_NOT_READY, REPORT_ARTIFACT_UNAVAILABLE]
+      x-artifact-retention-days: 90
+      x-private-authenticated-content: true
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/ReportJobId'
+      responses:
+        '200':
+          description: Generated private PDF artifact
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+            X-Content-Type-Options:
+              schema: { type: string, const: nosniff }
+            Content-Disposition:
+              description: Attachment disposition with a sanitized .pdf filename.
+              schema: { type: string }
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '410':
+          description: Report artifact expired or unavailable; error code REPORT_ARTIFACT_UNAVAILABLE
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ErrorResponse' }
+        '500': { $ref: '#/components/responses/InternalError' }
 components:
   securitySchemes:
     bearerAuth:
@@ -1311,6 +1792,18 @@ components:
       required: true
       description: Opaque Alert resource identifier.
       schema: { type: string, minLength: 1 }
+    DocumentId:
+      name: documentId
+      in: path
+      required: true
+      description: Opaque SOP document version identifier.
+      schema: { type: string, minLength: 1 }
+    ReportJobId:
+      name: reportJobId
+      in: path
+      required: true
+      description: Opaque report job identifier.
+      schema: { type: string, minLength: 1 }
   responses:
     BadRequest:
       description: Invalid request, validation failure, missing organization context, or invalid cursor
@@ -1351,14 +1844,14 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     PayloadTooLarge:
-      description: JSON request body exceeds the configured size limit
+      description: Request body or uploaded file exceeds the configured size limit
       headers:
         x-request-id: { $ref: '#/components/headers/XRequestId' }
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
     UnsupportedMediaType:
-      description: Content-Type must be application/json
+      description: Request Content-Type is not accepted for this operation
       headers:
         x-request-id: { $ref: '#/components/headers/XRequestId' }
       content:
@@ -2458,3 +2951,348 @@ components:
         siteId: { type: [string, 'null'], minLength: 1 }
         monitoringPointId: { type: [string, 'null'], minLength: 1 }
         alertId: { type: [string, 'null'], minLength: 1 }
+    GeoJsonPosition:
+      type: array
+      description: WGS84/EPSG:4326 position in [longitude, latitude] order; altitude is forbidden.
+      minItems: 2
+      maxItems: 2
+      prefixItems:
+        - { type: number, minimum: -180, maximum: 180 }
+        - { type: number, minimum: -90, maximum: 90 }
+      items: false
+    MapCenter:
+      type: object
+      additionalProperties: false
+      required: [position, zoom]
+      properties:
+        position: { $ref: '#/components/schemas/GeoJsonPosition' }
+        zoom: { type: integer, minimum: 0, maximum: 22 }
+    MonitoringPointMapLocation:
+      type: object
+      additionalProperties: false
+      required: [monitoringPointId, position]
+      properties:
+        monitoringPointId: { type: string, minLength: 1 }
+        position: { $ref: '#/components/schemas/GeoJsonPosition' }
+    GeoJsonPolygon:
+      type: object
+      additionalProperties: false
+      required: [type, coordinates]
+      description: >-
+        Valid GeoJSON Polygon. Each linear ring has at least four positions and its first and last
+        positions must be identical. Portable structural validation does not claim full GIS
+        topology or self-intersection detection.
+      properties:
+        type: { type: string, const: Polygon }
+        coordinates:
+          type: array
+          minItems: 1
+          items:
+            type: array
+            minItems: 4
+            items: { $ref: '#/components/schemas/GeoJsonPosition' }
+    GeoJsonLineString:
+      type: object
+      additionalProperties: false
+      required: [type, coordinates]
+      description: Valid GeoJSON LineString with at least two distinct positions.
+      properties:
+        type: { type: string, const: LineString }
+        coordinates:
+          type: array
+          minItems: 2
+          items: { $ref: '#/components/schemas/GeoJsonPosition' }
+    RiskZoneFeature:
+      type: object
+      additionalProperties: false
+      required: [featureId, name, description, geometry]
+      description: Manually approved static reference zone; it is not a realtime prediction.
+      properties:
+        featureId:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+        name: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: [string, 'null'], maxLength: 1000 }
+        geometry: { $ref: '#/components/schemas/GeoJsonPolygon' }
+    EvacuationRouteFeature:
+      type: object
+      additionalProperties: false
+      required: [featureId, name, description, destinationLabel, geometry]
+      description: Manually approved static evacuation route; no automatic routing is implied.
+      properties:
+        featureId:
+          type: string
+          format: uuid
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+        name: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: [string, 'null'], maxLength: 1000 }
+        destinationLabel: { type: [string, 'null'], maxLength: 200 }
+        geometry: { $ref: '#/components/schemas/GeoJsonLineString' }
+    SiteMapConfigurationInput:
+      type: object
+      required: [center, monitoringPointLocations, riskZones, evacuationRoutes, notes]
+      properties:
+        center:
+          oneOf:
+            - $ref: '#/components/schemas/MapCenter'
+            - type: 'null'
+        monitoringPointLocations:
+          type: array
+          uniqueItems: true
+          description: monitoringPointId must be unique and belong to this Site and organization.
+          x-unique-by: monitoringPointId
+          items: { $ref: '#/components/schemas/MonitoringPointMapLocation' }
+        riskZones:
+          type: array
+          uniqueItems: true
+          x-unique-by: featureId
+          items: { $ref: '#/components/schemas/RiskZoneFeature' }
+        evacuationRoutes:
+          type: array
+          uniqueItems: true
+          x-unique-by: featureId
+          items: { $ref: '#/components/schemas/EvacuationRouteFeature' }
+        notes: { type: [string, 'null'], maxLength: 2000 }
+    UpdateSiteMapConfigurationRequest:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/SiteMapConfigurationInput'
+        - type: object
+          required: [expectedVersion]
+          properties:
+            expectedVersion: { type: [integer, 'null'], minimum: 1 }
+    SiteMapConfiguration:
+      unevaluatedProperties: false
+      allOf:
+        - $ref: '#/components/schemas/SiteMapConfigurationInput'
+        - type: object
+          required: [id, siteId, version, createdAt, activatedAt, createdBy]
+          properties:
+            id: { type: string, minLength: 1 }
+            siteId: { type: string, minLength: 1 }
+            version: { type: integer, minimum: 1 }
+            createdAt: { type: string, format: date-time }
+            activatedAt: { type: string, format: date-time }
+            createdBy: { $ref: '#/components/schemas/SafeActorSummary' }
+    SiteMapConfigurationResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SiteMapConfiguration' }
+    SiteMapConfigurationMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [data, changed]
+      properties:
+        data: { $ref: '#/components/schemas/SiteMapConfiguration' }
+        changed: { type: boolean }
+    MapOverviewConfiguration:
+      type: object
+      additionalProperties: false
+      required: [configured, version, center, riskZones, evacuationRoutes]
+      properties:
+        configured: { type: boolean }
+        version: { type: [integer, 'null'], minimum: 1 }
+        center:
+          oneOf:
+            - $ref: '#/components/schemas/MapCenter'
+            - type: 'null'
+        riskZones:
+          type: array
+          items: { $ref: '#/components/schemas/RiskZoneFeature' }
+        evacuationRoutes:
+          type: array
+          items: { $ref: '#/components/schemas/EvacuationRouteFeature' }
+    MapMonitoringPointMarker:
+      type: object
+      additionalProperties: false
+      required: [monitoringPoint, position, currentState]
+      properties:
+        monitoringPoint: { $ref: '#/components/schemas/MonitoringPointIdentity' }
+        position: { $ref: '#/components/schemas/GeoJsonPosition' }
+        currentState:
+          oneOf:
+            - $ref: '#/components/schemas/CurrentMonitoringPointState'
+            - type: 'null'
+    SopAvailabilitySummary:
+      type: object
+      additionalProperties: false
+      required: [available, documentId, version, title]
+      properties:
+        available: { type: boolean }
+        documentId: { type: [string, 'null'], minLength: 1 }
+        version: { type: [integer, 'null'], minimum: 1 }
+        title: { type: [string, 'null'], minLength: 1 }
+    MapOverview:
+      type: object
+      additionalProperties: false
+      required: [generatedAt, site, configuration, markers, sop]
+      properties:
+        generatedAt: { type: string, format: date-time }
+        site: { $ref: '#/components/schemas/SiteIdentity' }
+        configuration: { $ref: '#/components/schemas/MapOverviewConfiguration' }
+        markers:
+          type: array
+          items: { $ref: '#/components/schemas/MapMonitoringPointMarker' }
+        sop: { $ref: '#/components/schemas/SopAvailabilitySummary' }
+    MapOverviewResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/MapOverview' }
+    UploadSopDocumentRequest:
+      type: object
+      additionalProperties: false
+      required: [file, title]
+      properties:
+        file: { type: string, format: binary }
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: Server trims leading and trailing whitespace before validation and storage.
+        description: { type: [string, 'null'], maxLength: 2000 }
+    SopDocument:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          siteId,
+          version,
+          title,
+          description,
+          originalFileName,
+          mediaType,
+          sizeBytes,
+          sha256,
+          uploadedBy,
+          uploadedAt,
+          isActive,
+        ]
+      description: Public metadata only; private storage keys and object URLs are never exposed.
+      properties:
+        id: { type: string, minLength: 1 }
+        siteId: { type: string, minLength: 1 }
+        version: { type: integer, minimum: 1 }
+        title: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: [string, 'null'], maxLength: 2000 }
+        originalFileName:
+          { type: string, minLength: 5, maxLength: 255, pattern: '^[^/\\]+[.][pP][dD][fF]$' }
+        mediaType: { type: string, const: application/pdf }
+        sizeBytes: { type: integer, minimum: 1, maximum: 10485760 }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        uploadedBy: { $ref: '#/components/schemas/SafeActorSummary' }
+        uploadedAt: { type: string, format: date-time }
+        isActive: { type: boolean }
+    SopDocumentResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SopDocument' }
+    SopDocumentListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/SopDocument' }
+        page: { $ref: '#/components/schemas/PageInfo' }
+    ReportType:
+      type: string
+      enum: [SITE_PERIOD_SUMMARY_PDF]
+    ReportJobStatus:
+      type: string
+      enum: [QUEUED, PROCESSING, SUCCEEDED, FAILED, EXPIRED]
+    ReportFailureCode:
+      type: string
+      enum: [REPORT_GENERATION_FAILED, REPORT_ARTIFACT_UNAVAILABLE]
+    CreateReportJobRequest:
+      type: object
+      additionalProperties: false
+      required: [reportType, siteId, from, to]
+      properties:
+        reportType: { $ref: '#/components/schemas/ReportType' }
+        siteId: { type: string, minLength: 1 }
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+    ReportArtifactMetadata:
+      type: object
+      additionalProperties: false
+      required: [fileName, mediaType, sizeBytes, sha256, generatedAt, expiresAt]
+      description: Safe metadata only; private object keys and URLs are excluded.
+      properties:
+        fileName:
+          { type: string, minLength: 5, maxLength: 255, pattern: '^[^/\\]+[.][pP][dD][fF]$' }
+        mediaType: { type: string, const: application/pdf }
+        sizeBytes: { type: integer, minimum: 1 }
+        sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+        generatedAt: { type: string, format: date-time }
+        expiresAt: { type: string, format: date-time }
+    ReportJob:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          organizationId,
+          site,
+          reportType,
+          from,
+          to,
+          status,
+          createdBy,
+          requestedAt,
+          startedAt,
+          completedAt,
+          expiresAt,
+          failureCode,
+          failureMessage,
+          artifact,
+        ]
+      properties:
+        id: { type: string, minLength: 1 }
+        organizationId: { type: string, minLength: 1 }
+        site: { $ref: '#/components/schemas/SiteIdentity' }
+        reportType: { $ref: '#/components/schemas/ReportType' }
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+        status: { $ref: '#/components/schemas/ReportJobStatus' }
+        createdBy: { $ref: '#/components/schemas/SafeActorSummary' }
+        requestedAt: { type: string, format: date-time }
+        startedAt: { type: [string, 'null'], format: date-time }
+        completedAt: { type: [string, 'null'], format: date-time }
+        expiresAt: { type: [string, 'null'], format: date-time }
+        failureCode:
+          oneOf:
+            - $ref: '#/components/schemas/ReportFailureCode'
+            - type: 'null'
+        failureMessage:
+          type: [string, 'null']
+          minLength: 1
+          maxLength: 500
+          description: Sanitized user-safe message; no stack trace or provider detail.
+        artifact:
+          oneOf:
+            - $ref: '#/components/schemas/ReportArtifactMetadata'
+            - type: 'null'
+    ReportJobResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/ReportJob' }
+    ReportJobListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/ReportJob' }
+        page: { $ref: '#/components/schemas/PageInfo' }

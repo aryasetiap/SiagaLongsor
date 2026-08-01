@@ -1,0 +1,47 @@
+{
+  "data": {
+    "generatedAt": "2026-08-01T03:10:00.000Z",
+    "site": { "id": "site-sman17", "name": "SMAN 17 Bandar Lampung", "timezone": "Asia/Jakarta" },
+    "configuration": {
+      "configured": true,
+      "version": 4,
+      "center": { "position": [105.2667, -5.3971], "zoom": 17 },
+      "riskZones": [],
+      "evacuationRoutes": []
+    },
+    "markers": [
+      {
+        "monitoringPoint": {
+          "id": "mp-slope-east",
+          "name": "Lereng Timur",
+          "locationDescription": "Belakang gedung laboratorium",
+          "isActive": true
+        },
+        "position": [105.2671, -5.3975],
+        "currentState": {
+          "monitoringPointId": "mp-slope-east",
+          "deviceId": "device-east-01",
+          "serverRisk": "UNKNOWN",
+          "connectivityStatus": "DELAYED",
+          "reasons": ["TELEMETRY_DELAYED"],
+          "latestTelemetryId": "telemetry-001",
+          "evaluatedAt": "2026-08-01T03:10:00.000Z",
+          "lastTelemetryAt": "2026-08-01T02:45:00.000Z",
+          "profileId": "risk-profile-site-01-v1",
+          "profileVersion": 1,
+          "activeAlertSummary": {
+            "count": 1,
+            "highestSeverity": "WARNING",
+            "types": ["DEVICE_DELAYED"]
+          }
+        }
+      }
+    ],
+    "sop": {
+      "available": true,
+      "documentId": "sop-site-01-v2",
+      "version": 2,
+      "title": "SOP Evakuasi Longsor"
+    }
+  }
+}

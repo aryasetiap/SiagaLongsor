@@ -194,9 +194,9 @@ SSE berfungsi sebagai invalidation signal dengan reconnect/refetch. SOP quick ac
 batas unavailable secara jujur; upload/persistence SOP tetap Phase 06. Bukti berada di
 [`docs/17_PHASE_05_ACCEPTANCE_REPORT.md`](17_PHASE_05_ACCEPTANCE_REPORT.md).
 
-## Phase 6 — Map, documents, reports
+## Phase 6 — Map, documents, reports — aktif
 
-Status: fase berikutnya; implementasi belum dimulai.
+Status: contract selesai; backend, frontend, dan full acceptance belum dimulai.
 
 Output:
 
@@ -212,6 +212,18 @@ Exit criteria:
 - Map memiliki fallback.
 - File upload aman.
 - Report dapat dibuat ulang.
+
+Workstream:
+
+| ID    | Task                                                        | Status  |
+| ----- | ----------------------------------------------------------- | ------- |
+| P6-01 | Contract map, SOP documents, CSV export, dan PDF report jobs | selesai |
+| P6-02 | Backend persistence, object storage, worker, dan API          | pending |
+| P6-03 | Frontend map, SOP, export, dan report job UI                  | pending |
+| P6-04 | Security, browser, integration, dan full acceptance           | pending |
+
+Phase 05 tetap selesai dan menjadi baseline lifecycle/realtime. Phase 06 tidak mengubah risk
+engine, current-state semantics, alert lifecycle, atau Phase 05 SSE contract.
 
 ## Phase 7 — Hardening and deployment
 
