@@ -8,6 +8,7 @@ import { DashboardModule } from './dashboard/dashboard.module.js';
 import { DevicesModule } from './devices/devices.module.js';
 import { HealthModule } from './health/health.module.js';
 import { MonitoringPointsModule } from './monitoring-points/monitoring-points.module.js';
+import { MapSopModule } from './map-sop/map-sop.module.js';
 import { RateLimitModule } from './rate-limit/rate-limit.module.js';
 import { RedisModule } from './redis/redis.module.js';
 import { RiskModule } from './risk/risk.module.js';
@@ -26,6 +27,7 @@ import { TelemetryModule } from './telemetry/telemetry.module.js';
     AuthorizationModule,
     HealthModule,
     MonitoringPointsModule,
+    MapSopModule,
     SitesModule,
     RiskModule,
     TelemetryModule,
