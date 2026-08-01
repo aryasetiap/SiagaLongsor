@@ -18,6 +18,6 @@ import { RefreshTokenService } from './refresh-token.service.js';
     PasswordService,
     RefreshTokenService,
   ],
-  exports: [AuthService],
+  exports: [AuthService, AccessTokenService],
 })
 export class AuthModule {}

@@ -226,9 +226,7 @@ export class AlertLifecycleService {
       try {
         await this.postCommit.dispatch(committed.descriptor);
       } catch {
-        this.logger.warn(
-          `Post-commit lifecycle notification failed alertId=${committed.descriptor.alertId}`,
-        );
+        this.logger.warn('Post-commit lifecycle notification failed.');
       }
     }
     return committed.response;

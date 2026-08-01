@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma, type Alert } from '../generated/prisma/client.js';
 import { AlertSeverity, AlertStatus, type AlertType } from '../generated/prisma/enums.js';
 import type { RiskReason } from '../risk/risk-engine.types.js';
+import type { RealtimeDescriptor } from '../realtime/realtime.types.js';
 
 export interface AlertObservation {
   readonly organizationId: string;
@@ -23,7 +24,11 @@ export class AlertObservationService {
   async observe(
     transaction: Prisma.TransactionClient,
     observation: AlertObservation,
-  ): Promise<{ readonly alert: Alert; readonly changed: boolean }> {
+  ): Promise<{
+    readonly alert: Alert;
+    readonly changed: boolean;
+    readonly realtime: RealtimeDescriptor | null;
+  }> {
     const deduplicationKey = alertDeduplicationKey(observation);
     await transaction.$queryRaw(
       Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${deduplicationKey}, 0))::text`,
@@ -33,7 +38,9 @@ export class AlertObservationService {
       where: { observationKey: observation.observationKey },
       include: { alert: true },
     });
-    if (priorEvent !== null) return { alert: priorEvent.alert, changed: false };
+    if (priorEvent !== null) {
+      return { alert: priorEvent.alert, changed: false, realtime: null };
+    }
 
     let existing = await transaction.alert.findFirst({
       where: {
@@ -122,7 +129,18 @@ export class AlertObservationService {
         },
       });
     }
-    return { alert, changed: true };
+    return {
+      alert,
+      changed: true,
+      realtime: {
+        eventType: existing === null ? 'ALERT_CREATED' : 'ALERT_OBSERVED',
+        occurredAt: observation.observedAt.toISOString(),
+        organizationId: observation.organizationId,
+        siteId: observation.siteId,
+        monitoringPointId: observation.monitoringPointId,
+        alertId: alert.id,
+      },
+    };
   }
 }
 

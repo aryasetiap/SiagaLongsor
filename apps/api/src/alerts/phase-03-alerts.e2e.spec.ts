@@ -8,7 +8,7 @@ import request, {
   type Response as SuperTestResponse,
   type Test as SuperTestRequest,
 } from 'supertest';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AppModule } from '../app.module.js';
 import { configureApp } from '../bootstrap/configure-app.js';
@@ -23,6 +23,7 @@ import {
   Role,
 } from '../generated/prisma/enums.js';
 import { RedisService } from '../redis/redis.service.js';
+import { RealtimePostCommitService } from '../realtime/realtime-post-commit.service.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { AlertObservationService } from './alert-observation.service.js';
 
@@ -331,6 +332,9 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
   });
 
   it('evaluates DELAYED/OFFLINE idempotently and recovery stays unresolved', async () => {
+    const dispatch = vi
+      .spyOn(app.get(RealtimePostCommitService), 'dispatch')
+      .mockResolvedValue(undefined);
     const delayedAt = new Date(baseTime.getTime() + 21 * 60_000);
     expect(await evaluator.runOnce(delayedAt)).toMatchObject({ acquired: true });
     let state = await prisma.currentMonitoringPointState.findUniqueOrThrow({
@@ -341,10 +345,17 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
       where: { monitoringPointId: schedulerPointId, type: AlertType.DEVICE_DELAYED },
     });
     expect(delayed.occurrenceCount).toBe(1);
+    const descriptorsAfterDelayed = dispatch.mock.calls.flatMap(([descriptors]) => descriptors);
+    expect(descriptorsAfterDelayed.map((entry) => entry.eventType)).toEqual(
+      expect.arrayContaining(['MONITORING_POINT_STATE_CHANGED', 'ALERT_CREATED']),
+    );
     await evaluator.runOnce(delayedAt);
     expect(
       (await prisma.alert.findUniqueOrThrow({ where: { id: delayed.id } })).occurrenceCount,
     ).toBe(1);
+    expect(dispatch.mock.calls.flatMap(([descriptors]) => descriptors)).toHaveLength(
+      descriptorsAfterDelayed.length,
+    );
 
     const offlineAt = new Date(baseTime.getTime() + 36 * 60_000);
     await evaluator.runOnce(offlineAt);
@@ -356,6 +367,14 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
       where: { monitoringPointId: schedulerPointId, type: AlertType.DEVICE_OFFLINE },
     });
     expect(offline.status).toBe('ACTIVE');
+    expect(dispatch.mock.calls.flatMap(([descriptors]) => descriptors)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventType: 'MONITORING_POINT_STATE_CHANGED',
+          monitoringPointId: schedulerPointId,
+        }),
+      ]),
+    );
 
     expect(
       (
@@ -391,6 +410,7 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
     expect((await prisma.alert.findUniqueOrThrow({ where: { id: offline.id } })).status).toBe(
       'ACTIVE',
     );
+    dispatch.mockRestore();
     const recoveryReceivedAt = (
       await prisma.telemetry.findFirstOrThrow({
         where: { deviceId: schedulerDevice.id },
