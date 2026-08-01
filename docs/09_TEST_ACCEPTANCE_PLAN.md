@@ -45,9 +45,17 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
 
 ### Fase mendatang
 
-- Dashboard, alert operation, realtime, map, report, notification, performance, dan resilience test
-  dijalankan ketika implementasi fasenya tersedia.
+- Alert operation, realtime, map, report, notification, performance, dan resilience test dijalankan
+  ketika implementasi fasenya tersedia.
 - k6 ingestion dan dashboard wajib sebelum produksi, bukan pada coordination stage.
+
+### Contract/implementation active pada Phase 04
+
+- Authoritative dashboard summary dan MonitoringPoint sensor-series contract tersedia.
+- Monitoring table, Recent Alerts, Alert detail, dan assessment history tetap memakai endpoint
+  Phase 03 existing tanpa endpoint duplikat.
+- Runtime/backend/frontend acceptance belum dinyatakan selesai sampai seluruh kriteria Phase 04
+  berikut lulus.
 
 ## 2. Test pyramid
 
@@ -59,6 +67,34 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
 - Resilience: network retry, Redis unavailable, delayed data, duplicate payload.
 
 ## 3. Critical test cases
+
+### Dashboard data Phase 04
+
+1. Summary hanya menghitung resource dalam active organization.
+2. Optional Site filter diterapkan konsisten pada seluruh aggregate; Site lintas organisasi 404.
+3. `active + inactive = monitoringPoints.total`.
+4. Seluruh risk bucket sama dengan active MonitoringPoint scope.
+5. Missing/untrusted/delayed/offline/invalid/profile-unavailable state menjadi UNKNOWN, bukan SAFE.
+6. Device DISABLED tidak dihitung OFFLINE.
+7. Seluruh connectivity bucket sama dengan enabled Device scope.
+8. `activeCritical` tidak melebihi unresolved active Alert.
+9. `newInWindow` memakai `firstObservedAt` dalam `[from,to)`, bukan repeated occurrence.
+10. Sensor series selalu oldest-first dengan stable telemetry ID tie-breaker.
+11. Range memakai from inclusive dan to exclusive; `from >= to` ditolak.
+12. Default range 24 jam dan late telemetry dikecualikan.
+13. `includeLate=true` menyertakan late point dengan `isLate=true`.
+14. Gap telemetry tidak diinterpolasi atau dihaluskan.
+15. Nullable sensor tetap null dan tidak berubah menjadi nol.
+16. Cursor page tidak menggandakan/melewatkan timestamp sama; mismatch/expired cursor ditolak.
+17. MonitoringPoint lintas organisasi menghasilkan 404.
+18. PROJECT_OWNER dan SCHOOL_ADMIN dapat membaca kedua endpoint.
+19. Frontend KPI dan risk/connectivity distribution memakai summary API, bukan paginated list.
+20. Chart memiliki textual summary accessible serta ikon/label untuk status dan late data.
+21. Desktop, tablet, dan mobile mempertahankan status critical dan basic usability.
+22. Loading, error, empty series, no-data, offline, dan single-point state ditangani eksplisit.
+23. Simulator dapat mengisi data yang kemudian muncul pada summary, series, table, dan alerts.
+24. Chromium acceptance membuktikan mapping endpoint serta filter/range utama.
+25. Response dan browser storage tidak memuat secret, credential hash, raw payload, atau token.
 
 ### Telemetry ingestion
 

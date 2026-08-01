@@ -132,7 +132,7 @@ Contract checkpoints:
 | A2         | Overview, assessment history, dan alert read API disetujui                           |
 | I3         | Backend implementation serta full Phase 03 acceptance lulus                          |
 
-## Phase 4 — Dashboard UI — berikutnya
+## Phase 4 — Dashboard data and UI — contract/implementation active
 
 Output:
 
@@ -144,11 +144,19 @@ Output:
 - Recent alerts.
 - Responsive UI.
 - Loading/error/empty states.
+- Authoritative dashboard summary API.
+- MonitoringPoint sensor-series API dengan signed cursor dan late-data semantics.
 
 Exit criteria:
 
 - UI dapat menggunakan seed dan data simulator.
 - Mobile basic usability lolos.
+- KPI/risk/connectivity aggregate memenuhi invariant organization/Site scope.
+- Sensor chart tidak menginterpolasi gap atau mengubah null/no-data menjadi nol.
+- PROJECT_OWNER dan SCHOOL_ADMIN read path, organization isolation, dan Chromium acceptance lulus.
+
+Status: contract dashboard-data sedang aktif. Runtime backend dan frontend tetap implementation PR
+terpisah setelah contract digabung.
 
 ## Phase 5 — Alert operations and realtime
 

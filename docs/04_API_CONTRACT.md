@@ -3,7 +3,7 @@
 Base path: `/api/v1`
 
 `specs/openapi.yaml` adalah kontrak machine-readable. Dokumen ini menjelaskan semantics yang tidak
-cukup diwakili schema. Phase 01 dan Phase 02 telah diimplementasikan; endpoint Phase 03 pada
+cukup diwakili schema. Phase 01–03 telah diimplementasikan. Endpoint dashboard-data Phase 04 pada
 contract ini belum menyatakan bahwa runtime-nya sudah tersedia.
 
 ## 1. Aturan umum
@@ -12,6 +12,8 @@ contract ini belum menyatakan bahwa runtime-nya sudah tersedia.
 - Semua response menyertakan header `x-request-id`.
 - Resource API untuk user memakai `{ "data": ... }`.
 - List memakai `{ "data": [], "page": { "nextCursor": null, "hasMore": false } }`.
+- Sensor series memakai page resource khusus
+  `{ "data": { "items": [], "nextCursor": null, "hasMore": false } }`.
 - Telemetry acknowledgement tetap flat karena merupakan device protocol.
 - Cursor bersifat opaque dan tidak boleh dibangun atau diubah client.
 - Default `limit` adalah 25 dan maksimum 100.
@@ -54,7 +56,7 @@ tidak hanya mempercayai claim JWT.
 ## 3. Organization context dan permission
 
 Semua endpoint user yang organization-scoped, termasuk `/sites`, `/monitoring-points/**`,
-`/devices/**`, `/monitoring-overview`, dan `/alerts/**`, wajib menerima:
+`/devices/**`, `/monitoring-overview`, `/dashboard/**`, dan `/alerts/**`, wajib menerima:
 
 ```http
 X-Organization-Id: <organizationId>
@@ -82,6 +84,7 @@ Permission matrix:
 | Risk profile    | Read                           |                Ya |                Ya |
 | Risk profile    | Replace active version         |                Ya |             Tidak |
 | Risk/overview   | Read current/history           |                Ya |                Ya |
+| Dashboard data  | Summary dan sensor series      |                Ya |                Ya |
 | Alert           | List/detail                    |                Ya |                Ya |
 | Alert           | Lifecycle mutation             | Phase 05 deferred | Phase 05 deferred |
 
@@ -323,7 +326,94 @@ idempotent, mengevaluasi Device ENABLED tanpa bergantung pada browser, dan mengh
 deduplicated connectivity alerts. Scheduler tidak mengirim notifikasi eksternal dan tidak
 memiliki HTTP endpoint.
 
-## 13. Kontrak fase selanjutnya
+## 13. Dashboard data foundation Phase 04
 
-Dashboard KPI/UI, SSE, acknowledge/resolve/false-alarm, notification, map, reporting, heartbeat,
-remote siren, dan firmware command tetap di luar Phase 03.
+Endpoint baru:
+
+- `GET /dashboard/summary`
+- `GET /monitoring-points/{monitoringPointId}/sensor-series`
+
+Keduanya memerlukan bearer authentication dan `X-Organization-Id`, tersedia untuk PROJECT_OWNER
+dan SCHOOL_ADMIN, serta memakai organization scope backend. Filter `siteId` summary hanya menerima
+Site dalam organisasi aktif; Site lain menghasilkan `404 SITE_NOT_FOUND`. Sensor series untuk
+MonitoringPoint lintas organisasi menghasilkan `404 MONITORING_POINT_NOT_FOUND`.
+
+Monitoring table dan Recent Alerts tetap memakai endpoint Phase 03:
+
+- Monitoring table: `GET /monitoring-overview`;
+- Recent Alerts: `GET /alerts` dengan sort terbaru dan limit kecil;
+- Alert detail: `GET /alerts/{alertId}`;
+- Assessment history: `GET /monitoring-points/{monitoringPointId}/risk-assessments`.
+
+Tidak dibuat endpoint dashboard yang menduplikasi list tersebut.
+
+### 13.1 Dashboard summary
+
+`GET /dashboard/summary` menerima optional `siteId` dan `windowHours` dengan default 24, minimum 1,
+serta maksimum 168. `generatedAt` sama dengan `window.to`; `window.from` tepat `windowHours` sebelum
+`to`. Batas window adalah from-inclusive dan to-exclusive.
+
+Aggregate selalu dihitung server-side dari seluruh organization/Site scope, bukan dari satu page
+cursor Monitoring Overview atau Alert list. Invariant authoritative:
+
+- `monitoringPoints.active + monitoringPoints.inactive = monitoringPoints.total`;
+- risk distribution hanya mencakup MonitoringPoint aktif dan jumlah seluruh bucket sama dengan
+  `monitoringPoints.active`;
+- MonitoringPoint aktif tanpa trusted current state masuk UNKNOWN; inactive tidak masuk distribusi;
+- delayed, offline, invalid, profile unavailable, atau data tak tersedia tidak pernah dihitung SAFE;
+- `devices.enabled + devices.disabled = devices.total` untuk Device yang assignment-nya berada
+  dalam scope;
+- connectivity distribution hanya mencakup Device ENABLED dan seluruh bucket sama dengan
+  `devices.enabled`;
+- Device ENABLED tanpa trusted connectivity masuk UNKNOWN; Device DISABLED tidak pernah OFFLINE;
+- `alerts.active` menghitung unresolved Alert dalam scope;
+- `alerts.activeCritical` adalah subset unresolved CRITICAL dan tidak boleh melebihi active;
+- `alerts.newInWindow` memakai `firstObservedAt` dalam `[from,to)`, bukan `lastObservedAt` atau
+  `occurrenceCount`. Repeated observation bukan Alert baru.
+
+Mapping authoritative UI:
+
+| Komponen                      | Sumber                                               |
+| ----------------------------- | ---------------------------------------------------- |
+| KPI Titik Monitoring Aktif    | `monitoringPoints.active`                            |
+| KPI Peringatan Kritis Aktif   | `alerts.activeCritical`                              |
+| KPI Perangkat Tidak Terhubung | `connectivityDistribution.offline`                   |
+| KPI Peringatan Baru           | `alerts.newInWindow`                                 |
+| Risk distribution donut       | `riskDistribution`                                   |
+| Connectivity textual summary  | `connectivityDistribution`                           |
+| Monitoring table              | `GET /monitoring-overview`                           |
+| Sensor chart                  | `GET /monitoring-points/{id}/sensor-series`          |
+| Recent Alerts                 | `GET /alerts?sort=lastObservedAt:desc&limit=<small>` |
+| Alert detail                  | `GET /alerts/{alertId}`                              |
+| Assessment history            | `GET /monitoring-points/{id}/risk-assessments`       |
+
+Frontend tidak menghitung KPI organisasi dari list paginated. Summary tidak memiliki `totalCount`
+atau historical delta palsu. Historical current-state analytics ditunda sampai tersedia histori
+authoritative; frontend hanya boleh menampilkan `generatedAt` dan window sebagai konteks.
+
+### 13.2 Sensor series
+
+`GET /monitoring-points/{monitoringPointId}/sensor-series` menerima optional `from`, `to`,
+`includeLate`, `cursor`, dan `limit`. Default `to` adalah server evaluation time dan default `from`
+24 jam sebelum normalized `to`. `from` wajib lebih kecil dari `to`; range maksimum tujuh hari.
+Range lebih panjang menghasilkan `400 VALIDATION_ERROR`.
+
+Default `includeLate=false`. Jika true, accepted late telemetry disertakan dengan `isLate=true`.
+Data berasal dari telemetry tervalidasi dan tersimpan. `recordedAt` adalah device timestamp,
+sedangkan `serverReceivedAt` tetap terpisah. Histori Device pengganti tetap boleh muncul selama
+telemetry tersebut terkait MonitoringPoint yang sama.
+
+Ordering selalu `recordedAt:asc, telemetryId:asc`. Range memakai `[from,to)`. Cursor opaque dan
+signed terikat pada organization, MonitoringPoint, normalized range, includeLate, ordering,
+boundary recordedAt, dan stable telemetryId. Cursor invalid, expired, atau tidak cocok konteks
+menghasilkan `400 INVALID_CURSOR`. Limit default 500 dan maksimum 1000. Tidak ada offset atau
+`totalCount`.
+
+Server tidak melakukan interpolation, smoothing, downsampling, atau pembuatan nilai. Gap tetap gap
+dan nullable tetap null. Response tidak memuat raw payload, Authorization, credential, hash, atau
+field internal organisasi.
+
+## 14. Kontrak fase selanjutnya
+
+SSE, acknowledge/resolve/false-alarm, notification, map, reporting, heartbeat, remote siren,
+firmware command, historical warehouse/materialized analytics, dan KPI delta tetap di luar Phase 04.

@@ -9,6 +9,7 @@ const specificationsDirectory = dirname(specificationPath);
 const telemetrySchemaPath = join(specificationsDirectory, 'telemetry-payload.schema.json');
 const phase02ExamplesDirectory = join(specificationsDirectory, 'examples', 'phase-02');
 const phase03ExamplesDirectory = join(specificationsDirectory, 'examples', 'phase-03');
+const phase04ExamplesDirectory = join(specificationsDirectory, 'examples', 'phase-04');
 
 const expectedPhase02ExampleFiles = [
   'device-register.request.json',
@@ -28,6 +29,10 @@ const expectedPhase03ExampleFiles = [
   'monitoring-overview.response.json',
   'risk-assessment-history.response.json',
   'risk-profile-update.request.json',
+];
+const expectedPhase04ExampleFiles = [
+  'dashboard-summary.response.json',
+  'sensor-series.response.json',
 ];
 
 function assert(condition, message) {
@@ -271,13 +276,19 @@ async function readJson(path) {
 }
 
 try {
-  const [rawSpecification, telemetrySchema, phase02ExampleFileNames, phase03ExampleFileNames] =
-    await Promise.all([
-      SwaggerParser.parse(specificationPath),
-      readJson(telemetrySchemaPath),
-      readdir(phase02ExamplesDirectory),
-      readdir(phase03ExamplesDirectory),
-    ]);
+  const [
+    rawSpecification,
+    telemetrySchema,
+    phase02ExampleFileNames,
+    phase03ExampleFileNames,
+    phase04ExampleFileNames,
+  ] = await Promise.all([
+    SwaggerParser.parse(specificationPath),
+    readJson(telemetrySchemaPath),
+    readdir(phase02ExamplesDirectory),
+    readdir(phase03ExamplesDirectory),
+    readdir(phase04ExamplesDirectory),
+  ]);
 
   assert(rawSpecification.openapi === '3.1.0', 'OpenAPI version must be 3.1.0.');
   assert(
@@ -335,7 +346,13 @@ try {
     '/monitoring-overview': {
       get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
     },
+    '/dashboard/summary': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
     '/monitoring-points/{monitoringPointId}/risk-assessments': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
+    '/monitoring-points/{monitoringPointId}/sensor-series': {
       get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
     },
     '/alerts': {
@@ -423,6 +440,109 @@ try {
         JSON.stringify([{ bearerAuth: [] }]),
     'Every Phase 03 read operation must require bearer authentication.',
   );
+
+  const dashboardSummary = rawSpecification.paths['/dashboard/summary'].get;
+  assert(
+    JSON.stringify(dashboardSummary.security) === JSON.stringify([{ bearerAuth: [] }]),
+    'GET /dashboard/summary must require bearer authentication.',
+  );
+  const dashboardSite = dashboardSummary.parameters.find(
+    (parameter) => parameter.name === 'siteId' && parameter.in === 'query',
+  );
+  const dashboardWindow = dashboardSummary.parameters.find(
+    (parameter) => parameter.name === 'windowHours' && parameter.in === 'query',
+  );
+  assert(
+    dashboardSite?.required !== true && dashboardSite?.schema?.minLength === 1,
+    'Dashboard siteId must be an optional non-empty query filter.',
+  );
+  assert(
+    dashboardWindow?.required !== true &&
+      dashboardWindow?.schema?.default === 24 &&
+      dashboardWindow?.schema?.minimum === 1 &&
+      dashboardWindow?.schema?.maximum === 168,
+    'Dashboard windowHours must default to 24 with range 1..168.',
+  );
+  assert(
+    dashboardSummary.responses['200'].content['application/json'].schema.$ref ===
+      '#/components/schemas/DashboardSummaryResponse' &&
+      dashboardSummary['x-aggregate-source'] === 'authoritative-full-scope' &&
+      dashboardSummary['x-aggregate-invariants'].length === 6,
+    'Dashboard summary must expose the authoritative aggregate schema and invariants.',
+  );
+
+  const sensorSeries =
+    rawSpecification.paths['/monitoring-points/{monitoringPointId}/sensor-series'].get;
+  assert(
+    JSON.stringify(sensorSeries.security) === JSON.stringify([{ bearerAuth: [] }]),
+    'GET sensor-series must require bearer authentication.',
+  );
+  assert(
+    hasParameterReference(sensorSeries, '#/components/parameters/MonitoringPointId') &&
+      hasParameterReference(sensorSeries, '#/components/parameters/SensorSeriesCursor') &&
+      hasParameterReference(sensorSeries, '#/components/parameters/SensorSeriesLimit'),
+    'Sensor series must declare path, signed cursor, and limit parameters.',
+  );
+  for (const name of ['from', 'to', 'includeLate']) {
+    assert(
+      sensorSeries.parameters.some(
+        (parameter) => parameter.name === name && parameter.in === 'query',
+      ),
+      `Sensor series query parameter is missing: ${name}.`,
+    );
+  }
+  const sensorFrom = sensorSeries.parameters.find((parameter) => parameter.name === 'from');
+  const sensorTo = sensorSeries.parameters.find((parameter) => parameter.name === 'to');
+  assert(
+    sensorFrom?.schema?.format === 'date-time' &&
+      sensorTo?.schema?.format === 'date-time' &&
+      sensorSeries.parameters.find((parameter) => parameter.name === 'includeLate')?.schema
+        ?.default === false &&
+      rawSpecification.components.parameters.SensorSeriesLimit.schema.default === 500 &&
+      rawSpecification.components.parameters.SensorSeriesLimit.schema.maximum === 1000 &&
+      rawSpecification.components.parameters.SensorSeriesLimit.schema.minimum === 1,
+    'Sensor series includeLate/limit defaults or bounds are incorrect.',
+  );
+  assert(
+    sensorSeries['x-time-range-semantics']['default-hours'] === 24 &&
+      sensorSeries['x-time-range-semantics']['maximum-hours'] === 168 &&
+      sensorSeries['x-time-range-semantics'].from === 'inclusive' &&
+      sensorSeries['x-time-range-semantics'].to === 'exclusive' &&
+      sensorSeries['x-ordering'] === 'recordedAt:asc,telemetryId:asc',
+    'Sensor series range or oldest-first ordering semantics are incorrect.',
+  );
+  assert(
+    JSON.stringify(sensorSeries['x-cursor-context']) ===
+      JSON.stringify([
+        'organizationId',
+        'monitoringPointId',
+        'from',
+        'to',
+        'includeLate',
+        'ordering',
+        'recordedAt',
+        'telemetryId',
+      ]) &&
+      /signed/.test(rawSpecification.components.parameters.SensorSeriesCursor.description) &&
+      /INVALID_CURSOR/.test(rawSpecification.components.parameters.SensorSeriesCursor.description),
+    'Sensor series cursor must be signed and bound to the complete query context.',
+  );
+  assert(
+    sensorSeries.responses['200'].content['application/json'].schema.$ref ===
+      '#/components/schemas/SensorSeriesResponse',
+    'Sensor series response schema is incorrect.',
+  );
+  assert(
+    rawSpecification.paths['/monitoring-overview'].get.operationId === 'listMonitoringOverview' &&
+      rawSpecification.paths['/monitoring-overview'].get.responses['200'].content[
+        'application/json'
+      ].schema.$ref === '#/components/schemas/MonitoringOverviewResponse' &&
+      rawSpecification.paths['/alerts'].get.operationId === 'listAlerts' &&
+      rawSpecification.paths['/alerts'].get.responses['200'].content['application/json'].schema
+        .$ref === '#/components/schemas/AlertListResponse' &&
+      rawSpecification.paths['/alerts/{alertId}'].get.operationId === 'getAlert',
+    'Phase 03 Monitoring Overview and Alert read boundaries must remain unchanged.',
+  );
   const riskProfilePut = rawSpecification.paths['/sites/{siteId}/risk-profile'].put;
   assert(
     riskProfilePut['x-versioning-semantics'] === 'immutable-new-version-or-no-op' &&
@@ -439,8 +559,18 @@ try {
       ),
     'Phase 03 Alert contract must be read-only.',
   );
-  for (const forbiddenPath of [
+  for (const path of [
     '/dashboard/summary',
+    '/monitoring-points/{monitoringPointId}/sensor-series',
+  ]) {
+    assert(
+      ['post', 'put', 'patch', 'delete'].every(
+        (method) => !Object.hasOwn(rawSpecification.paths[path], method),
+      ),
+      `Phase 04 dashboard data path must be read-only: ${path}`,
+    );
+  }
+  for (const forbiddenPath of [
     '/alerts/{alertId}/acknowledge',
     '/alerts/{alertId}/resolve',
     '/alerts/{alertId}/false-alarm',
@@ -451,9 +581,21 @@ try {
   ]) {
     assert(
       !Object.hasOwn(rawSpecification.paths, forbiddenPath),
-      `Deferred endpoint must not be present in Phase 03: ${forbiddenPath}`,
+      `Deferred endpoint must not be present in Phase 04: ${forbiddenPath}`,
     );
   }
+  assert(
+    Object.values(rawSpecification.paths).every((pathItem) =>
+      Object.values(pathItem).every(
+        (operation) =>
+          !operation?.responses ||
+          Object.values(operation.responses).every(
+            (response) => !response?.content?.['text/event-stream'],
+          ),
+      ),
+    ),
+    'Phase 04 must not expose an SSE response.',
+  );
 
   assert(
     telemetrySchema.$schema === 'https://json-schema.org/draft/2020-12/schema',
@@ -486,6 +628,13 @@ try {
     JSON.stringify(sortedPhase03Examples) === JSON.stringify(expectedPhase03ExampleFiles),
     `Phase 03 example set differs from the expected files: ${sortedPhase03Examples.join(', ')}`,
   );
+  const sortedPhase04Examples = phase04ExampleFileNames
+    .filter((name) => name.endsWith('.json'))
+    .sort();
+  assert(
+    JSON.stringify(sortedPhase04Examples) === JSON.stringify(expectedPhase04ExampleFiles),
+    `Phase 04 example set differs from the expected files: ${sortedPhase04Examples.join(', ')}`,
+  );
 
   await SwaggerParser.validate(specificationPath);
   const dereferenced = await SwaggerParser.dereference(specificationPath);
@@ -503,6 +652,14 @@ try {
       expectedPhase03ExampleFiles.map(async (name) => [
         name,
         await readJson(join(phase03ExamplesDirectory, name)),
+      ]),
+    ),
+  );
+  const phase04Examples = Object.fromEntries(
+    await Promise.all(
+      expectedPhase04ExampleFiles.map(async (name) => [
+        name,
+        await readJson(join(phase04ExamplesDirectory, name)),
       ]),
     ),
   );
@@ -554,6 +711,11 @@ try {
   );
   validateExample(phase03Examples['alert-list.response.json'], schemas.AlertListResponse);
   validateExample(phase03Examples['alert-detail.response.json'], schemas.AlertResponse);
+  validateExample(
+    phase04Examples['dashboard-summary.response.json'],
+    schemas.DashboardSummaryResponse,
+  );
+  validateExample(phase04Examples['sensor-series.response.json'], schemas.SensorSeriesResponse);
 
   assert(
     phase02Examples['telemetry-accepted.response.json'].duplicate === false &&
@@ -650,8 +812,113 @@ try {
     'Risk assessment history example must include late historical evaluation semantics.',
   );
 
+  const summarySchema = schemas.DashboardSummary;
+  assert(
+    JSON.stringify(summarySchema.required) ===
+      JSON.stringify([
+        'generatedAt',
+        'window',
+        'monitoringPoints',
+        'riskDistribution',
+        'devices',
+        'connectivityDistribution',
+        'alerts',
+      ]) &&
+      JSON.stringify(schemas.RiskDistribution.required) ===
+        JSON.stringify(['safe', 'watch', 'danger', 'unknown']) &&
+      JSON.stringify(schemas.ConnectivityDistribution.required) ===
+        JSON.stringify(['online', 'delayed', 'offline', 'unknown']),
+    'Dashboard summary must expose the exact aggregate shape and all distribution buckets.',
+  );
+  for (const [name, schema] of [
+    ['DashboardSummaryResponse', schemas.DashboardSummaryResponse],
+    ['SensorSeriesResponse', schemas.SensorSeriesResponse],
+  ]) {
+    assert(!containsProperty(schema, 'totalCount'), `${name} must not expose totalCount.`);
+    for (const forbidden of [
+      'secret',
+      'credential',
+      'credentialHash',
+      'rawPayload',
+      'authorization',
+    ]) {
+      assert(!containsProperty(schema, forbidden), `${name} must not expose ${forbidden}.`);
+    }
+  }
+
+  const summary = phase04Examples['dashboard-summary.response.json'].data;
+  assert(
+    summary.window.to === summary.generatedAt &&
+      Date.parse(summary.window.to) - Date.parse(summary.window.from) ===
+        summary.window.hours * 60 * 60_000,
+    'Dashboard example window must end at generatedAt and match windowHours.',
+  );
+  assert(
+    summary.monitoringPoints.active + summary.monitoringPoints.inactive ===
+      summary.monitoringPoints.total &&
+      Object.values(summary.riskDistribution).reduce((total, value) => total + value, 0) ===
+        summary.monitoringPoints.active &&
+      summary.devices.enabled + summary.devices.disabled === summary.devices.total &&
+      Object.values(summary.connectivityDistribution).reduce((total, value) => total + value, 0) ===
+        summary.devices.enabled &&
+      summary.alerts.activeCritical <= summary.alerts.active,
+    'Dashboard example violates an aggregate invariant.',
+  );
+
+  const sensorPage = phase04Examples['sensor-series.response.json'].data;
+  assert(
+    sensorPage.hasMore === true &&
+      typeof sensorPage.nextCursor === 'string' &&
+      sensorPage.nextCursor.length > 0,
+    'Sensor series example must demonstrate an opaque next page cursor.',
+  );
+  assert(
+    sensorPage.items.some((point) => point.isLate === true) &&
+      sensorPage.items.some((point) => point.batteryVoltage === null),
+    'Sensor series example must demonstrate late telemetry and nullable battery.',
+  );
+  const sensorBoundaries = sensorPage.items.map((point) => [point.recordedAt, point.telemetryId]);
+  assert(
+    JSON.stringify(sensorBoundaries) ===
+      JSON.stringify(
+        [...sensorBoundaries].sort(([leftTime, leftId], [rightTime, rightId]) =>
+          leftTime === rightTime
+            ? leftId.localeCompare(rightId)
+            : leftTime.localeCompare(rightTime),
+        ),
+      ),
+    'Sensor series example must be ordered by recordedAt and telemetryId ascending.',
+  );
+  assert(
+    sensorPage.items.some(
+      (point, index) =>
+        index > 0 &&
+        Date.parse(point.recordedAt) - Date.parse(sensorPage.items[index - 1].recordedAt) >
+          10 * 60_000,
+    ),
+    'Sensor series example must visibly preserve a time gap without interpolation.',
+  );
+  for (const exampleName of expectedPhase04ExampleFiles) {
+    assert(
+      !containsProperty(phase04Examples[exampleName], 'totalCount'),
+      `${exampleName} must omit totalCount.`,
+    );
+    for (const forbidden of [
+      'secret',
+      'credential',
+      'credentialHash',
+      'rawPayload',
+      'Authorization',
+    ]) {
+      assert(
+        !containsProperty(phase04Examples[exampleName], forbidden),
+        `${exampleName} must not contain ${forbidden}.`,
+      );
+    }
+  }
+
   process.stdout.write(
-    `OpenAPI, external telemetry schema, ${expectedPhase02ExampleFiles.length} Phase 02 examples, and ${expectedPhase03ExampleFiles.length} Phase 03 examples are valid.\n`,
+    `OpenAPI, external telemetry schema, ${expectedPhase02ExampleFiles.length} Phase 02 examples, ${expectedPhase03ExampleFiles.length} Phase 03 examples, and ${expectedPhase04ExampleFiles.length} Phase 04 examples are valid.\n`,
   );
 } catch (error) {
   process.stderr.write('OpenAPI contract validation failed.\n');
