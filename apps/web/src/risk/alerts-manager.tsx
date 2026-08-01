@@ -6,8 +6,15 @@ import type { DataEnvelope, ListEnvelope, OrganizationApiClient } from '../api/c
 import { ApiClientError } from '../auth/api-client';
 import type { MonitoringPoint } from '../monitoring-points/monitoring-point-contracts';
 import { listMonitoringPoints } from '../monitoring-points/monitoring-points-api';
+import { useOptionalRealtime } from '../realtime/realtime-context';
 import type { Site } from '../sites/site-contracts';
 import { listSites } from '../sites/sites-api';
+import { AlertEventHistory } from './alert-event-history';
+import {
+  AlertOperationDialog,
+  type AlertOperation,
+  SopUnavailable,
+} from './alert-operation-dialog';
 import { getAlert, listAlerts } from './risk-api';
 import type {
   Alert,
@@ -28,11 +35,13 @@ import {
 interface Props {
   readonly client: OrganizationApiClient;
   readonly organizationId: string;
+  readonly role?: 'PROJECT_OWNER' | 'SCHOOL_ADMIN';
 }
 
 const initialFilters: AlertListQuery = { sort: 'lastObservedAt:desc' };
 
-export function AlertsManager({ client, organizationId }: Props) {
+export function AlertsManager({ client, organizationId, role }: Props) {
+  const realtime = useOptionalRealtime();
   const [siteId, setSiteId] = useState('');
   const [pointId, setPointId] = useState('');
   const [type, setType] = useState('');
@@ -46,9 +55,11 @@ export function AlertsManager({ client, organizationId }: Props) {
   const [error, setError] = useState<Error | null>(null);
   const [retry, setRetry] = useState(0);
   const [detail, setDetail] = useState<DataEnvelope<Alert> | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [detailRefresh, setDetailRefresh] = useState(0);
   const [detailError, setDetailError] = useState<Error | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const key = JSON.stringify([organizationId, filters, retry]);
+  const key = JSON.stringify([organizationId, filters, retry, realtime.generations.alerts]);
   const [resultKey, setResultKey] = useState<string | null>(null);
   const current = key === resultKey ? result : null;
 
@@ -58,6 +69,7 @@ export function AlertsManager({ client, organizationId }: Props) {
       .then((response) => {
         if (active) {
           setResult(response);
+          setError(null);
           setResultKey(key);
         }
       })
@@ -112,15 +124,30 @@ export function AlertsManager({ client, organizationId }: Props) {
     setFilters(initialFilters);
   }
 
-  async function openDetail(alertId: string) {
+  function openDetail(alertId: string) {
+    setDetailId(alertId);
     setDetail(null);
     setDetailError(null);
-    try {
-      setDetail(await getAlert(client, organizationId, alertId));
-    } catch (reason) {
-      setDetailError(reason instanceof Error ? reason : new Error('Detail gagal dimuat.'));
-    }
   }
+
+  useEffect(() => {
+    if (detailId === null) return;
+    let active = true;
+    void getAlert(client, organizationId, detailId)
+      .then((response) => {
+        if (active) {
+          setDetail(response);
+          setDetailError(null);
+        }
+      })
+      .catch((reason: unknown) => {
+        if (active)
+          setDetailError(reason instanceof Error ? reason : new Error('Detail gagal dimuat.'));
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, detailId, detailRefresh, organizationId, realtime.generations.selectedAlert]);
 
   async function loadMore() {
     if (current === null || current.page.nextCursor === null || loadingMore) return;
@@ -145,9 +172,15 @@ export function AlertsManager({ client, organizationId }: Props) {
 
   return (
     <>
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-        Phase 03 hanya menampilkan peringatan. Tindak lanjut operasional dan perubahan status
-        tersedia pada fase berikutnya.
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+        <p>REST adalah sumber data utama. Realtime hanya memicu pembaruan terkoordinasi.</p>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => setRetry((value) => value + 1)}
+        >
+          ↻ Segarkan
+        </button>
       </div>
       <form
         onSubmit={apply}
@@ -271,7 +304,9 @@ export function AlertsManager({ client, organizationId }: Props) {
                     <br />
                     <span className="text-xs text-slate-500">{alert.monitoringPoint.name}</span>
                   </td>
-                  <td className="p-4 font-semibold">{alertStatusLabel(alert.status)}</td>
+                  <td className="p-4 font-semibold">
+                    <StatusLabel status={alert.status} />
+                  </td>
                   <td className="p-4 text-xs">
                     {formatSiteTimestamp(alert.lastObservedAt, alert.site.timezone)}
                   </td>
@@ -279,7 +314,7 @@ export function AlertsManager({ client, organizationId }: Props) {
                     <button
                       type="button"
                       className="secondary-button"
-                      onClick={() => void openDetail(alert.id)}
+                      onClick={() => openDetail(alert.id)}
                     >
                       Lihat detail
                     </button>
@@ -304,8 +339,17 @@ export function AlertsManager({ client, organizationId }: Props) {
         <AlertDetail
           result={detail}
           error={detailError}
+          client={client}
+          organizationId={organizationId}
+          role={role}
+          refreshGeneration={detailRefresh + realtime.generations.selectedAlert}
+          onRefresh={() => {
+            setRetry((value) => value + 1);
+            setDetailRefresh((value) => value + 1);
+          }}
           onClose={() => {
             setDetail(null);
+            setDetailId(null);
             setDetailError(null);
           }}
         />
@@ -317,13 +361,24 @@ export function AlertsManager({ client, organizationId }: Props) {
 function AlertDetail({
   result,
   error,
+  client,
+  organizationId,
+  role,
+  refreshGeneration,
+  onRefresh,
   onClose,
 }: {
   readonly result: DataEnvelope<Alert> | null;
   readonly error: Error | null;
+  readonly client: OrganizationApiClient;
+  readonly organizationId: string;
+  readonly role: 'PROJECT_OWNER' | 'SCHOOL_ADMIN' | undefined;
+  readonly refreshGeneration: number;
+  readonly onRefresh: () => void;
   readonly onClose: () => void;
 }) {
   const alert = result?.data;
+  const [operation, setOperation] = useState<AlertOperation | null>(null);
   return (
     <div className="fixed inset-0 z-40 grid place-items-center bg-slate-950/40 p-4">
       <section
@@ -331,7 +386,7 @@ function AlertDetail({
         aria-modal="true"
         aria-labelledby="alert-detail-title"
         aria-describedby="alert-detail-description"
-        className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"
       >
         <div className="flex justify-between gap-4">
           <div>
@@ -339,7 +394,7 @@ function AlertDetail({
               Detail peringatan
             </h2>
             <p id="alert-detail-description" className="mt-1 text-sm text-slate-600">
-              Informasi read-only dari server.
+              Status authoritative dan histori operasi dari server.
             </p>
           </div>
           <button type="button" className="secondary-button" onClick={onClose}>
@@ -355,7 +410,7 @@ function AlertDetail({
           <div className="mt-5 space-y-3">
             <p className="text-lg font-bold">{alertTypeLabel(alert.type)}</p>
             <p>
-              {alertStatusLabel(alert.status)} · {severityLabel(alert.severity)}
+              <StatusLabel status={alert.status} /> · {severityLabel(alert.severity)}
             </p>
             <p>{alert.reasons.map(reasonLabel).join(' ')}</p>
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
@@ -378,13 +433,80 @@ function AlertDetail({
                 </dd>
               </div>
             </dl>
-            <p className="rounded-xl bg-slate-50 p-3 text-xs text-slate-600">
-              Riwayat event tidak tersedia pada response contract Phase 03.
-            </p>
+            {alert.severity === 'CRITICAL' && <SopUnavailable />}
+            <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-4">
+              {alert.status === 'ACTIVE' && (
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => setOperation('acknowledge')}
+                >
+                  Konfirmasi peringatan
+                </button>
+              )}
+              {role === 'PROJECT_OWNER' && alert.status === 'ACKNOWLEDGED' && (
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => setOperation('resolve')}
+                >
+                  Selesaikan
+                </button>
+              )}
+              {role === 'PROJECT_OWNER' &&
+                (alert.status === 'ACTIVE' || alert.status === 'ACKNOWLEDGED') && (
+                  <button
+                    type="button"
+                    className="secondary-button"
+                    onClick={() => setOperation('false-alarm')}
+                  >
+                    Tandai alarm palsu
+                  </button>
+                )}
+            </div>
+            <AlertEventHistory
+              client={client}
+              organizationId={organizationId}
+              alertId={alert.id}
+              refreshGeneration={refreshGeneration}
+            />
           </div>
         )}
       </section>
+      {alert !== undefined && operation !== null && (
+        <AlertOperationDialog
+          client={client}
+          organizationId={organizationId}
+          alert={alert}
+          operation={operation}
+          onClose={() => setOperation(null)}
+          onStale={() => {
+            onRefresh();
+          }}
+          onUnavailable={() => {
+            setOperation(null);
+            onRefresh();
+            onClose();
+          }}
+          onSuccess={() => {
+            setOperation(null);
+            onRefresh();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+function StatusLabel({ status }: { readonly status: AlertStatus }) {
+  const icon = { ACTIVE: '!', ACKNOWLEDGED: '✓', RESOLVED: '●', FALSE_ALARM: '×' }[status];
+  return (
+    <span>
+      <span aria-hidden="true" className="mr-1">
+        {icon}
+      </span>
+      {alertStatusLabel(status)}
+    </span>
   );
 }
 

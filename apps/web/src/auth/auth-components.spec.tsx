@@ -134,7 +134,14 @@ describe('AuthProvider and protected content', () => {
       'href',
       '/settings/risk-profile',
     );
-    expect(seesOwnerMenu || role === 'SCHOOL_ADMIN').toBe(true);
+    if (seesOwnerMenu) {
+      expect(screen.getByRole('link', { name: /Audit Log/ })).toHaveAttribute(
+        'href',
+        '/settings/audit-log',
+      );
+    } else {
+      expect(screen.queryByRole('link', { name: /Audit Log/ })).not.toBeInTheDocument();
+    }
   });
 
   it('uses the selected organization role for shell identity and navigation', async () => {

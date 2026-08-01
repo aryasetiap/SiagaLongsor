@@ -43,6 +43,9 @@ function AlertsContent() {
       key={organization.activeOrganizationId}
       client={api.client}
       organizationId={organization.activeOrganizationId}
+      {...(organization.activeMembership === null
+        ? {}
+        : { role: organization.activeMembership.role })}
     />
   );
 }

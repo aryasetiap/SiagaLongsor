@@ -116,6 +116,54 @@ export interface Alert {
   readonly updatedAt: string;
 }
 
+export interface SafeActorSummary {
+  readonly id: string;
+  readonly name: string;
+}
+
+export interface AlertEventMetadata {
+  readonly actorId?: string;
+  readonly actionId?: string;
+  readonly note?: string;
+  readonly fieldCondition?: string;
+  readonly sopExecuted?: boolean;
+  readonly resolutionNote?: string;
+  readonly reason?: string;
+  readonly previousStatus?: AlertStatus;
+  readonly nextStatus?: AlertStatus;
+}
+
+export interface AlertEvent {
+  readonly id: string;
+  readonly eventType:
+    | 'CREATED'
+    | 'OBSERVED'
+    | 'CONNECTIVITY_TRANSITION'
+    | 'ALERT_ACKNOWLEDGED'
+    | 'ALERT_RESOLVED'
+    | 'ALERT_FALSE_ALARM';
+  readonly observedAt: string | null;
+  readonly actedAt: string | null;
+  readonly createdAt: string;
+  readonly actor: SafeActorSummary | null;
+  readonly metadata: AlertEventMetadata;
+  readonly riskAssessmentId: string | null;
+  readonly telemetryId: string | null;
+}
+
+export interface AlertMutationResponse {
+  readonly data: Alert;
+  readonly action: {
+    readonly actionId: string;
+    readonly eventId: string;
+    readonly eventType: 'ALERT_ACKNOWLEDGED' | 'ALERT_RESOLVED' | 'ALERT_FALSE_ALARM';
+    readonly previousStatus: AlertStatus;
+    readonly nextStatus: AlertStatus;
+    readonly actedAt: string;
+    readonly actor: SafeActorSummary;
+  };
+}
+
 export type AlertSort = 'lastObservedAt:desc' | 'createdAt:desc' | 'severity:desc';
 
 export interface AlertListQuery extends CursorQuery {

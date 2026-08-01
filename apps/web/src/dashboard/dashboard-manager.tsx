@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 
 import type { OrganizationApiClient } from '../api/contracts';
 import type { MonitoringOverviewItem } from '../risk/risk-contracts';
+import { useOptionalRealtime } from '../realtime/realtime-context';
 import type { Site } from '../sites/site-contracts';
 import { listSites } from '../sites/sites-api';
 import type { DashboardWindowHours } from './dashboard-contracts';
@@ -19,12 +20,15 @@ export function DashboardManager({
   readonly client: OrganizationApiClient;
   readonly organizationId: string;
 }) {
+  const realtime = useOptionalRealtime();
   const [sites, setSites] = useState<readonly Site[]>([]);
   const [siteId, setSiteId] = useState('');
   const [windowHours, setWindowHours] = useState<DashboardWindowHours>(24);
   const [refreshGeneration, setRefreshGeneration] = useState(0);
   const [selected, setSelected] = useState<MonitoringOverviewItem | null>(null);
   const [siteError, setSiteError] = useState(false);
+  const dashboardGeneration = refreshGeneration + realtime.generations.dashboard;
+  const monitoringGeneration = refreshGeneration + realtime.generations.monitoring;
 
   useEffect(() => {
     let active = true;
@@ -46,7 +50,7 @@ export function DashboardManager({
     return () => {
       active = false;
     };
-  }, [client, organizationId, refreshGeneration]);
+  }, [client, dashboardGeneration, organizationId]);
 
   function selectSite(value: string) {
     setSiteId(value);
@@ -97,7 +101,7 @@ export function DashboardManager({
           ↻ Segarkan
         </button>
         <p aria-live="polite" className="text-xs text-slate-500">
-          Pembaruan dilakukan manual. Tidak ada polling otomatis.
+          Realtime memicu pembaruan terkoordinasi. Penyegaran manual tetap tersedia.
         </p>
         {siteError && (
           <p role="alert" className="w-full text-xs font-semibold text-red-700">
@@ -111,13 +115,13 @@ export function DashboardManager({
         organizationId={organizationId}
         siteId={siteId}
         windowHours={windowHours}
-        refreshGeneration={refreshGeneration}
+        refreshGeneration={dashboardGeneration}
         overview={
           <MonitoringPanel
             client={client}
             organizationId={organizationId}
             siteId={siteId}
-            refreshGeneration={refreshGeneration}
+            refreshGeneration={monitoringGeneration}
             selected={selected}
             onSelect={setSelected}
           />
@@ -130,13 +134,13 @@ export function DashboardManager({
           organizationId={organizationId}
           selected={selected}
           windowHours={windowHours}
-          refreshGeneration={refreshGeneration}
+          refreshGeneration={dashboardGeneration}
         />
         <RecentAlerts
           client={client}
           organizationId={organizationId}
           siteId={siteId}
-          refreshGeneration={refreshGeneration}
+          refreshGeneration={dashboardGeneration}
         />
       </div>
     </div>
