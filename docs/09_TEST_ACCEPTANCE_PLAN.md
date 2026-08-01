@@ -43,19 +43,24 @@ Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah 
   hasil lengkap tersedia pada
   [`docs/15_PHASE_03_ACCEPTANCE_REPORT.md`](15_PHASE_03_ACCEPTANCE_REPORT.md).
 
+### Acceptance behavior lulus, verification gate Phase 04 masih blocked
+
+- Dashboard Summary menjadi sumber KPI dan distribusi authoritative, bukan list terpaginasikan.
+- Monitoring Overview, risk/connectivity presentation, Sensor Series, serta Recent Alerts memiliki
+  state loading, error, empty, retry, dan partial failure yang independen.
+- Sensor chart menjaga oldest-first, null, late marker, dan gap tanpa interpolasi.
+- PROJECT_OWNER dan SCHOOL_ADMIN read path, Site/window filter, manual refresh, organization
+  header, responsive viewport, accessibility, dan browser-storage safety telah diverifikasi.
+- Tiga putaran penuh API integration dan Chromium acceptance lulus. Phase exit belum ditutup karena
+  repository-wide format gate menemukan file backend commit basis di luar scope frontend ini.
+  Detail dicatat dalam
+  [`docs/16_PHASE_04_ACCEPTANCE_REPORT.md`](16_PHASE_04_ACCEPTANCE_REPORT.md).
+
 ### Fase mendatang
 
 - Alert operation, realtime, map, report, notification, performance, dan resilience test dijalankan
   ketika implementasi fasenya tersedia.
 - k6 ingestion dan dashboard wajib sebelum produksi, bukan pada coordination stage.
-
-### Contract/implementation active pada Phase 04
-
-- Authoritative dashboard summary dan MonitoringPoint sensor-series contract tersedia.
-- Monitoring table, Recent Alerts, Alert detail, dan assessment history tetap memakai endpoint
-  Phase 03 existing tanpa endpoint duplikat.
-- Runtime/backend/frontend acceptance belum dinyatakan selesai sampai seluruh kriteria Phase 04
-  berikut lulus.
 
 ## 2. Test pyramid
 

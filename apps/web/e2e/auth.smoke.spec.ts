@@ -64,14 +64,14 @@ test.describe('smoke autentikasi SiagaLongsor', () => {
     await page.getByRole('button', { name: 'Masuk ke SiagaLongsor' }).click();
 
     await expect(page).toHaveURL(/\/overview$/);
-    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
     await expect(page.getByRole('navigation', { name: 'Navigasi utama' })).toBeVisible();
     await expect(page.getByText('Sesi aktif dan terverifikasi')).toBeAttached();
     await expectNoTokensInBrowserStorage(page);
 
     await page.reload();
     await expect(page).toHaveURL(/\/overview$/);
-    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dashboard', exact: true })).toBeVisible();
     await expectNoTokensInBrowserStorage(page);
 
     await page.locator('summary').click();

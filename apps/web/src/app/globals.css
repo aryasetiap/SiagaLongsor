@@ -67,6 +67,23 @@ a {
   border-color: #dc2626;
 }
 
+.field-input {
+  min-height: 2.5rem;
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid #cbd5e1;
+  background: white;
+  padding: 0.55rem 0.75rem;
+  color: #0f172a;
+  font-size: 0.82rem;
+  outline: none;
+}
+
+.field-input:focus-visible {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgb(37 99 235 / 16%);
+}
+
 .shell-nav-item {
   display: flex;
   min-height: 2.75rem;
