@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { DevicesModule } from '../devices/devices.module.js';
+import { RealtimeModule } from '../realtime/realtime.module.js';
 import { RiskModule } from '../risk/risk.module.js';
 import { DeviceAuthGuard } from './device-auth.guard.js';
 import { JsonContentTypeGuard } from './json-content-type.guard.js';
@@ -9,7 +10,7 @@ import { TelemetryRateLimitService } from './telemetry-rate-limit.service.js';
 import { TelemetryService } from './telemetry.service.js';
 
 @Module({
-  imports: [DevicesModule, RiskModule],
+  imports: [DevicesModule, RealtimeModule, RiskModule],
   controllers: [TelemetryController],
   providers: [TelemetryService, DeviceAuthGuard, JsonContentTypeGuard, TelemetryRateLimitService],
 })

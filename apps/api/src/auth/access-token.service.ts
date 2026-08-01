@@ -10,6 +10,10 @@ export interface AccessTokenClaims {
   readonly jti: string;
 }
 
+export interface VerifiedAccessTokenClaims extends AccessTokenClaims {
+  readonly exp: number;
+}
+
 @Injectable()
 export class AccessTokenService {
   constructor(
@@ -26,7 +30,7 @@ export class AccessTokenService {
     });
   }
 
-  async verify(token: string): Promise<AccessTokenClaims> {
+  async verify(token: string): Promise<VerifiedAccessTokenClaims> {
     try {
       const claims = await this.jwt.verifyAsync<AccessTokenClaims>(token, {
         secret: this.config.auth.accessTokenSecret,
@@ -38,12 +42,13 @@ export class AccessTokenService {
         claims.type !== 'access' ||
         typeof claims.sub !== 'string' ||
         typeof claims.sid !== 'string' ||
-        typeof claims.jti !== 'string'
+        typeof claims.jti !== 'string' ||
+        typeof (claims as Partial<VerifiedAccessTokenClaims>).exp !== 'number'
       ) {
         throw new Error('Invalid claims');
       }
 
-      return claims;
+      return claims as VerifiedAccessTokenClaims;
     } catch {
       throw new UnauthorizedException({
         code: 'ACCESS_TOKEN_INVALID',
