@@ -107,6 +107,9 @@ Event minimum:
 - `device.status.changed`.
 
 SSE tidak menjadi satu-satunya sumber data. Setelah reconnect, frontend selalu melakukan refetch REST.
+Phase 05 memakai fetch-based SSE dengan bearer dan header organisasi. Event dipublikasikan melalui
+Redis Pub/Sub hanya setelah transaksi domain commit agar semua instance API dapat melakukan fan-out.
+Kegagalan publish tidak membatalkan transaksi; client pulih melalui refetch REST.
 
 ## 4. Deployment topology
 

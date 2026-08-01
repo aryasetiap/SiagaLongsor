@@ -278,3 +278,58 @@ Admin sekolah harus dapat:
 - Audit log bila sensitif.
 - Dokumentasi API diperbarui.
 - Tidak ada secret di commit.
+
+## 8. Phase 05 alert operations and realtime acceptance
+
+Contract foundation ini membekukan 48 acceptance criteria. Status implementasi tetap pending sampai
+backend, frontend, dan full acceptance membuktikannya.
+
+1. Kedua role dapat membaca Alert dan Alert events dalam organisasi aktif.
+2. Kedua role dapat acknowledge Alert `ACTIVE`.
+3. `SCHOOL_ADMIN` tidak dapat resolve.
+4. `SCHOOL_ADMIN` tidak dapat menandai false alarm.
+5. `PROJECT_OWNER` dapat resolve Alert `ACKNOWLEDGED`.
+6. `PROJECT_OWNER` dapat menandai false alarm pada Alert `ACTIVE`.
+7. `PROJECT_OWNER` dapat menandai false alarm pada Alert `ACKNOWLEDGED`.
+8. Resolve langsung dari `ACTIVE` ditolak dengan `ALERT_STATE_CONFLICT`.
+9. Mutation terhadap Alert terminal ditolak tanpa event atau audit baru.
+10. Retry acknowledge identik tidak membuat AlertEvent kedua.
+11. Reuse `actionId` dengan payload berbeda menghasilkan `IDEMPOTENCY_CONFLICT`.
+12. Status Alert, AlertEvent, dan AuditLog berubah/ditulis secara atomic.
+13. Lifecycle action paralel hanya memiliki satu pemenang.
+14. Observation paralel tidak mengembalikan `ACKNOWLEDGED` menjadi `ACTIVE`.
+15. Alert terminal tidak dapat dibuka kembali.
+16. Observation kondisi baru setelah terminal membuat Alert `ACTIVE` baru.
+17. Alert-event history newest-first dengan stable ID tie-breaker dan tanpa `totalCount`.
+18. AuditLog dapat dibaca `PROJECT_OWNER` dalam organization scope.
+19. Akses audit oleh `SCHOOL_ADMIN` ditolak.
+20. Metadata event dan audit tersanitasi dari IP, user agent, token, credential, dan raw request.
+21. SSE membutuhkan bearer dan `X-Organization-Id`.
+22. URL/query SSE tidak memuat auth token.
+23. Pembuatan Alert relevan mengirim notification SSE setelah commit.
+24. Lifecycle action mengirim notification SSE setelah commit.
+25. Perubahan MonitoringPoint state mengirim notification SSE.
+26. Initial connect menggunakan data REST authoritative.
+27. Reconnect melakukan REST refetch authoritative.
+28. Duplicate atau missed SSE notification tidak merusak domain state client.
+29. Organization switch menutup stream lama dan membuang state lama.
+30. Access-token refresh menutup lalu membuka stream baru dan melakukan refetch.
+31. Propagasi committed event lintas instance melalui Redis Pub/Sub diuji.
+32. Kegagalan SSE publish tidak me-rollback mutation yang sudah commit.
+33. Keepalive tidak memicu domain update, refetch, atau AuditLog.
+34. Critical Alert menampilkan acknowledge dan SOP quick access.
+35. SOP yang tidak tersedia ditampilkan sebagai unavailable secara jujur.
+36. Tidak ada emergency SOP content yang dibuat atau difabrikasi sistem.
+37. Field dialog acknowledge divalidasi, ditrim, dan tidak mendukung one-click acknowledge.
+38. Resolve membutuhkan confirmation dan resolution note.
+39. False alarm membutuhkan confirmation dan reason.
+40. Audit Log UI hanya tersedia untuk `PROJECT_OWNER`.
+41. Aksi critical tetap terlihat pada responsive/mobile layout.
+42. Dialog, status, dan action dapat digunakan dengan keyboard serta tidak color-only.
+43. Component test mencakup role, loading, validation, conflict, retry, dan reconnect state.
+44. API integration test mencakup permission, transition, idempotency, atomicity, dan concurrency.
+45. Chromium acceptance mencakup lifecycle Alert lengkap.
+46. Chromium acceptance mencakup disconnect/reconnect dan authoritative refetch.
+47. Tidak ada secret atau token baru di browser storage, URL, artifact, log, maupun response.
+48. Tidak ada capability Phase 06+ seperti SOP upload, map, report, notification provider, heartbeat,
+    remote siren, atau firmware command.

@@ -160,7 +160,7 @@ Chromium full acceptance, dan repository exit gate telah PASS. Root formatting s
 reproducible melalui kebijakan LF repository. Bukti berada di
 [`docs/16_PHASE_04_ACCEPTANCE_REPORT.md`](16_PHASE_04_ACCEPTANCE_REPORT.md).
 
-## Phase 5 — Alert operations and realtime — berikutnya
+## Phase 5 — Alert operations and realtime — contract/implementation active
 
 Output:
 
@@ -175,6 +175,21 @@ Exit criteria:
 - Event realtime muncul.
 - Reconnect melakukan refetch.
 - Permission aksi diuji.
+- Lifecycle mutation idempotent, atomic, audited, dan aman pada request paralel.
+- `SCHOOL_ADMIN` hanya acknowledge; resolve/false alarm/audit tetap `PROJECT_OWNER`.
+- SSE multi-instance mengirim notifikasi setelah commit dan REST tetap authoritative.
+
+Workstream:
+
+| ID    | Task                                                                    | Status   |
+| ----- | ----------------------------------------------------------------------- | -------- |
+| P5-01 | Contract lifecycle, event history, audit projection, SSE, dan UI states | selesai  |
+| P5-02 | Backend schema/migration serta alert lifecycle service/API              | aktif    |
+| P5-03 | Redis Pub/Sub SSE gateway dan resilience                                | menunggu |
+| P5-04 | Frontend operations, audit UI, realtime, dan full acceptance            | menunggu |
+
+Phase 05 belum selesai sampai P5-02 sampai P5-04 dan seluruh exit criteria lulus. SOP quick access
+hanya memakai dokumen yang sudah tersedia; upload/persistence SOP tetap Phase 06.
 
 ## Phase 6 — Map, documents, reports
 

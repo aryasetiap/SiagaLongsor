@@ -10,6 +10,7 @@ const telemetrySchemaPath = join(specificationsDirectory, 'telemetry-payload.sch
 const phase02ExamplesDirectory = join(specificationsDirectory, 'examples', 'phase-02');
 const phase03ExamplesDirectory = join(specificationsDirectory, 'examples', 'phase-03');
 const phase04ExamplesDirectory = join(specificationsDirectory, 'examples', 'phase-04');
+const phase05ExamplesDirectory = join(specificationsDirectory, 'examples', 'phase-05');
 
 const expectedPhase02ExampleFiles = [
   'device-register.request.json',
@@ -33,6 +34,18 @@ const expectedPhase03ExampleFiles = [
 const expectedPhase04ExampleFiles = [
   'dashboard-summary.response.json',
   'sensor-series.response.json',
+];
+const expectedPhase05ExampleFiles = [
+  'alert-acknowledge.request.json',
+  'alert-acknowledge.response.json',
+  'alert-events.response.json',
+  'alert-false-alarm.request.json',
+  'alert-false-alarm.response.json',
+  'alert-resolve.request.json',
+  'alert-resolve.response.json',
+  'audit-logs.response.json',
+  'realtime-event.alert-acknowledged.json',
+  'realtime-event.alert-created.json',
 ];
 
 function assert(condition, message) {
@@ -282,12 +295,14 @@ try {
     phase02ExampleFileNames,
     phase03ExampleFileNames,
     phase04ExampleFileNames,
+    phase05ExampleFileNames,
   ] = await Promise.all([
     SwaggerParser.parse(specificationPath),
     readJson(telemetrySchemaPath),
     readdir(phase02ExamplesDirectory),
     readdir(phase03ExamplesDirectory),
     readdir(phase04ExamplesDirectory),
+    readdir(phase05ExamplesDirectory),
   ]);
 
   assert(rawSpecification.openapi === '3.1.0', 'OpenAPI version must be 3.1.0.');
@@ -359,6 +374,24 @@ try {
       get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
     },
     '/alerts/{alertId}': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
+    '/alerts/{alertId}/acknowledge': {
+      post: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
+    '/alerts/{alertId}/resolve': {
+      post: ['PROJECT_OWNER'],
+    },
+    '/alerts/{alertId}/false-alarm': {
+      post: ['PROJECT_OWNER'],
+    },
+    '/alerts/{alertId}/events': {
+      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
+    },
+    '/audit-logs': {
+      get: ['PROJECT_OWNER'],
+    },
+    '/realtime/stream': {
       get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
     },
   };
@@ -557,7 +590,7 @@ try {
       ['post', 'put', 'patch', 'delete'].every(
         (method) => !Object.hasOwn(rawSpecification.paths['/alerts/{alertId}'], method),
       ),
-    'Phase 03 Alert contract must be read-only.',
+    'Alert collection and detail resources must remain read-only.',
   );
   for (const path of [
     '/dashboard/summary',
@@ -571,9 +604,6 @@ try {
     );
   }
   for (const forbiddenPath of [
-    '/alerts/{alertId}/acknowledge',
-    '/alerts/{alertId}/resolve',
-    '/alerts/{alertId}/false-alarm',
     '/threshold-profiles/{profileId}/activate',
     '/notifications',
     '/events',
@@ -581,21 +611,123 @@ try {
   ]) {
     assert(
       !Object.hasOwn(rawSpecification.paths, forbiddenPath),
-      `Deferred endpoint must not be present in Phase 04: ${forbiddenPath}`,
+      `Deferred endpoint must not be present in Phase 05: ${forbiddenPath}`,
     );
   }
+
+  const actionContracts = [
+    ['/alerts/{alertId}/acknowledge', 'AcknowledgeAlertRequest', 'ACTIVE->ACKNOWLEDGED'],
+    ['/alerts/{alertId}/resolve', 'ResolveAlertRequest', 'ACKNOWLEDGED->RESOLVED'],
+    ['/alerts/{alertId}/false-alarm', 'FalseAlarmAlertRequest', 'ACTIVE|ACKNOWLEDGED->FALSE_ALARM'],
+  ];
+  for (const [path, requestSchema, transition] of actionContracts) {
+    const operation = rawSpecification.paths[path].post;
+    assert(
+      hasParameterReference(operation, '#/components/parameters/AlertActionIdempotencyKey'),
+      `POST ${path} must require the action Idempotency-Key.`,
+    );
+    assert(
+      operation.requestBody.content['application/json'].schema.$ref ===
+        `#/components/schemas/${requestSchema}` &&
+        operation.responses['200'].content['application/json'].schema.$ref ===
+          '#/components/schemas/AlertMutationResponse' &&
+        operation['x-state-transition'] === transition &&
+        operation['x-idempotency-semantics'] === 'action-id-bound-to-body-and-alert-context' &&
+        operation['x-transaction-semantics'] ===
+          'lock-alert-update-event-audit-then-publish-after-commit' &&
+        JSON.stringify(operation['x-conflict-codes']) ===
+          JSON.stringify(['ALERT_STATE_CONFLICT', 'IDEMPOTENCY_CONFLICT']) &&
+        Object.hasOwn(operation.responses, '404') &&
+        Object.hasOwn(operation.responses, '409'),
+      `POST ${path} lifecycle, idempotency, or atomicity contract drifted.`,
+    );
+  }
+  const acknowledgeSchema = rawSpecification.components.schemas.AcknowledgeAlertRequest;
+  const resolveSchema = rawSpecification.components.schemas.ResolveAlertRequest;
+  const falseAlarmSchema = rawSpecification.components.schemas.FalseAlarmAlertRequest;
   assert(
-    Object.values(rawSpecification.paths).every((pathItem) =>
-      Object.values(pathItem).every(
-        (operation) =>
-          !operation?.responses ||
-          Object.values(operation.responses).every(
-            (response) => !response?.content?.['text/event-stream'],
-          ),
-      ),
-    ),
-    'Phase 04 must not expose an SSE response.',
+    acknowledgeSchema.required.includes('actionId') &&
+      acknowledgeSchema.properties.note.minLength === 1 &&
+      acknowledgeSchema.properties.note.maxLength === 2000 &&
+      acknowledgeSchema.properties.fieldCondition.minLength === 1 &&
+      acknowledgeSchema.properties.fieldCondition.maxLength === 1000 &&
+      acknowledgeSchema.properties.sopExecuted.type === 'boolean' &&
+      /trims/.test(acknowledgeSchema.properties.note.description) &&
+      /trims/.test(acknowledgeSchema.properties.fieldCondition.description) &&
+      resolveSchema.properties.resolutionNote.minLength === 1 &&
+      resolveSchema.properties.resolutionNote.maxLength === 2000 &&
+      /trims/.test(resolveSchema.properties.resolutionNote.description) &&
+      falseAlarmSchema.properties.reason.minLength === 1 &&
+      falseAlarmSchema.properties.reason.maxLength === 2000 &&
+      /trims/.test(falseAlarmSchema.properties.reason.description),
+    'Phase 05 lifecycle body requirements, trim semantics, or limits drifted.',
   );
+  assert(
+    rawSpecification.components.parameters.AlertActionIdempotencyKey.schema.format === 'uuid' &&
+      /body actionId/.test(
+        rawSpecification.components.parameters.AlertActionIdempotencyKey.description,
+      ) &&
+      /requestId is never/.test(
+        rawSpecification.components.parameters.AlertActionIdempotencyKey.description,
+      ),
+    'Alert lifecycle idempotency must use a client UUID v4 equal to body actionId.',
+  );
+  assert(
+    JSON.stringify(rawSpecification.components.schemas.RealtimeEventType.enum) ===
+      JSON.stringify([
+        'ALERT_CREATED',
+        'ALERT_OBSERVED',
+        'ALERT_ACKNOWLEDGED',
+        'ALERT_RESOLVED',
+        'ALERT_FALSE_ALARM',
+        'MONITORING_POINT_STATE_CHANGED',
+      ]),
+    'Realtime event type contract drifted.',
+  );
+  const realtime = rawSpecification.paths['/realtime/stream'].get;
+  assert(
+    realtime.responses['200'].content['text/event-stream']['x-event-schema'].$ref ===
+      '#/components/schemas/RealtimeEvent' &&
+      hasParameterReference(realtime, '#/components/parameters/LastEventId') &&
+      realtime['x-keepalive-seconds'] === 15 &&
+      JSON.stringify(realtime['x-reconnect-seconds']) === JSON.stringify([1, 2, 5, 10, 30]) &&
+      /notification-only/.test(realtime['x-delivery-semantics']) &&
+      /REST remains authoritative/.test(realtime.description) &&
+      /does not provide durable replay/.test(realtime.description) &&
+      /Redis Pub\/Sub/.test(realtime.description) &&
+      !realtime.parameters.some(
+        (parameter) => parameter.in === 'query' && /token/i.test(parameter.name),
+      ),
+    'SSE authentication, delivery, reconnect, or multi-instance contract drifted.',
+  );
+  const alertEvents = rawSpecification.paths['/alerts/{alertId}/events'].get;
+  const auditLogs = rawSpecification.paths['/audit-logs'].get;
+  assert(
+    hasParameterReference(alertEvents, '#/components/parameters/Limit') &&
+      hasParameterReference(alertEvents, '#/components/parameters/Cursor') &&
+      hasParameterReference(auditLogs, '#/components/parameters/Limit') &&
+      hasParameterReference(auditLogs, '#/components/parameters/Cursor') &&
+      alertEvents['x-ordering'] === 'createdAt:desc,id:desc' &&
+      auditLogs['x-ordering'] === 'createdAt:desc,id:desc' &&
+      JSON.stringify(auditLogs['x-time-range-semantics']) ===
+        JSON.stringify({ from: 'inclusive', to: 'exclusive', 'maximum-days': 30 }),
+    'Alert event or audit history pagination/range contract drifted.',
+  );
+  for (const forbiddenFragment of [
+    '/notifications',
+    '/websocket',
+    '/siren',
+    '/maps',
+    '/sop',
+    '/reports',
+    '/iot/heartbeat',
+    '/firmware',
+  ]) {
+    assert(
+      !Object.keys(rawSpecification.paths).some((path) => path.includes(forbiddenFragment)),
+      `Phase 06+ or deferred capability leaked into OpenAPI: ${forbiddenFragment}`,
+    );
+  }
 
   assert(
     telemetrySchema.$schema === 'https://json-schema.org/draft/2020-12/schema',
@@ -635,6 +767,13 @@ try {
     JSON.stringify(sortedPhase04Examples) === JSON.stringify(expectedPhase04ExampleFiles),
     `Phase 04 example set differs from the expected files: ${sortedPhase04Examples.join(', ')}`,
   );
+  const sortedPhase05Examples = phase05ExampleFileNames
+    .filter((name) => name.endsWith('.json'))
+    .sort();
+  assert(
+    JSON.stringify(sortedPhase05Examples) === JSON.stringify(expectedPhase05ExampleFiles),
+    `Phase 05 example set differs from the expected files: ${sortedPhase05Examples.join(', ')}`,
+  );
 
   await SwaggerParser.validate(specificationPath);
   const dereferenced = await SwaggerParser.dereference(specificationPath);
@@ -660,6 +799,14 @@ try {
       expectedPhase04ExampleFiles.map(async (name) => [
         name,
         await readJson(join(phase04ExamplesDirectory, name)),
+      ]),
+    ),
+  );
+  const phase05Examples = Object.fromEntries(
+    await Promise.all(
+      expectedPhase05ExampleFiles.map(async (name) => [
+        name,
+        await readJson(join(phase05ExamplesDirectory, name)),
       ]),
     ),
   );
@@ -716,6 +863,26 @@ try {
     schemas.DashboardSummaryResponse,
   );
   validateExample(phase04Examples['sensor-series.response.json'], schemas.SensorSeriesResponse);
+  validateExample(
+    phase05Examples['alert-acknowledge.request.json'],
+    schemas.AcknowledgeAlertRequest,
+  );
+  validateExample(phase05Examples['alert-resolve.request.json'], schemas.ResolveAlertRequest);
+  validateExample(
+    phase05Examples['alert-false-alarm.request.json'],
+    schemas.FalseAlarmAlertRequest,
+  );
+  for (const name of [
+    'alert-acknowledge.response.json',
+    'alert-resolve.response.json',
+    'alert-false-alarm.response.json',
+  ]) {
+    validateExample(phase05Examples[name], schemas.AlertMutationResponse);
+  }
+  validateExample(phase05Examples['alert-events.response.json'], schemas.AlertEventListResponse);
+  validateExample(phase05Examples['audit-logs.response.json'], schemas.AuditLogListResponse);
+  validateExample(phase05Examples['realtime-event.alert-created.json'], schemas.RealtimeEvent);
+  validateExample(phase05Examples['realtime-event.alert-acknowledged.json'], schemas.RealtimeEvent);
 
   assert(
     phase02Examples['telemetry-accepted.response.json'].duplicate === false &&
@@ -917,8 +1084,52 @@ try {
     }
   }
 
+  assert(
+    phase05Examples['alert-acknowledge.response.json'].data.status === 'ACKNOWLEDGED' &&
+      phase05Examples['alert-resolve.response.json'].data.status === 'RESOLVED' &&
+      phase05Examples['alert-false-alarm.response.json'].data.status === 'FALSE_ALARM',
+    'Phase 05 action examples must demonstrate the approved lifecycle transitions.',
+  );
+  assert(
+    phase05Examples['alert-acknowledge.request.json'].actionId ===
+      phase05Examples['alert-acknowledge.response.json'].action.actionId &&
+      phase05Examples['alert-resolve.request.json'].actionId ===
+        phase05Examples['alert-resolve.response.json'].action.actionId &&
+      phase05Examples['alert-false-alarm.request.json'].actionId ===
+        phase05Examples['alert-false-alarm.response.json'].action.actionId,
+    'Every action response must preserve the client actionId.',
+  );
+  for (const [name, schema] of [
+    ['AlertEventListResponse', schemas.AlertEventListResponse],
+    ['AuditLogListResponse', schemas.AuditLogListResponse],
+  ]) {
+    assert(!containsProperty(schema, 'totalCount'), `${name} must not expose totalCount.`);
+  }
+  for (const exampleName of expectedPhase05ExampleFiles) {
+    assert(
+      !containsProperty(phase05Examples[exampleName], 'totalCount'),
+      `${exampleName} must omit totalCount.`,
+    );
+    for (const forbidden of [
+      'secret',
+      'credential',
+      'credentialHash',
+      'rawPayload',
+      'Authorization',
+      'ipAddress',
+      'userAgent',
+      'accessToken',
+      'refreshToken',
+    ]) {
+      assert(
+        !containsProperty(phase05Examples[exampleName], forbidden),
+        `${exampleName} must not contain ${forbidden}.`,
+      );
+    }
+  }
+
   process.stdout.write(
-    `OpenAPI, external telemetry schema, ${expectedPhase02ExampleFiles.length} Phase 02 examples, ${expectedPhase03ExampleFiles.length} Phase 03 examples, and ${expectedPhase04ExampleFiles.length} Phase 04 examples are valid.\n`,
+    `OpenAPI, external telemetry schema, ${expectedPhase02ExampleFiles.length} Phase 02 examples, ${expectedPhase03ExampleFiles.length} Phase 03 examples, ${expectedPhase04ExampleFiles.length} Phase 04 examples, and ${expectedPhase05ExampleFiles.length} Phase 05 examples are valid.\n`,
   );
 } catch (error) {
   process.stderr.write('OpenAPI contract validation failed.\n');
