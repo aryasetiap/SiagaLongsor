@@ -245,3 +245,32 @@ Gunakan Bahasa Indonesia sebagai default:
 - “Peringatan telah diterima oleh …”.
 
 Hindari istilah teknis tanpa tooltip untuk pengguna sekolah.
+
+## 13. Phase 05 alert operations and realtime
+
+Alert detail menampilkan status, severity, alasan, lokasi, waktu observasi terakhir, occurrence,
+serta timeline event immutable. Aksi selalu berupa dialog terfokus dengan validasi inline dan
+konfirmasi status akhir; tombol tidak boleh mengandalkan warna saja.
+
+- Dialog acknowledge tersedia untuk kedua role dan meminta catatan, kondisi lapangan, serta
+  konfirmasi apakah SOP dijalankan.
+- Dialog resolve hanya untuk `PROJECT_OWNER`, meminta resolution note, dan hanya tersedia pada
+  status `ACKNOWLEDGED`.
+- Dialog false alarm hanya untuk `PROJECT_OWNER`, meminta alasan, dan tersedia pada `ACTIVE` atau
+  `ACKNOWLEDGED`.
+- Setiap pembukaan dialog menghasilkan UUID v4 `actionId` baru; retry request yang sama memakai ID
+  yang sama. Setelah hasil terminal atau dialog dibatalkan, ID tidak digunakan kembali.
+- Conflict status memicu refetch dan pesan bahwa kondisi telah berubah, bukan overwrite optimistik.
+- `SCHOOL_ADMIN` tidak melihat control resolve/false alarm; backend tetap menjadi boundary izin.
+
+Realtime memakai fetch-based SSE agar bearer dan header organisasi dapat dikirim. Event hanya
+menandai resource untuk di-refetch; UI tidak mengganti authoritative state langsung dari payload
+SSE. Setelah disconnect UI menampilkan status koneksi nonblocking, reconnect dengan jittered
+backoff 1/2/5/10/30 detik, lalu refetch. Initial connect juga melakukan REST fetch. Burst event
+di-coalesce agar tidak menyebabkan request storm. Pergantian organisasi dan logout menutup stream
+sebelumnya.
+
+Quick access SOP membuka dokumen yang memang tersedia. Jika belum ada, tampilkan “SOP resmi belum
+tersedia” dan jangan membuat instruksi darurat sintetis. Halaman audit hanya tersedia untuk
+`PROJECT_OWNER` pada `/settings/audit-log`, mendukung filter dan cursor history, serta tidak
+menampilkan metadata JSON mentah, data transport, atau secret.

@@ -1,13 +1,14 @@
 openapi: 3.1.0
 info:
   title: SiagaLongsor API
-  version: 0.4.0
+  version: 0.5.0
   description: >-
     API contract for SiagaLongsor. Phase 01 authentication and Phase 02 Site lookup,
     MonitoringPoint, Device, credential, and telemetry capabilities are implemented. Phase 03 risk
-    profile, server-side assessment, monitoring overview, and read-only alerts are implemented.
-    Dashboard summary and MonitoringPoint sensor series are the approved Phase 04 data contract;
-    runtime implementation follows separately.
+    profile, server-side assessment, monitoring overview, and alert reads are implemented. Phase 04
+    dashboard summary and MonitoringPoint sensor series are implemented. Phase 05 alert lifecycle,
+    audit reads, and notification-only SSE are contract-frozen; runtime implementation follows
+    separately.
 servers:
   - url: /api/v1
 paths:
@@ -801,8 +802,8 @@ paths:
       tags: [Alerts]
       summary: List alerts in the active organization
       description: >-
-        Phase 03 is read-only. Alert generation and deduplication are server-side; acknowledge,
-        resolve, and false-alarm operations are deferred to Phase 05.
+        Lists server-generated alerts. Phase 05 lifecycle mutations are exposed as dedicated
+        action endpoints; this collection remains read-only and never exposes totalCount.
       security:
         - bearerAuth: []
       x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
@@ -870,6 +871,273 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /alerts/{alertId}/acknowledge:
+    post:
+      operationId: acknowledgeAlert
+      tags: [Alerts]
+      summary: Acknowledge an active alert
+      description: >-
+        Atomically transitions ACTIVE to ACKNOWLEDGED, appends one immutable AlertEvent and one
+        sanitized AuditLog, then publishes a realtime notification after commit. An identical
+        retry returns the original action result without duplicating either record. Observations
+        received after acknowledgement preserve ACKNOWLEDGED status.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      x-state-transition: ACTIVE->ACKNOWLEDGED
+      x-idempotency-semantics: action-id-bound-to-body-and-alert-context
+      x-transaction-semantics: lock-alert-update-event-audit-then-publish-after-commit
+      x-conflict-codes: [ALERT_STATE_CONFLICT, IDEMPOTENCY_CONFLICT]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/AlertId'
+        - $ref: '#/components/parameters/AlertActionIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AcknowledgeAlertRequest' }
+            examples:
+              acknowledge:
+                externalValue: ./examples/phase-05/alert-acknowledge.request.json
+      responses:
+        '200':
+          description: Alert acknowledged, or the original result of an identical retry
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertMutationResponse' }
+              examples:
+                acknowledged:
+                  externalValue: ./examples/phase-05/alert-acknowledge.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /alerts/{alertId}/resolve:
+    post:
+      operationId: resolveAlert
+      tags: [Alerts]
+      summary: Resolve an acknowledged alert
+      description: >-
+        Atomically transitions ACKNOWLEDGED to terminal RESOLVED. The alert cannot be reopened and
+        later observations of the same condition create a new ACTIVE alert.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER]
+      x-state-transition: ACKNOWLEDGED->RESOLVED
+      x-idempotency-semantics: action-id-bound-to-body-and-alert-context
+      x-transaction-semantics: lock-alert-update-event-audit-then-publish-after-commit
+      x-conflict-codes: [ALERT_STATE_CONFLICT, IDEMPOTENCY_CONFLICT]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/AlertId'
+        - $ref: '#/components/parameters/AlertActionIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResolveAlertRequest' }
+            examples:
+              resolve:
+                externalValue: ./examples/phase-05/alert-resolve.request.json
+      responses:
+        '200':
+          description: Alert resolved, or the original result of an identical retry
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertMutationResponse' }
+              examples:
+                resolved:
+                  externalValue: ./examples/phase-05/alert-resolve.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /alerts/{alertId}/false-alarm:
+    post:
+      operationId: markAlertFalseAlarm
+      tags: [Alerts]
+      summary: Mark an active or acknowledged alert as false alarm
+      description: >-
+        Atomically transitions ACTIVE or ACKNOWLEDGED to terminal FALSE_ALARM. The alert cannot be
+        reopened and later observations of the same condition create a new ACTIVE alert.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER]
+      x-state-transition: ACTIVE|ACKNOWLEDGED->FALSE_ALARM
+      x-idempotency-semantics: action-id-bound-to-body-and-alert-context
+      x-transaction-semantics: lock-alert-update-event-audit-then-publish-after-commit
+      x-conflict-codes: [ALERT_STATE_CONFLICT, IDEMPOTENCY_CONFLICT]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/AlertId'
+        - $ref: '#/components/parameters/AlertActionIdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/FalseAlarmAlertRequest' }
+            examples:
+              falseAlarm:
+                externalValue: ./examples/phase-05/alert-false-alarm.request.json
+      responses:
+        '200':
+          description: Alert marked false alarm, or the original result of an identical retry
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertMutationResponse' }
+              examples:
+                falseAlarm:
+                  externalValue: ./examples/phase-05/alert-false-alarm.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /alerts/{alertId}/events:
+    get:
+      operationId: listAlertEvents
+      tags: [Alerts]
+      summary: List immutable alert history
+      description: Newest-first cursor history without totalCount; cross-organization alerts are 404.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      x-ordering: createdAt:desc,id:desc
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/AlertId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Newest-first immutable event page
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AlertEventListResponse' }
+              examples:
+                events:
+                  externalValue: ./examples/phase-05/alert-events.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /audit-logs:
+    get:
+      operationId: listAuditLogs
+      tags: [Audit]
+      summary: List sanitized organization audit history
+      description: >-
+        PROJECT_OWNER-only newest-first cursor history. The maximum requested time range is 30
+        days. Public projection excludes IP address, user agent, secrets, credentials, tokens and
+        raw request payloads.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER]
+      x-ordering: createdAt:desc,id:desc
+      x-time-range-semantics:
+        from: inclusive
+        to: exclusive
+        maximum-days: 30
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+        - name: eventType
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - name: entityType
+          in: query
+          schema: { type: string, minLength: 1, maxLength: 100 }
+        - name: entityId
+          in: query
+          schema: { type: string, minLength: 1 }
+        - name: actorId
+          in: query
+          schema: { type: string, minLength: 1 }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Newest-first sanitized audit page without totalCount
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuditLogListResponse' }
+              examples:
+                audit:
+                  externalValue: ./examples/phase-05/audit-logs.response.json
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '500': { $ref: '#/components/responses/InternalError' }
+  /realtime/stream:
+    get:
+      operationId: streamRealtimeNotifications
+      tags: [Realtime]
+      summary: Stream organization-scoped change notifications
+      description: >-
+        Notification-only SSE stream; REST remains authoritative. Authentication uses bearer and
+        X-Organization-Id headers via fetch-based streaming, never a token query parameter.
+        Last-Event-ID is accepted for observability only and does not provide durable replay or
+        exactly-once delivery. Server sends a keepalive comment every 15 seconds. On reconnect the
+        client refetches authoritative REST state and applies jittered delays of 1, 2, 5, 10, then
+        30 seconds maximum. Redis Pub/Sub fans out committed events across instances; publication
+        failure never rolls back the database transaction.
+      security:
+        - bearerAuth: []
+      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
+      x-delivery-semantics: notification-only-at-most-best-effort-no-replay
+      x-keepalive-seconds: 15
+      x-reconnect-seconds: [1, 2, 5, 10, 30]
+      parameters:
+        - $ref: '#/components/parameters/OrganizationId'
+        - $ref: '#/components/parameters/LastEventId'
+      responses:
+        '200':
+          description: SSE notification stream; each data field conforms to RealtimeEvent
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+            Cache-Control:
+              schema: { type: string, const: no-cache }
+            X-Accel-Buffering:
+              schema: { type: string, const: 'no' }
+          content:
+            text/event-stream:
+              schema: { type: string }
+              x-event-schema: { $ref: '#/components/schemas/RealtimeEvent' }
+              examples:
+                alert:
+                  externalValue: ./examples/phase-05/realtime-event.alert-created.json
+                acknowledged:
+                  externalValue: ./examples/phase-05/realtime-event.alert-acknowledged.json
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '500': { $ref: '#/components/responses/InternalError' }
 components:
   securitySchemes:
@@ -1018,6 +1286,25 @@ components:
       required: true
       description: Must exactly equal body messageId.
       schema: { type: string, minLength: 8, maxLength: 64 }
+    AlertActionIdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: >-
+        Client-generated UUID v4 that must exactly equal body actionId. It is bound to the alert,
+        organization, action kind and canonical payload; requestId is never an idempotency key.
+      schema:
+        {
+          type: string,
+          format: uuid,
+          pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+        }
+    LastEventId:
+      name: Last-Event-ID
+      in: header
+      required: false
+      description: Observability hint only; the stream does not guarantee replay.
+      schema: { type: string, minLength: 1, maxLength: 200 }
     AlertId:
       name: alertId
       in: path
@@ -1149,8 +1436,9 @@ components:
       enum:
         - ACCESS_TOKEN_INVALID
         - ACCESS_TOKEN_REQUIRED
-          - AUTHENTICATION_REQUIRED
+        - AUTHENTICATION_REQUIRED
         - ALERT_NOT_FOUND
+        - ALERT_STATE_CONFLICT
         - BAD_REQUEST
         - CONFLICT
         - DEPENDENCY_UNAVAILABLE
@@ -1988,3 +2276,185 @@ components:
       required: [data]
       properties:
         data: { $ref: '#/components/schemas/Alert' }
+    AlertActionId:
+      type: string
+      format: uuid
+      pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+      description: Client-generated UUID v4 used for lifecycle action idempotency.
+    AcknowledgeAlertRequest:
+      type: object
+      additionalProperties: false
+      required: [actionId, note, fieldCondition, sopExecuted]
+      properties:
+        actionId: { $ref: '#/components/schemas/AlertActionId' }
+        note:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Server trims leading and trailing whitespace before validation and storage.
+        fieldCondition:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Server trims leading and trailing whitespace before validation and storage.
+        sopExecuted: { type: boolean }
+    ResolveAlertRequest:
+      type: object
+      additionalProperties: false
+      required: [actionId, resolutionNote]
+      properties:
+        actionId: { $ref: '#/components/schemas/AlertActionId' }
+        resolutionNote:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Server trims leading and trailing whitespace before validation and storage.
+    FalseAlarmAlertRequest:
+      type: object
+      additionalProperties: false
+      required: [actionId, reason]
+      properties:
+        actionId: { $ref: '#/components/schemas/AlertActionId' }
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          description: Server trims leading and trailing whitespace before validation and storage.
+    AlertLifecycleEventType:
+      type: string
+      enum:
+        - CREATED
+        - OBSERVED
+        - CONNECTIVITY_TRANSITION
+        - ALERT_ACKNOWLEDGED
+        - ALERT_RESOLVED
+        - ALERT_FALSE_ALARM
+    AlertLifecycleActionType:
+      type: string
+      enum: [ALERT_ACKNOWLEDGED, ALERT_RESOLVED, ALERT_FALSE_ALARM]
+    SafeActorSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id: { type: string, minLength: 1 }
+        name: { type: string, minLength: 1 }
+    AlertLifecycleActionSummary:
+      type: object
+      additionalProperties: false
+      required: [actionId, eventId, eventType, previousStatus, nextStatus, actedAt, actor]
+      properties:
+        actionId: { $ref: '#/components/schemas/AlertActionId' }
+        eventId: { type: string, minLength: 1 }
+        eventType: { $ref: '#/components/schemas/AlertLifecycleActionType' }
+        previousStatus: { $ref: '#/components/schemas/AlertStatus' }
+        nextStatus: { $ref: '#/components/schemas/AlertStatus' }
+        actedAt: { type: string, format: date-time }
+        actor: { $ref: '#/components/schemas/SafeActorSummary' }
+    AlertMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [data, action]
+      properties:
+        data: { $ref: '#/components/schemas/Alert' }
+        action: { $ref: '#/components/schemas/AlertLifecycleActionSummary' }
+    AlertEventMetadata:
+      type: object
+      additionalProperties: false
+      description: Sanitized projection; never contains IP, user agent, credential, token or raw request.
+      properties:
+        actorId: { type: string, minLength: 1 }
+        actionId: { $ref: '#/components/schemas/AlertActionId' }
+        note: { type: string, minLength: 1, maxLength: 2000 }
+        fieldCondition: { type: string, minLength: 1, maxLength: 1000 }
+        sopExecuted: { type: boolean }
+        resolutionNote: { type: string, minLength: 1, maxLength: 2000 }
+        reason: { type: string, minLength: 1, maxLength: 2000 }
+        previousStatus: { $ref: '#/components/schemas/AlertStatus' }
+        nextStatus: { $ref: '#/components/schemas/AlertStatus' }
+    AlertEvent:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          eventType,
+          observedAt,
+          actedAt,
+          createdAt,
+          actor,
+          metadata,
+          riskAssessmentId,
+          telemetryId,
+        ]
+      properties:
+        id: { type: string, minLength: 1 }
+        eventType: { $ref: '#/components/schemas/AlertLifecycleEventType' }
+        observedAt: { type: [string, 'null'], format: date-time }
+        actedAt: { type: [string, 'null'], format: date-time }
+        createdAt: { type: string, format: date-time }
+        actor:
+          oneOf:
+            - $ref: '#/components/schemas/SafeActorSummary'
+            - type: 'null'
+        metadata: { $ref: '#/components/schemas/AlertEventMetadata' }
+        riskAssessmentId: { type: [string, 'null'], minLength: 1 }
+        telemetryId: { type: [string, 'null'], minLength: 1 }
+    AlertEventListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/AlertEvent' }
+        page: { $ref: '#/components/schemas/PageInfo' }
+    AuditLogEntry:
+      type: object
+      additionalProperties: false
+      required: [id, eventType, entityType, entityId, actor, requestId, metadata, createdAt]
+      description: Safe public audit projection; transport and secret-bearing fields are excluded.
+      properties:
+        id: { type: string, minLength: 1 }
+        eventType: { type: string, minLength: 1, maxLength: 100 }
+        entityType: { type: [string, 'null'], minLength: 1, maxLength: 100 }
+        entityId: { type: [string, 'null'], minLength: 1 }
+        actor:
+          oneOf:
+            - $ref: '#/components/schemas/SafeActorSummary'
+            - type: 'null'
+        requestId: { type: string, minLength: 1 }
+        metadata: { $ref: '#/components/schemas/AlertEventMetadata' }
+        createdAt: { type: string, format: date-time }
+    AuditLogListResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/AuditLogEntry' }
+        page: { $ref: '#/components/schemas/PageInfo' }
+    RealtimeEventType:
+      type: string
+      enum:
+        - ALERT_CREATED
+        - ALERT_OBSERVED
+        - ALERT_ACKNOWLEDGED
+        - ALERT_RESOLVED
+        - ALERT_FALSE_ALARM
+        - MONITORING_POINT_STATE_CHANGED
+    RealtimeEvent:
+      type: object
+      additionalProperties: false
+      required: [eventId, eventType, occurredAt, siteId, monitoringPointId, alertId]
+      description: >-
+        Minimal invalidation notification. Consumers refetch REST resources and must not treat this
+        envelope as authoritative domain state.
+      properties:
+        eventId: { type: string, minLength: 1 }
+        eventType: { $ref: '#/components/schemas/RealtimeEventType' }
+        occurredAt: { type: string, format: date-time }
+        siteId: { type: [string, 'null'], minLength: 1 }
+        monitoringPointId: { type: [string, 'null'], minLength: 1 }
+        alertId: { type: [string, 'null'], minLength: 1 }

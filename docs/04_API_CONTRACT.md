@@ -415,5 +415,87 @@ field internal organisasi.
 
 ## 14. Kontrak fase selanjutnya
 
-SSE, acknowledge/resolve/false-alarm, notification, map, reporting, heartbeat, remote siren,
-firmware command, historical warehouse/materialized analytics, dan KPI delta tetap di luar Phase 04.
+Notification eksternal, map, reporting, heartbeat, remote siren, firmware command, historical
+warehouse/materialized analytics, dan KPI delta tetap di luar Phase 04. Operasi lifecycle alert dan
+SSE dibekukan pada kontrak Phase 05 berikut.
+
+## 15. Alert operations Phase 05
+
+Semua endpoint memerlukan bearer token dan `X-Organization-Id`. Resource organisasi lain
+dilaporkan sebagai `404 ALERT_NOT_FOUND`. Permission matrix:
+
+| Operasi                              | PROJECT_OWNER | SCHOOL_ADMIN |
+| ------------------------------------ | ------------- | ------------ |
+| Alert list/detail/events             | Ya            | Ya           |
+| `POST /alerts/{alertId}/acknowledge` | Ya            | Ya           |
+| `POST /alerts/{alertId}/resolve`     | Ya            | Tidak        |
+| `POST /alerts/{alertId}/false-alarm` | Ya            | Tidak        |
+| `GET /audit-logs`                    | Ya            | Tidak        |
+| `GET /realtime/stream`               | Ya            | Ya           |
+
+### 15.1 Lifecycle dan request
+
+- Acknowledge menerima `actionId`, `note` (1–2000), `fieldCondition` (1–1000), dan
+  `sopExecuted`; hanya `ACTIVE -> ACKNOWLEDGED`.
+- Resolve menerima `actionId` dan `resolutionNote` (1–2000); hanya
+  `ACKNOWLEDGED -> RESOLVED`.
+- False alarm menerima `actionId` dan `reason` (1–2000); menerima `ACTIVE` atau
+  `ACKNOWLEDGED` menuju `FALSE_ALARM`.
+- `RESOLVED` dan `FALSE_ALARM` terminal; tidak ada reopen. Observasi baru tidak mengubah
+  `ACKNOWLEDGED` menjadi `ACTIVE`. Kondisi baru setelah terminal membuat alert baru.
+
+Semua text field ditrim server sebelum divalidasi/disimpan. `actorId` berasal dari authenticated
+user dan `actedAt` berasal dari clock server; client tidak dapat menentukan keduanya.
+
+Setiap mutation wajib mengirim `Idempotency-Key` berupa UUID v4 yang dibuat client dan sama persis
+dengan body `actionId`. Key terikat pada organization, alert, jenis aksi, dan canonical payload;
+`requestId` bukan idempotency key. Retry identik mengembalikan hasil aksi pertama tanpa menambah
+AlertEvent atau AuditLog. Penggunaan key yang sama untuk payload atau context berbeda menghasilkan
+`409 IDEMPOTENCY_CONFLICT`. Status asal yang tidak valid menghasilkan
+`409 ALERT_STATE_CONFLICT`.
+
+Implementasi wajib melakukan authorization, serialisasi/lock Alert, validasi status, update Alert,
+append AlertEvent, dan append AuditLog dalam satu transaksi. Publish realtime dilakukan hanya
+setelah commit. Pada aksi paralel hanya satu pemenang; request lain menerima hasil retry identik
+atau conflict deterministik, bukan error database. Urutan lock canonical harus sama dengan proses
+observasi agar lifecycle action dan telemetry observation tidak deadlock atau membangkitkan status
+lama.
+
+### 15.2 Event dan audit history
+
+`GET /alerts/{alertId}/events` tersedia untuk kedua role, newest-first, cursor pagination default 25
+dan maksimum 100, tanpa `totalCount`. Event type mencakup `CREATED`, `OBSERVED`,
+`CONNECTIVITY_TRANSITION`, `ALERT_ACKNOWLEDGED`, `ALERT_RESOLVED`, dan `ALERT_FALSE_ALARM`.
+Projection memisahkan `observedAt` dan `actedAt`, serta dapat memuat actor summary,
+`riskAssessmentId`, dan `telemetryId` nullable. Metadata strict dan tersanitasi.
+
+`GET /audit-logs` hanya untuk `PROJECT_OWNER`. Filter yang tersedia: `eventType`, `entityType`,
+`entityId`, `actorId`, `from`, `to`, cursor, dan limit. `from` inclusive, `to` exclusive,
+`from < to`, urutan newest-first dengan stable ID tie-breaker, tanpa `totalCount`, dan rentang waktu
+maksimum 30 hari. Public projection tidak memuat alamat IP, user agent, password,
+token, credential, Authorization header, atau raw request.
+
+## 16. Realtime notification Phase 05
+
+`GET /realtime/stream` menggunakan bearer header dan `X-Organization-Id` melalui fetch-based SSE;
+token query parameter dilarang. Event type dibatasi pada `ALERT_CREATED`, `ALERT_OBSERVED`,
+`ALERT_ACKNOWLEDGED`, `ALERT_RESOLVED`, `ALERT_FALSE_ALARM`, dan
+`MONITORING_POINT_STATE_CHANGED`.
+
+SSE hanya notifikasi invalidation; REST tetap authoritative. Stream tidak durable, tidak menjamin
+exactly-once, dapat mengirim notifikasi duplicate, dan tidak menjamin replay. `Last-Event-ID` hanya
+untuk observability. Server mengirim comment `: keepalive` setiap 15 detik. Client reconnect dengan
+jitter pada backoff 1, 2, 5, 10, lalu
+maksimum 30 detik dan selalu refetch REST setelah reconnect. Refresh token/session invalidation dan
+pergantian organisasi harus menutup stream lama sebelum membuka stream baru.
+
+Redis Pub/Sub digunakan untuk fan-out multi-instance. Publisher mengirim setelah transaksi database
+commit; kegagalan publish tidak membatalkan lifecycle action. Envelope SSE hanya membawa
+`eventId`, `eventType`, `occurredAt`, dan ID resource nullable yang diperlukan untuk menentukan REST
+resource yang harus di-refetch.
+
+## 17. SOP boundary Phase 05
+
+UI menyediakan quick access ke SOP yang sudah tersedia. Bila dokumen belum tersedia, UI harus
+menampilkan keadaan jujur bahwa SOP belum tersedia. Phase 05 tidak membuat upload/persistence SOP,
+tidak menghasilkan isi prosedur darurat sintetis, dan tidak menggantikan prosedur sekolah.

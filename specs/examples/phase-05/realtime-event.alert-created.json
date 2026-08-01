@@ -1,0 +1,8 @@
+{
+  "eventId": "rtevt_01K1P5ALERTCREATED000000001",
+  "eventType": "ALERT_CREATED",
+  "occurredAt": "2026-08-01T02:20:02.100Z",
+  "siteId": "site_01K1B5T6Y7U8I9O0P1A2S3D4FG",
+  "monitoringPointId": "mp_01K1B5Z9Y7X6W5V4U3T2S1R0QP",
+  "alertId": "alert_01K1P4F7G9H2J4K6L8M0N3QWES"
+}

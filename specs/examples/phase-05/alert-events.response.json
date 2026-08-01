@@ -1,0 +1,35 @@
+{
+  "data": [
+    {
+      "id": "alevt_01K1P5ACKNOWLEDGED000000001",
+      "eventType": "ALERT_ACKNOWLEDGED",
+      "observedAt": null,
+      "actedAt": "2026-08-01T02:30:00.000Z",
+      "createdAt": "2026-08-01T02:30:00.000Z",
+      "actor": { "id": "usr_01K1OWNER00000000000000001", "name": "Arya Setia Pratama" },
+      "metadata": {
+        "actorId": "usr_01K1OWNER00000000000000001",
+        "actionId": "4e998a8c-f59d-4a8f-92b2-d2bde1666235",
+        "note": "Tim sekolah telah menerima peringatan dan memulai pemeriksaan lapangan.",
+        "fieldCondition": "Retakan lama terlihat stabil; area dibatasi sementara.",
+        "sopExecuted": true,
+        "previousStatus": "ACTIVE",
+        "nextStatus": "ACKNOWLEDGED"
+      },
+      "riskAssessmentId": null,
+      "telemetryId": null
+    },
+    {
+      "id": "alevt_01K1P4CREATED0000000000001",
+      "eventType": "CREATED",
+      "observedAt": "2026-08-01T02:20:02.100Z",
+      "actedAt": null,
+      "createdAt": "2026-08-01T02:20:02.100Z",
+      "actor": null,
+      "metadata": {},
+      "riskAssessmentId": "ra_01K1P4F7G9H2J4K6L8M0N3QWER",
+      "telemetryId": "tel_01K1P4F7G9H2J4K6L8M0N3QWEQ"
+    }
+  ],
+  "page": { "nextCursor": null, "hasMore": false }
+}

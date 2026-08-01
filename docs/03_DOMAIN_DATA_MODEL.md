@@ -82,10 +82,23 @@ diimplementasikan pada Phase 02 dan tidak boleh dimasukkan ke lifecycle.
 
 ### AlertStatus
 
-- `OPEN`
+- `ACTIVE`
 - `ACKNOWLEDGED`
 - `RESOLVED`
 - `FALSE_ALARM`
+
+`ACTIVE` dan `ACKNOWLEDGED` adalah unresolved. `RESOLVED` dan `FALSE_ALARM` adalah terminal dan
+tidak dapat dibuka kembali. Transisi yang valid hanya:
+
+- `ACTIVE -> ACKNOWLEDGED`;
+- `ACTIVE -> FALSE_ALARM`;
+- `ACKNOWLEDGED -> RESOLVED`;
+- `ACKNOWLEDGED -> FALSE_ALARM`.
+
+Observasi baru pada alert `ACKNOWLEDGED` memperbarui observasi tanpa mengembalikan status ke
+`ACTIVE`. Kondisi baru setelah alert terminal membuat alert `ACTIVE` baru dengan deduplication key
+baru. Setiap perubahan lifecycle menghasilkan tepat satu `AlertEvent` immutable dan satu
+`AuditLog` tersanitasi dalam transaksi yang sama dengan perubahan Alert.
 
 ### Role
 
