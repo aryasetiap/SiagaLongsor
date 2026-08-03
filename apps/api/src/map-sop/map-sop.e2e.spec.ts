@@ -176,6 +176,17 @@ describe('Phase 06 Map Configuration and SOP API', () => {
     expect(versions.map((row) => row.version)).toEqual([1, 2]);
     expect(versions[0]?.configuration).toMatchObject({ notes: null });
     expect(await mapAuditCount()).toBe(auditBefore + 1);
+    const audit = await prisma.auditLog.findFirstOrThrow({
+      where: { eventType: 'MAP_CONFIG_VERSION_CREATED', entityId: updated.body.data.id as string },
+    });
+    expect(audit.metadata).toEqual({
+      siteId: siteAId,
+      previousVersion: 1,
+      newVersion: 2,
+      monitoringPointCount: 1,
+      riskZoneCount: 0,
+      routeCount: 0,
+    });
   });
 
   it('rejects duplicate and cross-Site MonitoringPoint locations', async () => {

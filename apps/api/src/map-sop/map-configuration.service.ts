@@ -106,7 +106,7 @@ export class MapConfigurationService {
             newVersion: version,
             monitoringPointCount: normalized.monitoringPointLocations.length,
             riskZoneCount: normalized.riskZones.length,
-            evacuationRouteCount: normalized.evacuationRoutes.length,
+            routeCount: normalized.evacuationRoutes.length,
           },
         },
       });
