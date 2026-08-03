@@ -18,6 +18,7 @@
     "simulator:device": "tsx scripts/device-simulator.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1101.0",
     "@nestjs/common": "11.1.28",
     "@nestjs/core": "11.1.28",
     "@nestjs/jwt": "11.0.2",

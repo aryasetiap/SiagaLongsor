@@ -91,6 +91,8 @@ model Organization {
   currentMonitoringPointStates CurrentMonitoringPointState[]
   alerts                       Alert[]
   alertLifecycleActions        AlertLifecycleAction[]
+  mapConfigurations            SiteMapConfiguration[]
+  sopDocuments                 SopDocumentVersion[]
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
 }
@@ -109,6 +111,10 @@ model Site {
   riskAssessments              RiskAssessment[]
   currentMonitoringPointStates CurrentMonitoringPointState[]
   alerts                       Alert[]
+  mapConfigurations            SiteMapConfiguration[]
+  activeMapConfiguration       ActiveSiteMapConfiguration?
+  sopDocuments                 SopDocumentVersion[]
+  activeSopDocument            ActiveSiteSopDocument?
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
 
@@ -140,6 +146,78 @@ model MonitoringPoint {
   @@index([organizationId, isActive, createdAt(sort: Desc), id])
   @@index([siteId, createdAt(sort: Desc), id])
   @@index([organizationId, name, id])
+}
+
+model SiteMapConfiguration {
+  id             String                      @id @default(cuid())
+  organizationId String
+  siteId         String
+  version        Int
+  configuration  Json
+  canonicalHash  String                      @db.Char(64)
+  createdById    String
+  organization   Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  site           Site                        @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  createdBy      User                        @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  activePointer  ActiveSiteMapConfiguration?
+  createdAt      DateTime                    @default(now()) @db.Timestamptz(3)
+  activatedAt    DateTime                    @default(now()) @db.Timestamptz(3)
+
+  @@unique([siteId, version])
+  @@unique([id, siteId, organizationId])
+  @@index([organizationId, siteId, version(sort: Desc)])
+  @@index([createdById, createdAt(sort: Desc)])
+}
+
+model ActiveSiteMapConfiguration {
+  siteId          String               @id
+  organizationId  String
+  configurationId String               @unique
+  site            Site                 @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  configuration   SiteMapConfiguration @relation(fields: [configurationId, siteId, organizationId], references: [id, siteId, organizationId], onDelete: Restrict)
+  updatedAt       DateTime             @updatedAt @db.Timestamptz(3)
+
+  @@unique([siteId, organizationId])
+  @@unique([configurationId, siteId, organizationId])
+  @@index([organizationId])
+}
+
+model SopDocumentVersion {
+  id               String                 @id @default(cuid())
+  organizationId   String
+  siteId           String
+  version          Int
+  title            String                 @db.VarChar(200)
+  description      String?
+  originalFileName String                 @db.VarChar(255)
+  mediaType        String                 @db.VarChar(64)
+  sizeBytes        Int
+  sha256           String                 @db.Char(64)
+  objectKey        String                 @unique @db.VarChar(255)
+  uploadedById     String
+  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  site             Site                   @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  uploadedBy       User                   @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  activePointer    ActiveSiteSopDocument?
+  uploadedAt       DateTime               @default(now()) @db.Timestamptz(3)
+
+  @@unique([siteId, version])
+  @@unique([id, siteId, organizationId])
+  @@index([organizationId, siteId, uploadedAt(sort: Desc), id(sort: Desc)])
+  @@index([uploadedById, uploadedAt(sort: Desc)])
+}
+
+model ActiveSiteSopDocument {
+  siteId         String             @id
+  organizationId String
+  documentId     String             @unique
+  site           Site               @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  document       SopDocumentVersion @relation(fields: [documentId, siteId, organizationId], references: [id, siteId, organizationId], onDelete: Restrict)
+  updatedAt      DateTime           @updatedAt @db.Timestamptz(3)
+
+  @@unique([siteId, organizationId])
+  @@unique([documentId, siteId, organizationId])
+  @@index([organizationId])
 }
 
 model Device {
@@ -409,6 +487,8 @@ model User {
   auditLogs             AuditLog[]
   alertEvents           AlertEvent[]
   alertLifecycleActions AlertLifecycleAction[]
+  mapConfigurations     SiteMapConfiguration[]
+  uploadedSopDocuments  SopDocumentVersion[]
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
