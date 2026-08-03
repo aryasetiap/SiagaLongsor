@@ -69,9 +69,14 @@ test('PROJECT_OWNER menjalankan Dashboard Phase 04 dengan data aktual', async ({
   );
   await expectAccepted(await sendTelemetry(request, hardwareId, deviceSecret, latePayload));
 
-  const summaryResponse = waitForDashboardSummary(page, 24);
   await page.goto('/overview');
-  const currentBody = await dashboardBody(await summaryResponse);
+  const summaryResponse = waitForDashboardSummary(page, 24);
+  const recentAlertsResponse = waitForRecentAlerts(page);
+  await page.getByRole('button', { name: 'Segarkan seluruh dashboard' }).click();
+  const [currentBody, recentAlertsBody] = await Promise.all([
+    dashboardBody(await summaryResponse),
+    alertsBody(await recentAlertsResponse),
+  ]);
   expect(currentBody.monitoringPoints.total).toBeGreaterThanOrEqual(
     baselineBody.monitoringPoints.total + 1,
   );
@@ -80,6 +85,14 @@ test('PROJECT_OWNER menjalankan Dashboard Phase 04 dengan data aktual', async ({
   );
   expect(currentBody.riskDistribution.danger).toBeGreaterThanOrEqual(1);
   expect(currentBody.alerts.activeCritical).toBeGreaterThanOrEqual(1);
+  expect(
+    recentAlertsBody.some(
+      (alert) =>
+        alert.monitoringPoint.name === pointName &&
+        alert.type === 'RISK_DANGER' &&
+        alert.severity === 'CRITICAL',
+    ),
+  ).toBe(true);
 
   await expect(
     page.getByRole('article', {
@@ -220,6 +233,12 @@ interface SensorItem {
   readonly isLate: boolean;
 }
 
+interface RecentAlertItem {
+  readonly type: string;
+  readonly severity: string;
+  readonly monitoringPoint: { readonly name: string };
+}
+
 interface Profile {
   readonly thresholds: {
     readonly safe: { readonly tiltMagnitudeDegLt: number };
@@ -243,6 +262,13 @@ async function sensorBody(response: Response): Promise<{ readonly items: readonl
   return body.data;
 }
 
+async function alertsBody(response: Response): Promise<readonly RecentAlertItem[]> {
+  expect(response.status()).toBe(200);
+  const body = (await response.json()) as { readonly data: readonly RecentAlertItem[] };
+  expect(JSON.stringify(body)).not.toContain('totalCount');
+  return body.data;
+}
+
 function isOldestFirst(items: readonly SensorItem[]) {
   return items.every(
     (item, index) => index === 0 || item.recordedAt >= (items[index - 1]?.recordedAt ?? ''),
@@ -262,7 +288,22 @@ function waitForDashboardSummary(page: Page, hours: number, siteId?: string) {
       response.request().method() === 'GET' &&
       url.pathname === '/api/v1/dashboard/summary' &&
       url.searchParams.get('windowHours') === String(hours) &&
-      (siteId === undefined || url.searchParams.get('siteId') === siteId)
+      (siteId === undefined
+        ? !url.searchParams.has('siteId')
+        : url.searchParams.get('siteId') === siteId)
+    );
+  });
+}
+
+function waitForRecentAlerts(page: Page) {
+  return page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      response.request().method() === 'GET' &&
+      url.pathname === '/api/v1/alerts' &&
+      url.searchParams.get('sort') === 'lastObservedAt:desc' &&
+      url.searchParams.get('limit') === '5' &&
+      !url.searchParams.has('siteId')
     );
   });
 }
