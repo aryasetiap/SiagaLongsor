@@ -77,6 +77,23 @@ enum AlertLifecycleActionType {
   FALSE_ALARM
 }
 
+enum ReportType {
+  SITE_PERIOD_SUMMARY_PDF
+}
+
+enum ReportJobStatus {
+  QUEUED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  EXPIRED
+}
+
+enum ReportFailureCode {
+  REPORT_GENERATION_FAILED
+  REPORT_ARTIFACT_UNAVAILABLE
+}
+
 model Organization {
   id                           String                        @id @default(cuid())
   name                         String
@@ -93,6 +110,7 @@ model Organization {
   alertLifecycleActions        AlertLifecycleAction[]
   mapConfigurations            SiteMapConfiguration[]
   sopDocuments                 SopDocumentVersion[]
+  reportJobs                   ReportJob[]
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
 }
@@ -115,6 +133,7 @@ model Site {
   activeMapConfiguration       ActiveSiteMapConfiguration?
   sopDocuments                 SopDocumentVersion[]
   activeSopDocument            ActiveSiteSopDocument?
+  reportJobs                   ReportJob[]
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
 
@@ -489,6 +508,7 @@ model User {
   alertLifecycleActions AlertLifecycleAction[]
   mapConfigurations     SiteMapConfiguration[]
   uploadedSopDocuments  SopDocumentVersion[]
+  reportJobs            ReportJob[]
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
@@ -530,6 +550,42 @@ model RefreshSession {
 
   @@index([userId, revokedAt, expiresAt])
   @@index([sessionFamilyId])
+}
+
+model ReportJob {
+  id                   String             @id @default(cuid())
+  organizationId       String
+  siteId               String
+  reportType           ReportType
+  from                 DateTime           @db.Timestamptz(3)
+  to                   DateTime           @db.Timestamptz(3)
+  status               ReportJobStatus    @default(QUEUED)
+  createdById          String
+  requestedAt          DateTime           @default(now()) @db.Timestamptz(3)
+  startedAt            DateTime?          @db.Timestamptz(3)
+  completedAt          DateTime?          @db.Timestamptz(3)
+  expiresAt            DateTime?          @db.Timestamptz(3)
+  failureCode          ReportFailureCode?
+  failureMessage       String?            @db.VarChar(500)
+  artifactFileName     String?            @db.VarChar(255)
+  artifactMediaType    String?            @db.VarChar(64)
+  artifactSizeBytes    Int?
+  artifactSha256       String?            @db.Char(64)
+  artifactObjectKey    String?            @unique @db.VarChar(255)
+  artifactGeneratedAt  DateTime?          @db.Timestamptz(3)
+  processingToken      String?            @db.Uuid
+  processingLeaseUntil DateTime?          @db.Timestamptz(3)
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  site                 Site               @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  createdBy            User               @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@unique([id, organizationId])
+  @@index([organizationId, requestedAt(sort: Desc), id(sort: Desc)])
+  @@index([organizationId, status, requestedAt(sort: Desc), id(sort: Desc)])
+  @@index([organizationId, siteId, requestedAt(sort: Desc), id(sort: Desc)])
+  @@index([organizationId, reportType, requestedAt(sort: Desc), id(sort: Desc)])
+  @@index([status, processingLeaseUntil])
+  @@index([createdById, requestedAt(sort: Desc)])
 }
 
 model AuditLog {
