@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
@@ -50,6 +50,7 @@ describe('Phase 06 Map Configuration and SOP API', () => {
     app = module.createNestApplication<NestExpressApplication>();
     configureApp(app as NestExpressApplication);
     await app.init();
+    await app.listen(0, '127.0.0.1');
     prisma = app.get(PrismaService);
     http = request(app.getHttpServer());
     const passwordHash = await argon2.hash(password, { type: argon2.argon2id });
@@ -333,7 +334,7 @@ describe('Phase 06 Map Configuration and SOP API', () => {
   });
 
   it('serializes 20 concurrent SOP uploads with unique monotonic versions and no HTTP 500', async () => {
-    const responses = await Promise.all(
+    const results = await Promise.allSettled(
       Array.from({ length: 20 }, (_, index) =>
         upload(
           ownerToken,
@@ -344,6 +345,11 @@ describe('Phase 06 Map Configuration and SOP API', () => {
         ),
       ),
     );
+    expect(results.every((result) => result.status === 'fulfilled')).toBe(true);
+    const responses = results.map((result) => {
+      if (result.status === 'rejected') throw result.reason;
+      return result.value;
+    });
     expect(responses.every((response) => response.status === 201)).toBe(true);
     const rows = await prisma.sopDocumentVersion.findMany({
       where: { siteId: siteAId },
@@ -366,12 +372,13 @@ describe('Phase 06 Map Configuration and SOP API', () => {
 
   it('creates no metadata on object failure and compensates an uploaded object on DB failure', async () => {
     const before = await prisma.sopDocumentVersion.count({ where: { siteId: siteAId } });
-    storage.failNextPut = true;
+    const putFailureBytes = pdfBytes('put-failure');
+    storage.failPutForSha256(sha256(putFailureBytes));
     const uploadFailure = await upload(
       ownerToken,
       organizationAId,
       siteAId,
-      pdfBytes('put-failure'),
+      putFailureBytes,
       'put-failure.pdf',
     );
     expect(uploadFailure.status).toBe(500);
@@ -517,12 +524,15 @@ describe('Phase 06 Map Configuration and SOP API', () => {
 
 class TestObjectStorage implements ObjectStorageService {
   readonly objects = new Map<string, StoredObject>();
-  failNextPut = false;
+  private readonly failingPutSha256 = new Set<string>();
   deleteCount = 0;
 
+  failPutForSha256(sha256: string): void {
+    this.failingPutSha256.add(sha256);
+  }
+
   async put(input: PutObjectInput): Promise<void> {
-    if (this.failNextPut) {
-      this.failNextPut = false;
+    if (this.failingPutSha256.delete(input.sha256)) {
       throw new Error('simulated storage failure');
     }
     this.objects.set(input.key, { body: Buffer.from(input.body), contentType: input.contentType });
@@ -540,6 +550,10 @@ class TestObjectStorage implements ObjectStorageService {
 
 function pdfBytes(marker = 'example'): Buffer {
   return Buffer.from(`%PDF-1.7\n${marker}\n%%EOF`, 'ascii');
+}
+
+function sha256(bytes: Buffer): string {
+  return createHash('sha256').update(bytes).digest('hex');
 }
 
 function setTestEnvironment(): void {
