@@ -10,11 +10,8 @@ import { useOptionalRealtime } from '../realtime/realtime-context';
 import type { Site } from '../sites/site-contracts';
 import { listSites } from '../sites/sites-api';
 import { AlertEventHistory } from './alert-event-history';
-import {
-  AlertOperationDialog,
-  type AlertOperation,
-  SopUnavailable,
-} from './alert-operation-dialog';
+import { AlertOperationDialog, type AlertOperation } from './alert-operation-dialog';
+import { SopQuickAccess } from '../map/sop-quick-access';
 import { getAlert, listAlerts } from './risk-api';
 import type {
   Alert,
@@ -433,7 +430,13 @@ function AlertDetail({
                 </dd>
               </div>
             </dl>
-            {alert.severity === 'CRITICAL' && <SopUnavailable />}
+            {alert.severity === 'CRITICAL' && (
+              <SopQuickAccess
+                client={client}
+                organizationId={organizationId}
+                siteId={alert.site.id}
+              />
+            )}
             <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-4">
               {alert.status === 'ACTIVE' && (
                 <button

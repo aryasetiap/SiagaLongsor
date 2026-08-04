@@ -151,6 +151,31 @@ describe('ApiClient', () => {
     expectRequest(fetchMock, 4, '/devices', 'Bearer rotated-token');
   });
 
+  it('downloads SOP through the authenticated organization client without token persistence or query parameters', async () => {
+    const fetchMock = createFetchMock([
+      jsonResponse(authResponse('binary-access-token')),
+      jsonResponse(principal),
+      new Response(new Blob(['%PDF-'], { type: 'application/pdf' }), {
+        status: 200,
+        headers: { 'content-type': 'application/pdf' },
+      }),
+    ]);
+    const localWrite = vi.spyOn(Storage.prototype, 'setItem');
+    const client = new ApiClient('http://api.example.test/api/v1', fetchMock);
+    await client.bootstrapSession();
+
+    const response = await client.organizationDownload('/sop-documents/sop-1/content', 'org-1');
+    expect(response.headers.get('content-type')).toBe('application/pdf');
+    const [url, init] = fetchMock.mock.calls[2] ?? [];
+    expect(String(url)).toBe('http://api.example.test/api/v1/sop-documents/sop-1/content');
+    expect(String(url)).not.toMatch(/[?&](token|access_token|authorization)=/i);
+    expect(new Headers(init?.headers).get('x-organization-id')).toBe('org-1');
+    expect(new Headers(init?.headers).get('authorization')).toBe('Bearer binary-access-token');
+    expect(localWrite).not.toHaveBeenCalled();
+    expect(window.localStorage).toHaveLength(0);
+    expect(window.sessionStorage).toHaveLength(0);
+  });
+
   it('fails before fetch when an organization-scoped request has no organization', async () => {
     const fetchMock = createFetchMock([]);
     const client = new ApiClient('http://api.example.test/api/v1', fetchMock);

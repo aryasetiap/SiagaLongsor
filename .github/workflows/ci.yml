@@ -48,7 +48,6 @@ jobs:
       E2E_BASE_URL: http://localhost:3000
       E2E_API_BASE_URL: http://localhost:3001/api/v1
       E2E_PROJECT_OWNER_EMAIL: owner@ci.example.invalid
-      AUTH_ACCESS_TOKEN_SECRET: ${{ format('ci-access-token-secret-{0}-{1}-not-for-production', github.run_id, github.run_attempt) }}
       AUTH_JWT_ISSUER: siagalongsor-api-ci
       AUTH_JWT_AUDIENCE: siagalongsor-web-ci
       SEED_ORGANIZATION_NAME: SiagaLongsor CI
@@ -72,16 +71,54 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @siagalongsor/web exec playwright install --with-deps chromium
       - run: pnpm prisma:generate
-      - name: Create ephemeral seed passwords
+      - name: Create ephemeral auth and object-storage credentials
         shell: bash
         run: |
           project_owner_password="$(openssl rand -base64 24)"
           school_admin_password="$(openssl rand -base64 24)"
+          access_token_secret="$(openssl rand -hex 32)"
+          minio_root_user="ci-minio-$(openssl rand -hex 12)"
+          minio_root_password="$(openssl rand -base64 36)"
+          object_storage_bucket="siagalongsor-ci-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          echo "::add-mask::$project_owner_password"
+          echo "::add-mask::$school_admin_password"
+          echo "::add-mask::$access_token_secret"
+          echo "::add-mask::$minio_root_user"
+          echo "::add-mask::$minio_root_password"
           {
             echo "SEED_PROJECT_OWNER_PASSWORD=$project_owner_password"
             echo "E2E_PROJECT_OWNER_PASSWORD=$project_owner_password"
             echo "SEED_SCHOOL_ADMIN_PASSWORD=$school_admin_password"
+            echo "AUTH_ACCESS_TOKEN_SECRET=$access_token_secret"
+            echo "MINIO_ROOT_USER=$minio_root_user"
+            echo "MINIO_ROOT_PASSWORD=$minio_root_password"
+            echo "OBJECT_STORAGE_ENDPOINT=http://127.0.0.1:9000"
+            echo "OBJECT_STORAGE_REGION=us-east-1"
+            echo "OBJECT_STORAGE_BUCKET=$object_storage_bucket"
+            echo "OBJECT_STORAGE_ACCESS_KEY_ID=$minio_root_user"
+            echo "OBJECT_STORAGE_SECRET_ACCESS_KEY=$minio_root_password"
+            echo "OBJECT_STORAGE_FORCE_PATH_STYLE=true"
           } >> "$GITHUB_ENV"
+      - name: Start private object storage and create bucket
+        shell: bash
+        run: |
+          docker run -d --rm --name siagalongsor-ci-minio \
+            -e MINIO_ROOT_USER \
+            -e MINIO_ROOT_PASSWORD \
+            -p 127.0.0.1:9000:9000 \
+            minio/minio:RELEASE.2025-04-22T22-12-26Z \
+            server /data --address :9000
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error "$OBJECT_STORAGE_ENDPOINT/minio/health/ready"; then
+              break
+            fi
+            if [ "$attempt" = 30 ]; then
+              echo "MinIO readiness check failed" >&2
+              exit 1
+            fi
+            sleep 1
+          done
+          corepack pnpm --filter @siagalongsor/api exec tsx scripts/create-e2e-bucket.ts
       - run: pnpm lint
       - run: pnpm format:check
       - run: pnpm typecheck

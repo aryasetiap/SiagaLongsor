@@ -34,4 +34,5 @@ export interface CursorQuery {
 
 export interface OrganizationApiClient {
   organizationRequest<T>(path: string, organizationId: string, init?: RequestInit): Promise<T>;
+  organizationDownload?(path: string, organizationId: string): Promise<Response>;
 }
