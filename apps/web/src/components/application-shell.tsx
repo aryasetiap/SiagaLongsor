@@ -37,7 +37,7 @@ const navigation: readonly NavigationItem[] = [
     href: '/devices',
     roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
   },
-  { label: 'Laporan', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
+  { label: 'Laporan', href: '/reports', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
   {
     label: 'Profil Risiko',
     href: '/settings/risk-profile',
