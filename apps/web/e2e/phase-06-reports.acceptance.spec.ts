@@ -99,8 +99,18 @@ test('PROJECT_OWNER Reports memvalidasi range dan mengunduh CSV secara authentic
   expect(csvRequest.headers().authorization).toBeTruthy();
   expect(csvRequest.headers()['x-organization-id']).toBeTruthy();
   expect(csvUrl.searchParams.get('siteId')).toBe(siteId);
-  expect(csvUrl.searchParams.get('from')).toBe(new Date(fromInput).toISOString());
-  expect(csvUrl.searchParams.get('to')).toBe(new Date(toInput).toISOString());
+
+  // datetime-local is interpreted in the browser timezone (Asia/Jakarta).
+  // Derive expected ISO values in that same browser context so this remains
+  // independent from the host or CI runner timezone.
+  const expectedFrom = await page.evaluate(
+    (value: string) => new Date(value).toISOString(),
+    fromInput,
+  );
+  const expectedTo = await page.evaluate((value: string) => new Date(value).toISOString(), toInput);
+
+  expect(csvUrl.searchParams.get('from')).toBe(expectedFrom);
+  expect(csvUrl.searchParams.get('to')).toBe(expectedTo);
   expect(csvUrl.searchParams.has('token')).toBe(false);
   expect(csvUrl.searchParams.has('access_token')).toBe(false);
 

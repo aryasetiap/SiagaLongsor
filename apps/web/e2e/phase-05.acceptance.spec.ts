@@ -113,7 +113,7 @@ test('PROJECT_OWNER mengelola lifecycle Alert, realtime, dan Audit Log', async (
   await expect(
     detail.getByRole('button', { name: /Konfirmasi peringatan|Selesaikan|alarm palsu/ }),
   ).toHaveCount(0);
-  await detail.getByRole('button', { name: 'Tutup' }).click();
+  await detail.getByRole('button', { name: 'Tutup', exact: true }).click();
 
   const newOccurrence = telemetryPayload(unique, bootId, ++sequence, dangerTilt + 0.3);
   await expectAccepted(await sendTelemetry(request, hardwareId, deviceSecret, newOccurrence));
@@ -133,7 +133,7 @@ test('PROJECT_OWNER mengelola lifecycle Alert, realtime, dan Audit Log', async (
   expect((await falseAlarmResponse).status()).toBe(200);
   await expect(detail).toContainText('Alarm palsu', { timeout: 20_000 });
   await expect(detail.getByText(`Gangguan sensor ${unique}`)).toBeVisible();
-  await detail.getByRole('button', { name: 'Tutup' }).click();
+  await detail.getByRole('button', { name: 'Tutup', exact: true }).click();
 
   const adminOccurrence = telemetryPayload(unique, bootId, ++sequence, dangerTilt + 0.4);
   await expectAccepted(await sendTelemetry(request, hardwareId, deviceSecret, adminOccurrence));
@@ -221,7 +221,7 @@ test('SCHOOL_ADMIN hanya dapat acknowledge dan tidak dapat membaca Audit Log', a
     await expect(detail).toContainText('Diketahui', { timeout: 20_000 });
     await expect(detail.getByRole('button', { name: 'Selesaikan' })).toHaveCount(0);
     await expect(detail.getByRole('button', { name: 'Tandai alarm palsu' })).toHaveCount(0);
-    await detail.getByRole('button', { name: 'Tutup' }).click();
+    await detail.getByRole('button', { name: 'Tutup', exact: true }).click();
   }
   await expectNoSensitiveStorage(page);
   expect(pageErrors).toEqual([]);
