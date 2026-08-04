@@ -281,8 +281,7 @@ Admin sekolah harus dapat:
 
 ## 8. Phase 05 alert operations and realtime acceptance
 
-Contract foundation ini membekukan 48 acceptance criteria. Status final: **PASS** pada 1 Agustus
-2026. Evidence contract, backend lifecycle/audit, Redis Pub/Sub SSE, frontend, pengulangan API
+Contract foundation ini membekukan 48 acceptance criteria. Status final: **PASS** pada 1 Agustus 2026. Evidence contract, backend lifecycle/audit, Redis Pub/Sub SSE, frontend, pengulangan API
 integration, dan Chromium serial dicatat pada
 [`docs/17_PHASE_05_ACCEPTANCE_REPORT.md`](17_PHASE_05_ACCEPTANCE_REPORT.md).
 
@@ -424,3 +423,90 @@ final berada di [`docs/18_PHASE_06_ACCEPTANCE_REPORT.md`](18_PHASE_06_ACCEPTANCE
 72. UI polling 3 detik/backoff berhenti pada terminal state, navigasi, organization switch, atau
     unmount; seluruh flow map/SOP/report accessible dan tidak membocorkan secret ke browser
     storage, URL, log, artifact test, response, atau repository.
+
+## 10. Phase 07 production-readiness acceptance
+
+Seluruh 60 kriteria berikut berstatus **PENDING**. Target engineering dan evidence dibekukan dalam
+[`docs/19_PHASE_07_PRODUCTION_READINESS_CONTRACT.md`](19_PHASE_07_PRODUCTION_READINESS_CONTRACT.md);
+dokumen ini tidak mengklaim test, backup/restore, deployment, atau error tracking telah tersedia.
+
+### Performance/load (1–12)
+
+1. **PENDING** — k6 smoke test di environment non-production terisolasi memenuhi target smoke.
+2. **PENDING** — k6 load authenticated API memenuhi target failure, check, p95, p99, dan capacity.
+3. **PENDING** — k6 stress test mencatat titik degradasi tanpa silent data corruption.
+4. **PENDING** — k6 spike test membuktikan recovery ke target latency/error setelah spike.
+5. **PENDING** — k6 endurance test memenuhi target dan tidak menunjukkan tren resource/error tak terjelaskan.
+6. **PENDING** — workload authenticated memakai bearer dan `X-Organization-Id` organisasi test.
+7. **PENDING** — telemetry workload memakai device test, payload valid unik/idempoten, bukan device lapangan.
+8. **PENDING** — workload critical read mencakup dashboard, monitoring, alert list, dan path yang dicatat.
+9. **PENDING** — hasil membedakan application, timeout, transport, dan check failures.
+10. **PENDING** — evidence memuat commit/build, script checksum, environment, dataset, dan hasil lengkap.
+11. **PENDING** — data test dibersihkan/di-retain secara terisolasi tanpa menghapus data production.
+12. **PENDING** — test tidak memicu emergency publik, sirene nyata, atau remote siren.
+
+### Backup/restore (13–23)
+
+13. **PENDING** — runbook menetapkan PostgreSQL sebagai data durable authoritative dan mencakup database lengkap.
+14. **PENDING** — private object storage artifact dokumen/report dan manifestnya dicakup backup.
+15. **PENDING** — Redis dikecualikan sebagai authoritative business history dan recovery-nya didokumentasikan.
+16. **PENDING** — backup terjadwal memenuhi target RPO engineering dan mencatat backup sukses terakhir.
+17. **PENDING** — backup terenkripsi in transit/at rest dengan akses least privilege dan secret tersanitasi.
+18. **PENDING** — artifact memiliki nama terstruktur, manifest, UTC timestamp, ukuran, dan checksum tervalidasi.
+19. **PENDING** — retensi terdokumentasi dan tidak menghapus artifact yang masih diwajibkan.
+20. **PENDING** — restore dilakukan ke environment bersih terisolasi, bukan sumber/production.
+21. **PENDING** — restore verification membuktikan schema, referential integrity, sampling data, dan artifact readability.
+22. **PENDING** — restore drill memenuhi target RTO engineering dengan waktu dan deviasi tercatat.
+23. **PENDING** — runbook mencakup rollback/recovery restore failure dan secret handling tanpa klaim HA/SLA.
+
+### Production deployment (24–34)
+
+24. **PENDING** — deployment production terpisah dari compose development/reference dan tidak menyatakannya production-ready.
+25. **PENDING** — seluruh production image dipin, tanpa tag `latest`.
+26. **PENDING** — API/web production build dapat ditelusuri ke commit dan artifact deploy.
+27. **PENDING** — PostgreSQL, Redis, object storage privat; port admin tidak publik.
+28. **PENDING** — TLS/reverse proxy dan endpoint publik yang diperlukan diverifikasi.
+29. **PENDING** — environment/secret berada di luar source control dan tidak muncul pada output/log.
+30. **PENDING** — health/readiness check lulus sebelum traffic dinyatakan siap.
+31. **PENDING** — migration-before-app startup dan backup sebelum perubahan berisiko terbukti dijalankan.
+32. **PENDING** — rollback aplikasi dan recovery migration didokumentasikan serta diuji aman.
+33. **PENDING** — least privilege, durable volume, dan restart behavior diverifikasi.
+34. **PENDING** — evidence deployment menyimpan UTC, operator, commit/image, check, dan batasan tanpa klaim HA.
+
+### Error tracking/observability (35–42)
+
+35. **PENDING** — backend/frontend capture error relevan tanpa tracking failure merusak core flow.
+36. **PENDING** — event error memiliki correlation/request ID ke log tersanitasi.
+37. **PENDING** — event error memuat release/commit dan environment identity.
+38. **PENDING** — sanitization meniadakan Authorization, token, password, dan sensitive browser storage.
+39. **PENDING** — sanitization meniadakan device credential/hash, raw telemetry, storage key/credential, dan bytes dokumen.
+40. **PENDING** — context error dibatasi untuk diagnosis dan menjaga organization privacy.
+41. **PENDING** — alerting/escalation error terdokumentasi dengan owner, severity, dan respons.
+42. **PENDING** — failure injection aman membuktikan capture/sanitization tanpa secret pada tracker/log.
+
+### Security review (43–50)
+
+43. **PENDING** — auth/authz dan organization isolation regression lulus untuk kedua role dan cross-org tetap ditolak/404.
+44. **PENDING** — dependency audit/manual secret review mencatat severity, owner, dan remediation.
+45. **PENDING** — secret scanning repository/deployment artifact selesai tanpa secret aktif tak tertangani.
+46. **PENDING** — security headers, CORS, rate limit, dan error envelope diverifikasi.
+47. **PENDING** — upload validation/private object storage diverifikasi tanpa public URL/credential/object key.
+48. **PENDING** — formula-injection defense dan log/error sanitization diuji ulang.
+49. **PENDING** — backup security dan deployment network exposure ditinjau dan finding dicatat.
+50. **PENDING** — permissions dan UNKNOWN semantics tidak melemah; remote siren tidak ada.
+
+### Incident simulation (51–56)
+
+51. **PENDING** — API unavailable/restart simulation membuktikan recovery dan failure state tanpa fabricated SAFE.
+52. **PENDING** — PostgreSQL unavailable/recovery simulation mendokumentasikan failure dan recovery aktual.
+53. **PENDING** — Redis unavailable/recovery dan report-worker interruption/recovery mendokumentasikan state/retry/integrity.
+54. **PENDING** — object storage unavailable/recovery membuktikan failure state aman dan recovery.
+55. **PENDING** — SSE disconnect/reconnect membuktikan REST authoritative/refetch; report realtime tetap out of scope.
+56. **PENDING** — stale/offline telemetry, failed deployment/rollback, dan corrupted backup detection disimulasikan aman tanpa emergency/sirene.
+
+### UAT/release decision (57–60)
+
+57. **PENDING** — Project Owner UAT semua flow: auth, Monitoring Points, Devices, Dashboard, Alerts, Map, SOP, Reports, Settings/Audit Log.
+58. **PENDING** — School Admin UAT flow yang diizinkan dan denial Owner-only, termasuk Settings/Audit Log permissions.
+59. **PENDING** — UAT mencatat accessibility/responsive dasar serta loading/error/empty/offline/stale/UNKNOWN tanpa SAFE palsu.
+60. **PENDING** — P7-06 mengarsipkan sign-off/evidence/blocker/release decision; `phase-07-complete` hanya setelah merge dan PASS final.

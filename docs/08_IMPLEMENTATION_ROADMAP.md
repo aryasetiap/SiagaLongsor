@@ -215,19 +215,33 @@ Exit criteria:
 
 Workstream:
 
-| ID    | Task                                                        | Status  |
-| ----- | ----------------------------------------------------------- | ------- |
+| ID    | Task                                                         | Status  |
+| ----- | ------------------------------------------------------------ | ------- |
 | P6-01 | Contract map, SOP documents, CSV export, dan PDF report jobs | selesai |
-| P6-02 | Backend persistence, object storage, worker, dan API          | selesai |
-| P6-03 | Frontend map, SOP, export, dan report job UI                  | selesai |
-| P6-04 | Security, browser, integration, dan full acceptance           | selesai |
+| P6-02 | Backend persistence, object storage, worker, dan API         | selesai |
+| P6-03 | Frontend map, SOP, export, dan report job UI                 | selesai |
+| P6-04 | Security, browser, integration, dan full acceptance          | selesai |
 
 Phase 05 tetap selesai dan menjadi baseline lifecycle/realtime. Phase 06 tidak mengubah risk
 engine, current-state semantics, alert lifecycle, atau Phase 05 SSE contract.
 
-## Phase 7 — Hardening and deployment
+## Phase 7 — Hardening and deployment — contract active
 
-Output:
+Phase 07 belum selesai dan belum memiliki bukti implementasi production-readiness. P7-01 sedang
+aktif untuk membekukan kontrak dan acceptance criteria; workstream lain tetap pending. Kontrak
+authoritative berada di
+[`docs/19_PHASE_07_PRODUCTION_READINESS_CONTRACT.md`](19_PHASE_07_PRODUCTION_READINESS_CONTRACT.md).
+
+| ID    | Task                                                | Status  |
+| ----- | --------------------------------------------------- | ------- |
+| P7-01 | Production-readiness contract + acceptance criteria | aktif   |
+| P7-02 | k6 performance/load testing                         | pending |
+| P7-03 | Backup + restore + operational runbook              | pending |
+| P7-04 | Production deployment + error tracking              | pending |
+| P7-05 | Security review + incident simulations              | pending |
+| P7-06 | UAT + full acceptance + release decision            | pending |
+
+Planned output (belum diimplementasikan):
 
 - k6 tests.
 - Backup scripts/runbook.
@@ -236,11 +250,11 @@ Output:
 - Security review.
 - UAT checklist.
 
-Exit criteria:
+Phase 07 exit criteria yang dibekukan:
 
-- Restore backup diuji.
-- Load test target tercapai.
-- Incident simulations dilakukan.
+- Restore backup diuji pada environment terisolasi.
+- Target load-test engineering tercapai pada environment yang dicatat.
+- Incident simulations aman dilakukan dan memiliki evidence.
 
 ## Work breakdown rule
 
