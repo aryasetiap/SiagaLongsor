@@ -198,11 +198,20 @@ test('PROJECT_OWNER membuat PDF hingga SUCCEEDED dan mengunduh artifact secara a
     to: string;
   };
 
+  const expectedPdfFrom = await page.evaluate(
+    (value: string) => new Date(value).toISOString(),
+    fromInput,
+  );
+  const expectedPdfTo = await page.evaluate(
+    (value: string) => new Date(value).toISOString(),
+    toInput,
+  );
+
   expect(createBody).toEqual({
     reportType: 'SITE_PERIOD_SUMMARY_PDF',
     siteId,
-    from: new Date(fromInput).toISOString(),
-    to: new Date(toInput).toISOString(),
+    from: expectedPdfFrom,
+    to: expectedPdfTo,
   });
 
   const createResponse = await createResponsePromise;
@@ -335,8 +344,18 @@ test('SCHOOL_ADMIN memiliki akses Reports yang sama untuk CSV dan PDF', async ({
 
   const csvUrl = new URL(csvRequest.url());
   expect(csvUrl.searchParams.get('siteId')).toBe(siteId);
-  expect(csvUrl.searchParams.get('from')).toBe(new Date(fromInput).toISOString());
-  expect(csvUrl.searchParams.get('to')).toBe(new Date(toInput).toISOString());
+
+  const expectedAdminFrom = await page.evaluate(
+    (value: string) => new Date(value).toISOString(),
+    fromInput,
+  );
+  const expectedAdminTo = await page.evaluate(
+    (value: string) => new Date(value).toISOString(),
+    toInput,
+  );
+
+  expect(csvUrl.searchParams.get('from')).toBe(expectedAdminFrom);
+  expect(csvUrl.searchParams.get('to')).toBe(expectedAdminTo);
 
   const csvResponse = await csvResponsePromise;
   expect(csvResponse.status()).toBe(200);
