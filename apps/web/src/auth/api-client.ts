@@ -95,6 +95,20 @@ export class ApiClient {
     return this.requestWithRefresh<T>(path, { ...init, headers }, true);
   }
 
+  async organizationDownload(path: string, organizationId: string): Promise<Response> {
+    const normalizedOrganizationId = organizationId.trim();
+    if (normalizedOrganizationId.length === 0) {
+      throw new ApiClientError(
+        'Organisasi aktif harus dipilih sebelum mengunduh SOP.',
+        'configuration',
+        undefined,
+        'ORGANIZATION_CONTEXT_REQUIRED',
+      );
+    }
+
+    return this.openDownloadWithRefresh(path, normalizedOrganizationId, true);
+  }
+
   async openOrganizationStream(
     path: string,
     organizationId: string,
@@ -196,6 +210,59 @@ export class ApiClient {
       if (await this.refreshAccessToken()) {
         return this.openStreamWithRefresh(path, organizationId, signal, false);
       }
+    }
+    if (!response.ok) {
+      const envelope = await readErrorEnvelope(response);
+      throw new ApiClientError(
+        envelope.message,
+        'api',
+        response.status,
+        envelope.code,
+        envelope.requestId,
+        envelope.details,
+      );
+    }
+    return response;
+  }
+
+  private async openDownloadWithRefresh(
+    path: string,
+    organizationId: string,
+    allowRefresh: boolean,
+  ): Promise<Response> {
+    const tokenUsed = this.accessToken;
+    if (tokenUsed === null) {
+      if (!allowRefresh || !(await this.refreshAccessToken())) {
+        throw new ApiClientError(
+          'Sesi unduhan tidak tersedia.',
+          'api',
+          401,
+          'ACCESS_TOKEN_INVALID',
+        );
+      }
+      return this.openDownloadWithRefresh(path, organizationId, false);
+    }
+
+    let response: Response;
+    try {
+      response = await this.fetchImplementation.call(globalThis, `${this.apiBaseUrl}${path}`, {
+        method: 'GET',
+        credentials: 'include',
+        headers: {
+          accept: 'application/pdf',
+          authorization: `Bearer ${tokenUsed}`,
+          'x-organization-id': organizationId,
+        },
+      });
+    } catch {
+      throw new ApiClientError('Unduhan SOP tidak dapat dijangkau.', 'network');
+    }
+
+    if (response.status === 401 && allowRefresh) {
+      if (this.accessToken !== tokenUsed)
+        return this.openDownloadWithRefresh(path, organizationId, false);
+      if (await this.refreshAccessToken())
+        return this.openDownloadWithRefresh(path, organizationId, false);
     }
     if (!response.ok) {
       const envelope = await readErrorEnvelope(response);

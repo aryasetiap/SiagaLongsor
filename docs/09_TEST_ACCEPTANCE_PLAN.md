@@ -344,8 +344,9 @@ storage/artifact safety, serta Audit Log yang tersanitasi.
 
 ## 9. Phase 06 map, SOP documents, dan reports acceptance
 
-Contract P6-01 membekukan 72 acceptance criteria berikut. Status implementasi: **PENDING** sampai
-P6-02, P6-03, dan P6-04 memberikan evidence unit, integration, component, dan Chromium yang sesuai.
+Contract P6-01 membekukan 72 acceptance criteria berikut. Status implementasi: **PASS/COMPLETE**.
+Seluruh kriteria memiliki evidence contract, unit/component, integration, dan/atau Chromium; bukti
+final berada di [`docs/18_PHASE_06_ACCEPTANCE_REPORT.md`](18_PHASE_06_ACCEPTANCE_REPORT.md).
 
 1. Semua endpoint Phase 06 membutuhkan bearer authentication.
 2. Semua endpoint Phase 06 membutuhkan `X-Organization-Id`.

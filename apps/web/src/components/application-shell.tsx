@@ -31,13 +31,13 @@ const navigation: readonly NavigationItem[] = [
     roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
   },
   { label: 'Peringatan', href: '/alerts', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
-  { label: 'Peta & Evakuasi', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
+  { label: 'Peta & Evakuasi', href: '/map', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
   {
     label: 'Perangkat',
     href: '/devices',
     roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
   },
-  { label: 'Laporan', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
+  { label: 'Laporan', href: '/reports', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
   {
     label: 'Profil Risiko',
     href: '/settings/risk-profile',

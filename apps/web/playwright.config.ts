@@ -41,6 +41,9 @@ export default defineConfig({
       env: {
         API_PORT: String(apiPort),
         WEB_URL: webBaseUrl.origin,
+        // Browser acceptance performs several legitimate logins in one run.
+        // Authentication rate-limit behavior is covered independently by API integration tests.
+        AUTH_LOGIN_RATE_LIMIT_MAX: '100',
       },
     },
     {

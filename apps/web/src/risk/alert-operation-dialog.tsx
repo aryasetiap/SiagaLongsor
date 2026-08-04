@@ -4,6 +4,7 @@ import { type FormEvent, forwardRef, useEffect, useRef, useState } from 'react';
 
 import type { OrganizationApiClient } from '../api/contracts';
 import { ApiClientError } from '../auth/api-client';
+import { SopQuickAccess } from '../map/sop-quick-access';
 import { acknowledgeAlert, markAlertFalseAlarm, resolveAlert } from './risk-api';
 import type { Alert, AlertMutationResponse } from './risk-contracts';
 import { alertTypeLabel, severityLabel } from './risk-presentation';
@@ -148,7 +149,7 @@ export function AlertOperationDialog({
             audit.
           </p>
         )}
-        <SopUnavailable />
+        <SopQuickAccess client={client} organizationId={organizationId} siteId={alert.site.id} />
         <form noValidate onSubmit={(event) => void submit(event)} className="mt-5 space-y-4">
           {operation === 'acknowledge' ? (
             <>
@@ -223,6 +224,7 @@ export function AlertOperationDialog({
   );
 }
 
+/** Kept as a small compatibility presentation for older, non-Site-scoped callers. */
 export function SopUnavailable() {
   const [open, setOpen] = useState(false);
   return (
