@@ -206,7 +206,7 @@ describe('ReportsManager', () => {
     current.__detail.mockReturnValueOnce(lateOrganizationA.promise);
 
     const view = render(<ReportsManager client={current} organizationId="org-1" />);
-    expect(await screen.findByLabelText('Site')).toHaveValue('site-1');
+    await waitFor(() => expect(screen.getByLabelText('Site')).toHaveValue('site-1'));
 
     await fill('2026-01-01T00:00', '2026-01-02T00:00');
     await userEvent.click(screen.getByRole('button', { name: 'Buat laporan PDF' }));

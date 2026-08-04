@@ -5,5 +5,6 @@ export default defineConfig({
     environment: 'node',
     include: ['src/**/*.e2e.spec.ts'],
     setupFiles: ['./test/setup-environment.ts'],
+    fileParallelism: false,
   },
 });
