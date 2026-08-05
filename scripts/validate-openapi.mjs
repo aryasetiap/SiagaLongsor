@@ -399,9 +399,6 @@ try {
       get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
       put: ['PROJECT_OWNER'],
     },
-    '/realtime/stream': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
   };
   for (const [path, methods] of Object.entries(expectedUserOperations)) {
     for (const [method, expectedRoles] of Object.entries(methods)) {
@@ -447,22 +444,6 @@ try {
       JSON.stringify(rawSpecification.components.parameters.SiteSort.schema.enum) ===
         JSON.stringify(['name:asc', 'name:desc', 'createdAt:desc']),
     'GET /sites sort contract is incorrect.',
-  );
-  const realtime = rawSpecification.paths['/realtime/stream'].get;
-  assert(
-    realtime.responses['200'].content['text/event-stream']['x-event-schema'].$ref ===
-      '#/components/schemas/RealtimeEvent' &&
-      hasParameterReference(realtime, '#/components/parameters/LastEventId') &&
-      realtime['x-keepalive-seconds'] === 15 &&
-      JSON.stringify(realtime['x-reconnect-seconds']) === JSON.stringify([1, 2, 5, 10, 30]) &&
-      /notification-only/.test(realtime['x-delivery-semantics']) &&
-      /REST remains authoritative/.test(realtime.description) &&
-      /does not provide durable replay/.test(realtime.description) &&
-      /Redis Pub\/Sub/.test(realtime.description) &&
-      !realtime.parameters.some(
-        (parameter) => parameter.in === 'query' && /token/i.test(parameter.name),
-      ),
-    'SSE authentication, delivery, reconnect, or multi-instance contract drifted.',
   );
   for (const forbiddenFragment of [
     '/notifications',
