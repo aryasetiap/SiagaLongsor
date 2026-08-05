@@ -44,6 +44,28 @@ describe('device telemetry simulator', () => {
     });
   });
 
+  it('parses explicit nullable readings while preserving zero', () => {
+    const parsed = parseSimulatorConfig(
+      {
+        ...testEnvironment,
+        SIMULATOR_TILT_MAGNITUDE_DEG: '0',
+        SIMULATOR_SOIL_MOISTURE_PCT: 'null',
+        SIMULATOR_RAINFALL_MM_HOUR: '4.5',
+        SIMULATOR_BATTERY_VOLTAGE: 'null',
+      },
+      [],
+    );
+    expect(parsed.readings).toEqual({
+      tiltMagnitudeDeg: 0,
+      soilMoisturePct: null,
+      rainfallMmHour: 4.5,
+      batteryVoltage: null,
+    });
+    expect(() =>
+      parseSimulatorConfig({ ...testEnvironment, SIMULATOR_TILT_MAGNITUDE_DEG: 'NaN' }, []),
+    ).toThrow(SimulatorError);
+  });
+
   it('requires credentials from environment and never accepts a secret CLI option', () => {
     expect(() => parseSimulatorConfig({}, [])).toThrowError(
       expect.objectContaining({ code: 'CONFIG_REQUIRED' }),
@@ -94,6 +116,21 @@ describe('device telemetry simulator', () => {
     expect(first).not.toHaveProperty('hardwareId');
     expect(first).not.toHaveProperty('serverRisk');
     expect(first).not.toHaveProperty('Authorization');
+  });
+
+  it('preserves configured null readings in generated payloads', () => {
+    const payload = generateTelemetryPayload(
+      createSimulatorState(1, () => 'boot'),
+      new Date(),
+      () => 'message',
+      { tiltMagnitudeDeg: null, soilMoisturePct: 0, rainfallMmHour: null, batteryVoltage: null },
+    );
+    expect(payload.readings).toMatchObject({
+      tiltMagnitudeDeg: null,
+      soilMoisturePct: 0,
+      rainfallMmHour: null,
+      batteryVoltage: null,
+    });
   });
 
   it('normal scenario sends unique messages with incrementing sequence', async () => {
@@ -260,6 +297,12 @@ function config(overrides: Partial<SimulatorConfig> = {}): SimulatorConfig {
     count: 1,
     intervalMs: 0,
     sequenceStart: 1,
+    readings: {
+      tiltMagnitudeDeg: 0.9,
+      soilMoisturePct: 62.5,
+      rainfallMmHour: 12.4,
+      batteryVoltage: 12.7,
+    },
     ...overrides,
   };
 }
