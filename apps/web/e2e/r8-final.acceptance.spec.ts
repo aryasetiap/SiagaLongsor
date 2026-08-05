@@ -21,9 +21,7 @@ test('PROJECT_OWNER dapat membuka empat halaman produk single-device', async ({ 
 
   await page.goto('/devices');
   await expect(page.getByRole('heading', { name: 'Perangkat', exact: true })).toBeVisible();
-  await expect(
-    page.getByText(/Konektivitas|Perangkat belum dikonfigurasi|Data tidak dapat dimuat/),
-  ).toBeVisible();
+  await expect(page.getByText('Konektivitas', { exact: true })).toBeVisible();
   await expect(
     page.getByRole('button', { name: /Daftarkan perangkat|Rotasi credential|Nonaktifkan/i }),
   ).toHaveCount(0);
