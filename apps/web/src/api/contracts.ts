@@ -31,8 +31,3 @@ export interface CursorQuery {
   readonly cursor?: string;
   readonly limit?: number;
 }
-
-export interface OrganizationApiClient {
-  organizationRequest<T>(path: string, organizationId: string, init?: RequestInit): Promise<T>;
-  organizationDownload?(path: string, organizationId: string): Promise<Response>;
-}

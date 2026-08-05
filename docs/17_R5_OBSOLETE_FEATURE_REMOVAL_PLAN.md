@@ -132,6 +132,8 @@ Prerequisites: browser acceptance replaced; no imports from retained pages; prov
 
 Verification: `rg` import audit, web typecheck/lint/test/build, focused R3 browser tests.
 
+Status: completed in this R5-B pass for the frontend-only batch. Removed legacy MonitoringPoint, Alerts, Map/SOP, Reports, dashboard, generic audit, organization/realtime presentation, and device-management UI/routes/tests. Retained `/overview`, `/devices`, `/settings/risk-profile`, `/settings/audit-log`, authentication, and `single-device/**`. Backend provisioning, alert observation, models, and infrastructure remain untouched for R5-C/R6/R7 decisions.
+
 ### R5-C — isolated backend product APIs
 
 Scope: remove dashboard, map/SOP, reports controllers and legacy UI-only read APIs whose consumers are gone. Do not remove alert services, device provisioning, sites, or monitoring points yet.

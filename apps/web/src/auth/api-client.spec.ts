@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { ApiClient, ApiClientError } from './api-client';
 import type { Principal } from './auth-types';
-import { validationErrorFixture } from '../../test/phase-02-fixtures';
+import { validationErrorFixture } from '../../test/api-fixtures';
 
 const principal: Principal = {
   id: 'user-1',
@@ -131,69 +131,11 @@ describe('ApiClient', () => {
     expectRequest(fetchMock, 4, '/protected', 'Bearer rotated-token');
   });
 
-  it('keeps the organization header when a request is retried after refresh', async () => {
-    const fetchMock = createFetchMock([
-      jsonResponse(authResponse('initial-token')),
-      jsonResponse(principal),
-      jsonResponse({ error: { code: 'SESSION_INVALID' } }, 401),
-      jsonResponse(authResponse('rotated-token')),
-      jsonResponse({ data: [] }),
-    ]);
-    const client = new ApiClient('http://api.example.test/api/v1', fetchMock);
-    await client.bootstrapSession();
-
-    await client.organizationRequest('/devices', 'org-1');
-
-    for (const index of [2, 4]) {
-      const [, init] = fetchMock.mock.calls[index] ?? [];
-      expect(new Headers(init?.headers).get('x-organization-id')).toBe('org-1');
-    }
-    expectRequest(fetchMock, 4, '/devices', 'Bearer rotated-token');
-  });
-
-  it('downloads SOP through the authenticated organization client without token persistence or query parameters', async () => {
-    const fetchMock = createFetchMock([
-      jsonResponse(authResponse('binary-access-token')),
-      jsonResponse(principal),
-      new Response(new Blob(['%PDF-'], { type: 'application/pdf' }), {
-        status: 200,
-        headers: { 'content-type': 'application/pdf' },
-      }),
-    ]);
-    const localWrite = vi.spyOn(Storage.prototype, 'setItem');
-    const client = new ApiClient('http://api.example.test/api/v1', fetchMock);
-    await client.bootstrapSession();
-
-    const response = await client.organizationDownload('/sop-documents/sop-1/content', 'org-1');
-    expect(response.headers.get('content-type')).toBe('application/pdf');
-    const [url, init] = fetchMock.mock.calls[2] ?? [];
-    expect(String(url)).toBe('http://api.example.test/api/v1/sop-documents/sop-1/content');
-    expect(String(url)).not.toMatch(/[?&](token|access_token|authorization)=/i);
-    expect(new Headers(init?.headers).get('x-organization-id')).toBe('org-1');
-    expect(new Headers(init?.headers).get('authorization')).toBe('Bearer binary-access-token');
-    expect(localWrite).not.toHaveBeenCalled();
-    expect(window.localStorage).toHaveLength(0);
-    expect(window.sessionStorage).toHaveLength(0);
-  });
-
-  it('fails before fetch when an organization-scoped request has no organization', async () => {
-    const fetchMock = createFetchMock([]);
-    const client = new ApiClient('http://api.example.test/api/v1', fetchMock);
-
-    await expect(client.organizationRequest('/devices', '  ')).rejects.toEqual(
-      expect.objectContaining({
-        kind: 'configuration',
-        code: 'ORGANIZATION_CONTEXT_REQUIRED',
-      }),
-    );
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
   it('parses safe API code, requestId, message, and validation details', async () => {
     const fetchMock = createFetchMock([jsonResponse(validationErrorFixture, 400)]);
     const client = new ApiClient('http://api.example.test/api/v1', fetchMock);
 
-    await expect(client.organizationRequest('/devices', 'org-1')).rejects.toMatchObject({
+    await expect(client.request('/devices')).rejects.toMatchObject({
       kind: 'api',
       status: 400,
       code: 'VALIDATION_ERROR',
