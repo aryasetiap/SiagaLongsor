@@ -6,11 +6,11 @@ const receivedAt = new Date('2026-08-01T00:00:00.000Z');
 
 describe('evaluateConnectivity', () => {
   it.each([
-    [20, 'ONLINE', null],
-    [21, 'DELAYED', 'DEVICE_DELAYED'],
-    [35, 'DELAYED', 'DEVICE_DELAYED'],
-    [36, 'OFFLINE', 'DEVICE_OFFLINE'],
-  ] as const)('classifies age %s minutes as %s', (minutes, status, alertType) => {
+    [20, 'ONLINE'],
+    [21, 'DELAYED'],
+    [35, 'DELAYED'],
+    [36, 'OFFLINE'],
+  ] as const)('classifies age %s minutes as %s', (minutes, status) => {
     const result = evaluateConnectivity({
       lifecycleStatus: 'ENABLED',
       serverReceivedAt: receivedAt,
@@ -19,10 +19,9 @@ describe('evaluateConnectivity', () => {
       offlineAfterMinutes: 35,
     });
     expect(result.status).toBe(status);
-    expect(result.alertType).toBe(alertType);
   });
 
-  it('keeps a disabled Device UNKNOWN without connectivity alert', () => {
+  it('keeps a disabled Device UNKNOWN', () => {
     expect(
       evaluateConnectivity({
         lifecycleStatus: 'DISABLED',
@@ -31,7 +30,7 @@ describe('evaluateConnectivity', () => {
         onlineWithinMinutes: 20,
         offlineAfterMinutes: 35,
       }),
-    ).toMatchObject({ status: 'UNKNOWN', reason: 'DEVICE_DISABLED', alertType: null });
+    ).toMatchObject({ status: 'UNKNOWN', reason: 'DEVICE_DISABLED' });
   });
 
   it('keeps an enabled Device without telemetry UNKNOWN', () => {
@@ -43,6 +42,6 @@ describe('evaluateConnectivity', () => {
         onlineWithinMinutes: 20,
         offlineAfterMinutes: 35,
       }),
-    ).toEqual({ status: 'UNKNOWN', reason: null, alertType: null });
+    ).toEqual({ status: 'UNKNOWN', reason: null });
   });
 });

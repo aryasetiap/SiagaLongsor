@@ -54,8 +54,6 @@ describe('R2 single-device facade', () => {
 
   afterAll(async () => {
     if (prisma !== undefined) {
-      await prisma.alertEvent.deleteMany({ where: { telemetry: { device: { organizationId } } } });
-      await prisma.alert.deleteMany({ where: { organizationId } });
       await prisma.auditLog.deleteMany({ where: { organizationId } });
       await prisma.currentMonitoringPointState.deleteMany({ where: { organizationId } });
       await prisma.riskAssessment.deleteMany({ where: { organizationId } });
