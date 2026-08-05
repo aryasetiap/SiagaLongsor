@@ -3,8 +3,6 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service.js';
 import { Prisma, type Device } from '../generated/prisma/client.js';
 import { DeviceLifecycleStatus, RiskLevel } from '../generated/prisma/enums.js';
-import { RealtimePostCommitService } from '../realtime/realtime-post-commit.service.js';
-import type { RealtimeDescriptor } from '../realtime/realtime.types.js';
 import { evaluateConnectivity } from './connectivity-policy.js';
 import { DistributedLockService } from './distributed-lock.service.js';
 
@@ -16,7 +14,6 @@ export class ConnectivityEvaluatorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly locks: DistributedLockService,
-    private readonly realtime: RealtimePostCommitService,
   ) {}
 
   async runOnce(
@@ -50,7 +47,6 @@ export class ConnectivityEvaluatorService {
           evaluationTime,
         ),
       );
-      await this.realtime.dispatch(result.realtime);
       if (result.changed) evaluated += 1;
     }
     return evaluated;
@@ -60,14 +56,14 @@ export class ConnectivityEvaluatorService {
     transaction: Prisma.TransactionClient,
     candidate: { readonly monitoringPointId: string; readonly deviceId: string },
     evaluationTime: Date,
-  ): Promise<{ readonly changed: boolean; readonly realtime: readonly RealtimeDescriptor[] }> {
+  ): Promise<{ readonly changed: boolean }> {
     const device = await lockDevice(transaction, candidate.deviceId);
     if (
       device === null ||
       device.lifecycleStatus !== DeviceLifecycleStatus.ENABLED ||
       device.monitoringPointId !== candidate.monitoringPointId
     ) {
-      return { changed: false, realtime: [] };
+      return { changed: false };
     }
 
     const lockedState = await transaction.$queryRaw<Array<{ monitoringPointId: string }>>(
@@ -78,7 +74,7 @@ export class ConnectivityEvaluatorService {
         FOR UPDATE
       `,
     );
-    if (lockedState.length === 0) return { changed: false, realtime: [] };
+    if (lockedState.length === 0) return { changed: false };
 
     const state = await transaction.currentMonitoringPointState.findUnique({
       where: { monitoringPointId: candidate.monitoringPointId },
@@ -91,7 +87,7 @@ export class ConnectivityEvaluatorService {
       state.organizationId !== device.organizationId ||
       state.latestTelemetry === null
     ) {
-      return { changed: false, realtime: [] };
+      return { changed: false };
     }
 
     const profile = await transaction.riskProfile.findFirst({
@@ -101,7 +97,7 @@ export class ConnectivityEvaluatorService {
         isActive: true,
       },
     });
-    if (profile === null) return { changed: false, realtime: [] };
+    if (profile === null) return { changed: false };
 
     const decision = evaluateConnectivity({
       lifecycleStatus: device.lifecycleStatus,
@@ -112,7 +108,7 @@ export class ConnectivityEvaluatorService {
     });
     const target = decision.status;
     if (state.connectivityStatus === target) {
-      return { changed: false, realtime: [] };
+      return { changed: false };
     }
 
     const reason = decision.reason;
@@ -133,16 +129,6 @@ export class ConnectivityEvaluatorService {
               pendingDowngradeSince: null,
             },
     });
-    const realtime: RealtimeDescriptor[] = [
-      {
-        eventType: 'MONITORING_POINT_STATE_CHANGED',
-        occurredAt: evaluationTime.toISOString(),
-        organizationId: state.organizationId,
-        siteId: state.siteId,
-        monitoringPointId: state.monitoringPointId,
-        alertId: null,
-      },
-    ];
     if (reason !== null && state.serverRisk !== RiskLevel.UNKNOWN) {
       await transaction.auditLog.create({
         data: {
@@ -169,7 +155,7 @@ export class ConnectivityEvaluatorService {
         },
       });
     }
-    return { changed: true, realtime };
+    return { changed: true };
   }
 }
 

@@ -7,7 +7,6 @@ import {
   type RiskProfile,
   type Telemetry,
 } from '../generated/prisma/client.js';
-import type { RealtimeDescriptor } from '../realtime/realtime.types.js';
 import { evaluateRisk } from './risk-engine.js';
 import type { RiskEngineProfile, RiskEngineState } from './risk-engine.types.js';
 
@@ -21,7 +20,7 @@ export class RiskEvaluationService {
       readonly affectsCurrentState: boolean;
       readonly evaluatedAt: Date;
     },
-  ): Promise<readonly RealtimeDescriptor[]> {
+  ): Promise<void> {
     const profile = await transaction.riskProfile.findFirst({
       where: { siteId: input.device.siteId, isActive: true },
     });
@@ -64,7 +63,7 @@ export class RiskEvaluationService {
       });
     }
 
-    if (result.nextState === null) return [];
+    if (result.nextState === null) return;
     const previousStatus = previous?.serverRisk ?? 'UNKNOWN';
     await transaction.currentMonitoringPointState.upsert({
       where: { monitoringPointId: input.device.monitoringPointId },
@@ -131,18 +130,6 @@ export class RiskEvaluationService {
         },
       });
     }
-
-    const realtime: RealtimeDescriptor[] = [
-      {
-        eventType: 'MONITORING_POINT_STATE_CHANGED',
-        occurredAt: input.evaluatedAt.toISOString(),
-        organizationId: input.device.organizationId,
-        siteId: input.device.siteId,
-        monitoringPointId: input.device.monitoringPointId,
-        alertId: null,
-      },
-    ];
-    return realtime;
   }
 }
 

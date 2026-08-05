@@ -7,7 +7,7 @@ import request, {
   type Response as SuperTestResponse,
   type Test as SuperTestRequest,
 } from 'supertest';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../app.module.js';
 import { configureApp } from '../bootstrap/configure-app.js';
@@ -20,8 +20,6 @@ import {
   NetworkType,
 } from '../generated/prisma/enums.js';
 import { RedisService } from '../redis/redis.service.js';
-import { RealtimePostCommitService } from '../realtime/realtime-post-commit.service.js';
-import type { RealtimeDescriptor } from '../realtime/realtime.types.js';
 
 describe('Telemetry ingestion API', () => {
   let app: INestApplication;
@@ -38,19 +36,10 @@ describe('Telemetry ingestion API', () => {
   const pointId = `telemetry-point-${testRunId}`;
   let requestSequence = 0;
   let payloadSequence = 0;
-  const publishedDescriptors: RealtimeDescriptor[] = [];
 
   beforeAll(async () => {
     setTestEnvironment();
-    const module = await Test.createTestingModule({ imports: [AppModule] })
-      .overrideProvider(RealtimePostCommitService)
-      .useValue({
-        dispatch: vi.fn((descriptors: readonly RealtimeDescriptor[]) => {
-          publishedDescriptors.push(...descriptors);
-          return Promise.resolve();
-        }),
-      })
-      .compile();
+    const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = module.createNestApplication<NestExpressApplication>();
     configureApp(app as NestExpressApplication);
     await app.init();
@@ -127,7 +116,6 @@ describe('Telemetry ingestion API', () => {
   });
 
   it('accepts valid telemetry and atomically updates current device state', async () => {
-    const descriptorCount = publishedDescriptors.length;
     const payload = validPayload();
     const before = new Date();
     const response = await ingest(payload);
@@ -176,15 +164,6 @@ describe('Telemetry ingestion API', () => {
     expect(JSON.stringify(assessment)).not.toContain('credentialHash');
     expect(currentState.latestTelemetryId).toBe(stored.id);
     expect(currentState.connectivityStatus).toBe('ONLINE');
-    expect(publishedDescriptors.slice(descriptorCount)).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          eventType: 'MONITORING_POINT_STATE_CHANGED',
-          organizationId,
-          monitoringPointId: pointId,
-        }),
-      ]),
-    );
   });
 
   it('stores only the canonical body as raw payload without credentials or headers', async () => {
@@ -240,7 +219,6 @@ describe('Telemetry ingestion API', () => {
   it('returns the same acknowledgement for an exact duplicate without another row', async () => {
     const payload = validPayload();
     const first = await ingest(payload);
-    const descriptorsAfterFirst = publishedDescriptors.length;
     const assessmentCount = await prisma.riskAssessment.count({ where: { deviceId } });
     const second = await ingest(payload);
 
@@ -254,7 +232,6 @@ describe('Telemetry ingestion API', () => {
       await prisma.telemetry.count({ where: { deviceId, messageId: payload.messageId } }),
     ).toBe(1);
     expect(await prisma.riskAssessment.count({ where: { deviceId } })).toBe(assessmentCount);
-    expect(publishedDescriptors).toHaveLength(descriptorsAfterFirst);
   });
 
   it('canonicalizes object key order for exact duplicate detection', async () => {
@@ -490,7 +467,6 @@ describe('Telemetry ingestion API', () => {
       network: { type: NetworkType.WIFI, signalRssi: -55 },
     });
     expect((await ingest(recent)).status).toBe(201);
-    const descriptorsAfterRecent = publishedDescriptors.length;
     const afterRecent = await prisma.device.findUniqueOrThrow({ where: { id: deviceId } });
 
     const late = validPayload({
@@ -524,7 +500,6 @@ describe('Telemetry ingestion API', () => {
     ).toBe(2);
     expect(lateAssessment.affectsCurrentState).toBe(false);
     expect(currentState.lastTelemetryAt?.toISOString()).toBe(recentTimestamp);
-    expect(publishedDescriptors).toHaveLength(descriptorsAfterRecent);
   });
 
   it('requires JSON content type after authenticating the device', async () => {

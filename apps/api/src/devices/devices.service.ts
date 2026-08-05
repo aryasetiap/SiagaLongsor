@@ -11,8 +11,6 @@ import type { AuditRequestContext } from '../common/http/request-context.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { Prisma, type Device } from '../generated/prisma/client.js';
 import { DeviceLifecycleStatus } from '../generated/prisma/enums.js';
-import { RealtimePostCommitService } from '../realtime/realtime-post-commit.service.js';
-import type { RealtimeDescriptor } from '../realtime/realtime.types.js';
 import { type DeviceCursorBoundary, DeviceCursorService } from './device-cursor.service.js';
 import { DeviceCredentialService, type IssuedDeviceSecret } from './device-credential.service.js';
 import {
@@ -34,7 +32,6 @@ export class DevicesService {
     private readonly prisma: PrismaService,
     private readonly credentials: DeviceCredentialService,
     private readonly cursors: DeviceCursorService,
-    private readonly realtime: RealtimePostCommitService,
   ) {}
 
   async list(organizationId: string, query: ListDevicesQueryDto): Promise<DeviceListResponse> {
@@ -215,9 +212,7 @@ export class DevicesService {
         changes.monitoringPoint = { connect: { id: input.monitoringPointId } };
         changes.site = { connect: { id: targetSiteId } };
       }
-      if (Object.keys(changes).length === 0) return { device: existing, realtime: [] };
-
-      const realtime: RealtimeDescriptor[] = [];
+      if (Object.keys(changes).length === 0) return { device: existing };
       const updated = await transaction.device.update({
         where: { id: existing.id },
         data: changes,
@@ -227,7 +222,7 @@ export class DevicesService {
         input.monitoringPointId !== existing.monitoringPointId
       ) {
         const movedAt = new Date();
-        const stateUpdate = await transaction.currentMonitoringPointState.updateMany({
+        await transaction.currentMonitoringPointState.updateMany({
           where: { monitoringPointId: existing.monitoringPointId, deviceId: existing.id },
           data: {
             deviceId: null,
@@ -244,16 +239,6 @@ export class DevicesService {
             pendingDowngradeSince: null,
           },
         });
-        if (stateUpdate.count > 0) {
-          realtime.push(
-            stateChangedDescriptor(
-              organizationId,
-              existing.siteId,
-              existing.monitoringPointId,
-              movedAt,
-            ),
-          );
-        }
       }
       await transaction.auditLog.create({
         data: auditData({
@@ -269,10 +254,9 @@ export class DevicesService {
           },
         }),
       });
-      return { device: updated, realtime };
+      return { device: updated };
     });
 
-    await this.realtime.dispatch(result.realtime);
     return { data: toResponseData(result.device) };
   }
 
@@ -326,7 +310,7 @@ export class DevicesService {
       const existing = await lockDevice(transaction, organizationId, deviceId);
       if (existing === null) throw deviceNotFound();
       if (existing.lifecycleStatus === DeviceLifecycleStatus.DISABLED) {
-        return { device: existing, realtime: [] };
+        return { device: existing };
       }
 
       const disabledAt = new Date();
@@ -334,7 +318,7 @@ export class DevicesService {
         where: { id: existing.id },
         data: { lifecycleStatus: DeviceLifecycleStatus.DISABLED, disabledAt },
       });
-      const stateUpdate = await transaction.currentMonitoringPointState.updateMany({
+      await transaction.currentMonitoringPointState.updateMany({
         where: { monitoringPointId: existing.monitoringPointId, deviceId: existing.id },
         data: {
           serverRisk: 'UNKNOWN',
@@ -364,41 +348,11 @@ export class DevicesService {
           },
         }),
       });
-      return {
-        device: updated,
-        realtime:
-          stateUpdate.count === 0
-            ? []
-            : [
-                stateChangedDescriptor(
-                  organizationId,
-                  existing.siteId,
-                  existing.monitoringPointId,
-                  disabledAt,
-                ),
-              ],
-      };
+      return { device: updated };
     });
 
-    await this.realtime.dispatch(result.realtime);
     return { data: toResponseData(result.device) };
   }
-}
-
-function stateChangedDescriptor(
-  organizationId: string,
-  siteId: string,
-  monitoringPointId: string,
-  occurredAt: Date,
-): RealtimeDescriptor {
-  return {
-    eventType: 'MONITORING_POINT_STATE_CHANGED',
-    occurredAt: occurredAt.toISOString(),
-    organizationId,
-    siteId,
-    monitoringPointId,
-    alertId: null,
-  };
 }
 
 type DeviceSortDefinition =

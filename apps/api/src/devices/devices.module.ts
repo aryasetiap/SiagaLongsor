@@ -1,13 +1,12 @@
 import { Module } from '@nestjs/common';
 
-import { RealtimeModule } from '../realtime/realtime.module.js';
 import { DeviceCredentialService } from './device-credential.service.js';
 import { DeviceCursorService } from './device-cursor.service.js';
 import { DevicesController } from './devices.controller.js';
 import { DevicesService } from './devices.service.js';
 
 @Module({
-  imports: [RealtimeModule],
+  imports: [],
   controllers: [DevicesController],
   providers: [DevicesService, DeviceCredentialService, DeviceCursorService],
   exports: [DeviceCredentialService],

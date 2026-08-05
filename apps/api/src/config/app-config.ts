@@ -23,12 +23,6 @@ const environmentSchema = z.object({
   TELEMETRY_MAX_FUTURE_SKEW_SECONDS: z.coerce.number().int().min(0).max(3_600).default(300),
   TELEMETRY_RATE_LIMIT_TTL_MS: z.coerce.number().int().min(1_000).default(60_000),
   TELEMETRY_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(120),
-  OBJECT_STORAGE_ENDPOINT: z.url().optional(),
-  OBJECT_STORAGE_REGION: z.string().min(1).optional(),
-  OBJECT_STORAGE_BUCKET: z.string().min(1).optional(),
-  OBJECT_STORAGE_ACCESS_KEY_ID: z.string().min(1).optional(),
-  OBJECT_STORAGE_SECRET_ACCESS_KEY: z.string().min(1).optional(),
-  OBJECT_STORAGE_FORCE_PATH_STYLE: z.enum(['true', 'false']).default('true'),
 });
 
 export interface AppConfig {
@@ -53,14 +47,6 @@ export interface AppConfig {
     readonly rateLimitTtlMs: number;
     readonly rateLimitMax: number;
   };
-  readonly objectStorage: {
-    readonly endpoint: string;
-    readonly region: string;
-    readonly bucket: string;
-    readonly accessKeyId: string;
-    readonly secretAccessKey: string;
-    readonly forcePathStyle: boolean;
-  } | null;
 }
 
 export const APP_CONFIG = Symbol('APP_CONFIG');
@@ -74,23 +60,6 @@ export function parseAppConfig(environment: NodeJS.ProcessEnv): AppConfig {
   }
 
   const value = parsed.data;
-  const objectStorageValues = [
-    value.OBJECT_STORAGE_ENDPOINT,
-    value.OBJECT_STORAGE_REGION,
-    value.OBJECT_STORAGE_BUCKET,
-    value.OBJECT_STORAGE_ACCESS_KEY_ID,
-    value.OBJECT_STORAGE_SECRET_ACCESS_KEY,
-  ];
-  const configuredObjectStorageValues = objectStorageValues.filter(
-    (candidate) => candidate !== undefined,
-  );
-  if (
-    configuredObjectStorageValues.length !== 0 &&
-    configuredObjectStorageValues.length !== objectStorageValues.length
-  ) {
-    throw new Error('Invalid application configuration: incomplete object storage configuration');
-  }
-
   return Object.freeze({
     nodeEnv: value.NODE_ENV,
     port: value.API_PORT,
@@ -113,16 +82,5 @@ export function parseAppConfig(environment: NodeJS.ProcessEnv): AppConfig {
       rateLimitTtlMs: value.TELEMETRY_RATE_LIMIT_TTL_MS,
       rateLimitMax: value.TELEMETRY_RATE_LIMIT_MAX,
     }),
-    objectStorage:
-      configuredObjectStorageValues.length === 0
-        ? null
-        : Object.freeze({
-            endpoint: value.OBJECT_STORAGE_ENDPOINT!,
-            region: value.OBJECT_STORAGE_REGION!,
-            bucket: value.OBJECT_STORAGE_BUCKET!,
-            accessKeyId: value.OBJECT_STORAGE_ACCESS_KEY_ID!,
-            secretAccessKey: value.OBJECT_STORAGE_SECRET_ACCESS_KEY!,
-            forcePathStyle: value.OBJECT_STORAGE_FORCE_PATH_STYLE === 'true',
-          }),
   });
 }
