@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 
-import { AlertObservationService } from '../alerts/alert-observation.service.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { Prisma, type Device } from '../generated/prisma/client.js';
 import { DeviceLifecycleStatus, RiskLevel } from '../generated/prisma/enums.js';
@@ -17,7 +16,6 @@ export class ConnectivityEvaluatorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly locks: DistributedLockService,
-    private readonly alerts: AlertObservationService,
     private readonly realtime: RealtimePostCommitService,
   ) {}
 
@@ -145,19 +143,31 @@ export class ConnectivityEvaluatorService {
         alertId: null,
       },
     ];
-    if (reason !== null && decision.alertType !== null) {
-      const observation = await this.alerts.observe(transaction, {
-        organizationId: state.organizationId,
-        siteId: state.siteId,
-        monitoringPointId: state.monitoringPointId,
-        deviceId: device.id,
-        type: decision.alertType,
-        reasons: [reason],
-        observedAt: evaluationTime,
-        observationKey: `connectivity:${device.id}:${decision.alertType}:${evaluationTime.toISOString()}`,
-        eventType: 'CONNECTIVITY_TRANSITION',
+    if (reason !== null && state.serverRisk !== RiskLevel.UNKNOWN) {
+      await transaction.auditLog.create({
+        data: {
+          organizationId: state.organizationId,
+          actorId: null,
+          eventType: 'RISK_STATUS_CHANGED',
+          entityType: 'CurrentMonitoringPointState',
+          entityId: state.monitoringPointId,
+          requestId: `connectivity:${state.monitoringPointId}:${evaluationTime.toISOString()}`,
+          metadata: {
+            previousStatus: state.serverRisk,
+            currentStatus: RiskLevel.UNKNOWN,
+            reasons: [reason],
+            telemetryId: state.latestTelemetry.id,
+            riskProfileId: profile.id,
+            riskProfileVersion: profile.version,
+            sensorSnapshot: {
+              tiltMagnitudeDeg: state.latestTelemetry.tiltMagnitudeDeg?.toNumber() ?? null,
+              soilMoisturePct: state.latestTelemetry.soilMoisturePct?.toNumber() ?? null,
+              rainfallMmHour: state.latestTelemetry.rainfallMmHour?.toNumber() ?? null,
+            },
+            occurredAt: evaluationTime.toISOString(),
+          },
+        },
       });
-      if (observation.realtime !== null) realtime.push(observation.realtime);
     }
     return { changed: true, realtime };
   }

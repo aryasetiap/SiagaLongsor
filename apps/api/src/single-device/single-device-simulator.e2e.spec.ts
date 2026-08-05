@@ -17,6 +17,7 @@ import {
 } from '../device-simulator/device-simulator.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { DeviceCredentialService } from '../devices/device-credential.service.js';
+import { ConnectivityEvaluatorService } from '../connectivity/connectivity-evaluator.service.js';
 import { Role } from '../generated/prisma/enums.js';
 
 describe('R4 simulator single-device HTTP acceptance', () => {
@@ -306,6 +307,45 @@ describe('R4 simulator single-device HTTP acceptance', () => {
     expect(await auditCount()).toBe(batteryAuditCount);
     expect((await get('/device')).body.data.batteryVoltage).toBe(29);
     expect((await get('/overview')).body.data.readings.tiltMagnitudeDeg).toBe(0);
+
+    expect(await prisma.alert.count({ where: { organizationId } })).toBe(0);
+    expect(await prisma.alertEvent.count({ where: { alert: { organizationId } } })).toBe(0);
+
+    const evaluator = app.get(ConnectivityEvaluatorService);
+    const latestState = await prisma.currentMonitoringPointState.findUniqueOrThrow({
+      where: { monitoringPointId: pointId },
+    });
+    const latestTelemetryId = latestState.latestTelemetryId;
+    if (latestTelemetryId === null) throw new Error('Expected authoritative telemetry.');
+    const delayedAt = new Date(Date.now() - 25 * 60 * 1000);
+    await prisma.telemetry.update({
+      where: { id: latestTelemetryId },
+      data: { serverReceivedAt: delayedAt },
+    });
+    const delayedAuditCount = await auditCount();
+    await expect(evaluator.runOnce(new Date())).resolves.toMatchObject({ acquired: true });
+    const delayedState = await prisma.currentMonitoringPointState.findUniqueOrThrow({
+      where: { monitoringPointId: pointId },
+    });
+    expect(delayedState.connectivityStatus).toBe('DELAYED');
+    expect(delayedState.serverRisk).toBe('UNKNOWN');
+    expect(await auditCount()).toBe(delayedAuditCount + 1);
+    expect(await prisma.alert.count({ where: { organizationId } })).toBe(0);
+    expect(await prisma.alertEvent.count({ where: { alert: { organizationId } } })).toBe(0);
+
+    await prisma.telemetry.update({
+      where: { id: latestTelemetryId },
+      data: { serverReceivedAt: new Date(Date.now() - 45 * 60 * 1000) },
+    });
+    const offlineAuditCount = await auditCount();
+    await expect(evaluator.runOnce(new Date())).resolves.toMatchObject({ acquired: true });
+    const offlineState = await prisma.currentMonitoringPointState.findUniqueOrThrow({
+      where: { monitoringPointId: pointId },
+    });
+    expect(offlineState.connectivityStatus).toBe('OFFLINE');
+    expect(offlineState.serverRisk).toBe('UNKNOWN');
+    expect(await auditCount()).toBe(offlineAuditCount);
+    expect(await prisma.alert.count({ where: { organizationId } })).toBe(0);
   });
 });
 
