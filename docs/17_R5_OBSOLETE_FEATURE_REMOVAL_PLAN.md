@@ -162,3 +162,4 @@ Block deletion when any of the following is true:
 - OpenAPI consumers or browser tests still reference the endpoint.
 - A schema deletion would require editing a merged migration or lacks recovery evidence.
 - The change could turn stale/offline/null telemetry into `SAFE`, expose secrets, or remove immutable audit history.
+- R5-C status: completed. Dashboard and Map/SOP modules/controllers, tests, and OpenAPI paths were removed from runtime. Reports product endpoints/controller and API acceptance were removed; Reports queue/worker and object-storage dependencies remain dormant for R6. Alert observation remains a hard R5-D dependency. Device, Site, and MonitoringPoint provisioning support remains retained. No Prisma schema or migration changed.
