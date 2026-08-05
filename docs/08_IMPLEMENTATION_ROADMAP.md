@@ -1,5 +1,28 @@
 # Implementation Roadmap
 
+> **Scope reset R1 — authoritative direction.** Phase 0–6 completion records below are retained
+> as historical implementation evidence only; they no longer define the final product. The old
+> Phase 07 production-readiness sequence is paused/superseded for final release purposes. See
+> [`docs/20_SCOPE_RESET_SINGLE_DEVICE.md`](20_SCOPE_RESET_SINGLE_DEVICE.md) for the authoritative
+> one-device, four-page scope. R1 is completed by the documentation freeze; R2+ remain pending.
+
+## Revised refactor roadmap
+
+| ID  | Workstream                                            | Status    |
+| --- | ----------------------------------------------------- | --------- |
+| R1  | Scope Freeze                                          | completed |
+| R2  | Minimal Backend                                       | pending   |
+| R3  | Minimal Frontend                                      | pending   |
+| R4  | Telemetry Simulator / integration contract validation | pending   |
+| R5  | Remove obsolete product features                      | pending   |
+| R6  | Infrastructure cleanup                                | pending   |
+| R7  | Database/schema cleanup                               | pending   |
+| R8  | Regression + acceptance                               | pending   |
+| R9  | ESP32 firmware/integration                            | pending   |
+| R10 | Final performance/UAT/release readiness               | pending   |
+
+## Historical pre-scope-reset roadmap
+
 Jangan mengerjakan semua fase sekaligus. Setiap fase harus memiliki pull request/commit yang dapat ditinjau.
 
 ## Phase 0 — Repository and decisions — selesai
@@ -225,7 +248,7 @@ Workstream:
 Phase 05 tetap selesai dan menjadi baseline lifecycle/realtime. Phase 06 tidak mengubah risk
 engine, current-state semantics, alert lifecycle, atau Phase 05 SSE contract.
 
-## Phase 7 — Hardening and deployment — contract active
+## Phase 7 — Hardening and deployment — historical contract paused
 
 Phase 07 belum selesai dan belum memiliki bukti implementasi production-readiness. P7-01 sedang
 aktif untuk membekukan kontrak dan acceptance criteria; workstream lain tetap pending. Kontrak

@@ -1,512 +1,59 @@
 # Test and Acceptance Plan
 
-## 1. Status test per fase
-
-### Tersedia pada Phase 01
-
-- Unit test konfigurasi, refresh token, API client, login form, dan auth state.
-- API integration test untuk health, authentication, refresh rotation/replay, Origin protection,
-  logout, rate limiting, organization-scoped RBAC, user/membership state, dan session revocation.
-- Frontend component test untuk login, session bootstrap, protected content, retry/single-flight
-  refresh, logout, role display, dan larangan browser token storage.
-- Prisma validation, migration deploy dari database CI bersih, dan seed dua kali.
-- API dan web production build serta OpenAPI validation dalam full monorepo CI.
-
-Browser E2E belum tersedia dan tidak diklaim sebagai bagian Phase 01 yang sudah dibuat.
-
-### Terverifikasi pada Phase 02
-
-- Contract validation tersedia untuk error envelope, organization context, pagination, Site lookup,
-  MonitoringPoint, Device, one-time credential, dan telemetry.
-- Migration test dari database bersih dan seed idempotent tersedia.
-- API integration test mencakup permission, CRUD, credential lifecycle, ingestion, validation,
-  idempotency, raw payload, rate limiting, organization isolation, dan late data.
-- Frontend component test memakai typed contract mocks untuk akses PROJECT_OWNER dan read-only
-  SCHOOL_ADMIN.
-- Chromium browser smoke mencakup authentication, MonitoringPoint, Device, dan full lifecycle
-  acceptance lintas kapabilitas dengan simulator CLI aktual.
-- Full monorepo verification Phase 02 dicatat dalam
-  [`docs/14_PHASE_02_ACCEPTANCE_REPORT.md`](14_PHASE_02_ACCEPTANCE_REPORT.md).
-
-### Selesai pada Phase 03
-
-- Contract validation untuk immutable Site risk profile, assessment history, current monitoring
-  projection, alert list/detail, organization scope, dan cursor pagination.
-- Pure risk engine boundary matrix, technical range, reason, precedence, dan profile-version test.
-- Integration test untuk exactly-one assessment, duplicate/late behavior, transactional current
-  state, hysteresis, profile activation/no-op, alert deduplication, dan organization isolation.
-- Scheduler test untuk boundary ONLINE/DELAYED/OFFLINE, distributed lock, idempotency, disabled
-  Device, recovery tanpa auto-resolve, serta cadence default lima menit.
-- Phase 03 hanya membuat/membaca alert; mutation lifecycle tetap diuji pada Phase 05.
-- Operational Overview, Alert list/detail, assessment history, risk-profile versioning, role
-  behavior, organization isolation, dan credential-safe Chromium acceptance telah lulus. Matriks
-  hasil lengkap tersedia pada
-  [`docs/15_PHASE_03_ACCEPTANCE_REPORT.md`](15_PHASE_03_ACCEPTANCE_REPORT.md).
-
-### Selesai pada Phase 04
-
-- Dashboard Summary menjadi sumber KPI dan distribusi authoritative, bukan list terpaginasikan.
-- Monitoring Overview, risk/connectivity presentation, Sensor Series, serta Recent Alerts memiliki
-  state loading, error, empty, retry, dan partial failure yang independen.
-- Sensor chart menjaga oldest-first, null, late marker, dan gap tanpa interpolasi.
-- PROJECT_OWNER dan SCHOOL_ADMIN read path, Site/window filter, manual refresh, organization
-  header, responsive viewport, accessibility, dan browser-storage safety telah diverifikasi.
-- API unit, web unit/component, clean-database migration dan seed idempotent, API integration,
-  production build, OpenAPI, root format gate, serta 12 Chromium test telah lulus.
-- Kebijakan `.gitattributes` memastikan source LF secara reproducible pada Windows, Linux, dan CI
-  tanpa perubahan semantik aplikasi. Detail final dicatat dalam
-  [`docs/16_PHASE_04_ACCEPTANCE_REPORT.md`](16_PHASE_04_ACCEPTANCE_REPORT.md).
-
-### Fase mendatang
-
-- Alert operation, realtime, map, report, notification, performance, dan resilience test dijalankan
-  ketika implementasi fasenya tersedia.
-- k6 ingestion dan dashboard wajib sebelum produksi, bukan pada coordination stage.
-
-## 2. Test pyramid
-
-- Unit: risk engine, dedup key, permission helpers, aggregations.
-- Integration: Prisma repositories, ingestion transaction, alert transitions.
-- API E2E: auth, device ingest, dashboard, alerts.
-- UI E2E: login, dashboard, acknowledge, permission denial.
-- Performance: k6 ingestion and dashboard.
-- Resilience: network retry, Redis unavailable, delayed data, duplicate payload.
-
-## 3. Critical test cases
-
-### Dashboard data Phase 04
-
-1. Summary hanya menghitung resource dalam active organization.
-2. Optional Site filter diterapkan konsisten pada seluruh aggregate; Site lintas organisasi 404.
-3. `active + inactive = monitoringPoints.total`.
-4. Seluruh risk bucket sama dengan active MonitoringPoint scope.
-5. Missing/untrusted/delayed/offline/invalid/profile-unavailable state menjadi UNKNOWN, bukan SAFE.
-6. Device DISABLED tidak dihitung OFFLINE.
-7. Seluruh connectivity bucket sama dengan enabled Device scope.
-8. `activeCritical` tidak melebihi unresolved active Alert.
-9. `newInWindow` memakai `firstObservedAt` dalam `[from,to)`, bukan repeated occurrence.
-10. Sensor series selalu oldest-first dengan stable telemetry ID tie-breaker.
-11. Range memakai from inclusive dan to exclusive; `from >= to` ditolak.
-12. Default range 24 jam dan late telemetry dikecualikan.
-13. `includeLate=true` menyertakan late point dengan `isLate=true`.
-14. Gap telemetry tidak diinterpolasi atau dihaluskan.
-15. Nullable sensor tetap null dan tidak berubah menjadi nol.
-16. Cursor page tidak menggandakan/melewatkan timestamp sama; mismatch/expired cursor ditolak.
-17. MonitoringPoint lintas organisasi menghasilkan 404.
-18. PROJECT_OWNER dan SCHOOL_ADMIN dapat membaca kedua endpoint.
-19. Frontend KPI dan risk/connectivity distribution memakai summary API, bukan paginated list.
-20. Chart memiliki textual summary accessible serta ikon/label untuk status dan late data.
-21. Desktop, tablet, dan mobile mempertahankan status critical dan basic usability.
-22. Loading, error, empty series, no-data, offline, dan single-point state ditangani eksplisit.
-23. Simulator dapat mengisi data yang kemudian muncul pada summary, series, table, dan alerts.
-24. Chromium acceptance membuktikan mapping endpoint serta filter/range utama.
-25. Response dan browser storage tidak memuat secret, credential hash, raw payload, atau token.
-
-### Telemetry ingestion
-
-1. Credential valid + payload valid -> 201.
-2. Payload yang sama -> 200 duplicate, row tetap satu.
-3. Duplicate mengembalikan `telemetryId` dan `receivedAt` asli.
-4. `messageId` sama tetapi canonical payload hash berbeda -> 409 `IDEMPOTENCY_CONFLICT`.
-5. `Idempotency-Key` berbeda dari body `messageId` -> 400.
-6. Body memiliki `deviceId`, `hardwareId`, atau property asing -> 400.
-7. `bootId` tidak ada, kosong, atau lebih dari 64 karakter -> 400.
-8. `(deviceId, bootId, sequence)` sama dengan message berbeda -> 409 `SEQUENCE_CONFLICT`.
-9. Sequence yang sama setelah `bootId` berubah tidak dianggap conflict.
-10. Credential salah -> 401.
-11. Device disabled -> 403.
-12. Sensor di luar range -> 400/invalid policy.
-13. `rainfallMmHour` negatif, NaN, atau infinite -> 400; tidak ada static upper bound.
-14. Timestamp lebih jauh dari configurable future skew (default 300 detik) -> 400.
-15. Timestamp lama -> tersimpan historis tetapi tidak mengganti latest state yang lebih baru.
-16. Wi-Fi retry dan cellular retry payload sama -> tidak duplikat.
-17. Raw payload tidak menyimpan Authorization header atau credential.
-18. Response tidak memiliki `serverRisk`; tidak tersedia `/iot/heartbeat`.
-19. `deviceAssessment` tersimpan sebagai data pembanding/audit, bukan keputusan safety server.
-
-### Contract foundation
-
-1. Semua error sesuai `ErrorResponse`, memakai stable error code, ISO UTC timestamp, dan request ID.
-2. Semua response menyertakan header `x-request-id`.
-3. Validation error memiliki detail `{ field, messages[] }` bila relevan.
-4. Resource response user dibungkus `data`; list juga memiliki `page`.
-5. Limit default 25, maksimum 100, cursor opaque, dan sorting stabil.
-6. Missing `X-Organization-Id` -> 400 `ORGANIZATION_CONTEXT_REQUIRED`.
-7. Membership aktif tidak tersedia -> 403 `ORGANIZATION_ACCESS_DENIED`.
-8. Cross-organization resource -> 404 resource-specific not found.
-9. Site dari organisasi lain ditolak.
-10. Runtime CORS mengizinkan header `X-Organization-Id`.
-
-### Site lookup
-
-1. PROJECT_OWNER dan SCHOOL_ADMIN dapat membaca Site dalam organisasi aktif.
-2. Response tidak memuat Site dari organisasi lain.
-3. Missing organization context dan membership tidak aktif mengikuti error contract.
-4. Search mencakup `name` dan `address`, dengan panjang maksimum 100 karakter.
-5. Limit default 25 dan maksimum 100; tidak ada `totalCount`.
-6. Sort default `name:asc`; `name:desc` dan `createdAt:desc` diterima.
-7. Cursor opaque terikat pada organization, search, sort, nilai sort terakhir, dan stable id.
-8. Cursor invalid atau dari konteks query lain menghasilkan 400 `INVALID_CURSOR`.
-9. Item hanya memuat `id`, `name`, nullable `address`, dan `timezone`.
-10. Tidak tersedia endpoint create, detail, update, atau delete Site pada Phase 02.
-
-### MonitoringPoint
-
-1. PROJECT_OWNER dapat list, detail, create, dan update.
-2. SCHOOL_ADMIN dapat list/detail dalam organization sendiri.
-3. SCHOOL_ADMIN tidak dapat create/update.
-4. Cross-organization detail disamarkan sebagai 404.
-5. List filter, stable sort, cursor, default limit, dan maximum limit mengikuti contract.
-6. Create menolak site di luar organization aktif.
-7. PATCH menolak body kosong dan property asing.
-8. Monitoring point dengan enabled device tidak dapat dinonaktifkan.
-9. Response nullable `currentDevice` tidak memuat credential.
-10. Tidak tersedia delete, map, risk, telemetry history, alert, atau KPI endpoint.
-
-### Device dan credential
-
-1. PROJECT_OWNER dapat register, update, rotate credential, dan disable.
-2. SCHOOL_ADMIN hanya dapat list/detail dalam organization sendiri.
-3. `hardwareId` unik global dan immutable.
-4. Hanya satu enabled device dapat ditautkan ke satu MonitoringPoint.
-5. Lifecycle response hanya `ENABLED` atau `DISABLED`.
-6. Register dan rotate mengembalikan raw secret tepat sekali dengan `displayOnce: true`.
-7. GET/list tidak memuat secret atau hash.
-8. Secret lama langsung invalid setelah rotation berhasil.
-9. Disable ulang idempotent; disabled device ditolak saat ingestion.
-10. Tidak tersedia enable atau maintenance endpoint Phase 02.
-
-### Risk engine
-
-- SAFE hanya bila tilt `< 3`, moisture `< 65`, dan rain `< 20`.
-- Boundary tepat 3, 65, 20, 8, 50, dan 85.
-- Gap moisture 65–70 -> WATCH.
-- Rain > 50 tanpa moisture > 85 -> WATCH.
-- Tilt > 8 -> DANGER.
-- Rain > 50 dan moisture > 85 -> DANGER.
-- Required sensor missing/invalid, timestamp untrusted, profile unavailable -> UNKNOWN.
-- Device DISABLED dan DELAYED/OFFLINE -> UNKNOWN.
-- DANGER precedence sebelum SAFE/WATCH.
-- WATCH membutuhkan dua current sample; DANGER satu.
-- Downgrade membutuhkan 10 menit stabil.
-- Profile version berbeda tidak mengubah assessment lama.
-- Exact duplicate tidak membuat assessment; late assessment tidak memengaruhi current state.
-
-### Offline detector
-
-- <=20 menit ONLINE.
-- > 20 sampai <=35 DELAYED.
-- > 35 OFFLINE.
-- OFFLINE dashboard risk UNKNOWN.
-- Device DISABLED -> connectivity/risk UNKNOWN dengan reason DEVICE_DISABLED.
-- Late telemetry tidak memulihkan connectivity.
-- Kembali online memperbarui current state tetapi tidak auto-resolve alert.
-- Scheduler lock dan rerun idempotent.
-
-### Alerts
-
-- WATCH/DANGER dan DELAYED/OFFLINE transition membuat alert sesuai type.
-- Mismatch firmware/server membutuhkan tiga current sample berurutan.
-- Satu unresolved alert per organization/Site/MonitoringPoint/type.
-- Repeated observation memperbarui lastObservedAt dan occurrenceCount.
-- Duplicate dan late telemetry tidak membuat atau memperbarui alert.
-- Risk downgrade/connectivity recovery tidak auto-resolve alert.
-- List/detail organization-scoped tersedia untuk kedua role tanpa totalCount.
-- Acknowledge, resolve, false alarm, AlertEvent mutation, dan audit mutation diuji pada Phase 05.
-
-### Authorization
-
-- School Admin tidak dapat mengganti active risk profile.
-- School Admin tidak dapat rotate credential.
-- Project Owner dapat mengganti profile dan rotate credential.
-- User dari organization lain tidak dapat membaca data.
-- Header organisasi tidak menggantikan pemeriksaan membership aktif.
-
-### UI
-
-- Loading skeleton.
-- Empty state.
-- Error state.
-- Stale badge.
-- UNKNOWN tidak berwarna hijau.
-- Critical alert accessible via keyboard.
-- Mobile view tidak menyembunyikan aksi penting.
-
-## 4. Performance target awal
-
-### Ingestion
-
-- 20 requests/second selama 5 menit sebagai target jauh di atas kebutuhan satu alat.
-- Error rate < 1% di luar intentional validation error.
-- p95 < 500 ms.
-- Tidak ada duplicate row.
-
-### Dashboard
-
-- 20 concurrent users.
-- p95 summary < 500 ms.
-- p95 telemetry chart query < 1 detik untuk rentang 24 jam dengan agregasi.
-
-## 5. Resilience scenarios
-
-- Server tidak tersedia 30 menit; device queue lalu retry.
-- Wi-Fi gagal dan cellular aktif.
-- Cellular dan Wi-Fi mengirim pesan sama karena race; server tetap idempotent.
-- Redis tidak tersedia; telemetry tetap tersimpan, notification job ditandai pending/retry.
-- Database restart; aplikasi recovery.
-- Device clock meleset.
-- Firmware mengirim NaN/string invalid.
-
-## 6. UAT School Admin
-
-Admin sekolah harus dapat:
-
-- Login.
-- Memahami status dalam <10 detik.
-- Membuka SOP.
-- Menemukan titik yang bermasalah.
-- Acknowledge alert.
-- Menambahkan kondisi lapangan.
-- Mengunduh laporan sederhana.
-
-## 7. Definition of Done per feature
-
-- Acceptance criteria tertulis.
-- Unit/integration test lulus.
-- Permission test lulus.
-- Error state ditangani.
-- Audit log bila sensitif.
-- Dokumentasi API diperbarui.
-- Tidak ada secret di commit.
-
-## 8. Phase 05 alert operations and realtime acceptance
-
-Contract foundation ini membekukan 48 acceptance criteria. Status final: **PASS** pada 1 Agustus 2026. Evidence contract, backend lifecycle/audit, Redis Pub/Sub SSE, frontend, pengulangan API
-integration, dan Chromium serial dicatat pada
-[`docs/17_PHASE_05_ACCEPTANCE_REPORT.md`](17_PHASE_05_ACCEPTANCE_REPORT.md).
-
-1. Kedua role dapat membaca Alert dan Alert events dalam organisasi aktif.
-2. Kedua role dapat acknowledge Alert `ACTIVE`.
-3. `SCHOOL_ADMIN` tidak dapat resolve.
-4. `SCHOOL_ADMIN` tidak dapat menandai false alarm.
-5. `PROJECT_OWNER` dapat resolve Alert `ACKNOWLEDGED`.
-6. `PROJECT_OWNER` dapat menandai false alarm pada Alert `ACTIVE`.
-7. `PROJECT_OWNER` dapat menandai false alarm pada Alert `ACKNOWLEDGED`.
-8. Resolve langsung dari `ACTIVE` ditolak dengan `ALERT_STATE_CONFLICT`.
-9. Mutation terhadap Alert terminal ditolak tanpa event atau audit baru.
-10. Retry acknowledge identik tidak membuat AlertEvent kedua.
-11. Reuse `actionId` dengan payload berbeda menghasilkan `IDEMPOTENCY_CONFLICT`.
-12. Status Alert, AlertEvent, dan AuditLog berubah/ditulis secara atomic.
-13. Lifecycle action paralel hanya memiliki satu pemenang.
-14. Observation paralel tidak mengembalikan `ACKNOWLEDGED` menjadi `ACTIVE`.
-15. Alert terminal tidak dapat dibuka kembali.
-16. Observation kondisi baru setelah terminal membuat Alert `ACTIVE` baru.
-17. Alert-event history newest-first dengan stable ID tie-breaker dan tanpa `totalCount`.
-18. AuditLog dapat dibaca `PROJECT_OWNER` dalam organization scope.
-19. Akses audit oleh `SCHOOL_ADMIN` ditolak.
-20. Metadata event dan audit tersanitasi dari IP, user agent, token, credential, dan raw request.
-21. SSE membutuhkan bearer dan `X-Organization-Id`.
-22. URL/query SSE tidak memuat auth token.
-23. Pembuatan Alert relevan mengirim notification SSE setelah commit.
-24. Lifecycle action mengirim notification SSE setelah commit.
-25. Perubahan MonitoringPoint state mengirim notification SSE.
-26. Initial connect menggunakan data REST authoritative.
-27. Reconnect melakukan REST refetch authoritative.
-28. Duplicate atau missed SSE notification tidak merusak domain state client.
-29. Organization switch menutup stream lama dan membuang state lama.
-30. Access-token refresh menutup lalu membuka stream baru dan melakukan refetch.
-31. Propagasi committed event lintas instance melalui Redis Pub/Sub diuji.
-32. Kegagalan SSE publish tidak me-rollback mutation yang sudah commit.
-33. Keepalive tidak memicu domain update, refetch, atau AuditLog.
-34. Critical Alert menampilkan acknowledge dan SOP quick access.
-35. SOP yang tidak tersedia ditampilkan sebagai unavailable secara jujur.
-36. Tidak ada emergency SOP content yang dibuat atau difabrikasi sistem.
-37. Field dialog acknowledge divalidasi, ditrim, dan tidak mendukung one-click acknowledge.
-38. Resolve membutuhkan confirmation dan resolution note.
-39. False alarm membutuhkan confirmation dan reason.
-40. Audit Log UI hanya tersedia untuk `PROJECT_OWNER`.
-41. Aksi critical tetap terlihat pada responsive/mobile layout.
-42. Dialog, status, dan action dapat digunakan dengan keyboard serta tidak color-only.
-43. Component test mencakup role, loading, validation, conflict, retry, dan reconnect state.
-44. API integration test mencakup permission, transition, idempotency, atomicity, dan concurrency.
-45. Chromium acceptance mencakup lifecycle Alert lengkap.
-46. Chromium acceptance mencakup disconnect/reconnect dan authoritative refetch.
-47. Tidak ada secret atau token baru di browser storage, URL, artifact, log, maupun response.
-48. Tidak ada capability Phase 06+ seperti SOP upload, map, report, notification provider, heartbeat,
-    remote siren, atau firmware command.
-
-Hasil akhir: seluruh kriteria di atas memiliki evidence berlapis melalui contract validator, unit/
-component test, API integration test, dan/atau Chromium acceptance sesuai boundary masing-masing.
-Lima full API integration run berturut-turut lulus; realtime frontend targeted suite lulus 20 run;
-Chromium membuktikan lifecycle owner/admin, reconnect, REST convergence, organization header,
-storage/artifact safety, serta Audit Log yang tersanitasi.
-
-## 9. Phase 06 map, SOP documents, dan reports acceptance
-
-Contract P6-01 membekukan 72 acceptance criteria berikut. Status implementasi: **PASS/COMPLETE**.
-Seluruh kriteria memiliki evidence contract, unit/component, integration, dan/atau Chromium; bukti
-final berada di [`docs/18_PHASE_06_ACCEPTANCE_REPORT.md`](18_PHASE_06_ACCEPTANCE_REPORT.md).
-
-1. Semua endpoint Phase 06 membutuhkan bearer authentication.
-2. Semua endpoint Phase 06 membutuhkan `X-Organization-Id`.
-3. Resource cross-organization dilaporkan 404 tanpa data leakage.
-4. Kedua role dapat membaca active map configuration.
-5. Hanya `PROJECT_OWNER` dapat mengubah map configuration.
-6. `expectedVersion:null` hanya diterima ketika Site belum memiliki versi aktif.
-7. Stale `expectedVersion` menghasilkan `MAP_CONFIG_VERSION_CONFLICT`.
-8. Update berbeda membuat immutable version berikutnya secara monotonik.
-9. Update canonical-identical menghasilkan `changed:false` tanpa versi baru.
-10. Canonical no-op tidak membuat AuditLog baru.
-11. Update berbeda membuat satu AuditLog tersanitasi dalam transaksi yang benar.
-12. Dua update map paralel tidak membuat dua active version.
-13. Versi map lama tetap dapat diaudit dan tidak diubah.
-14. Semua posisi menerima urutan `[longitude, latitude]` WGS84/EPSG:4326.
-15. Longitude di luar `-180..180` ditolak.
-16. Latitude di luar `-90..90` ditolak.
-17. NaN, infinity, altitude, dan posisi bukan dua angka ditolak.
-18. Polygon dengan ring tidak tertutup atau topology invalid ditolak.
-19. LineString dengan kurang dari dua posisi berbeda ditolak.
-20. MonitoringPoint dari Site/organisasi lain atau ID MonitoringPoint duplicate dalam satu config
-    ditolak.
-21. Map overview tanpa konfigurasi mengembalikan `configured:false` dan geometry/marker kosong.
-22. Map overview tidak membuat koordinat default atau fabricated marker.
-23. Marker hanya memuat MonitoringPoint yang memiliki konfigurasi koordinat.
-24. Marker memakai current risk/connectivity projection authoritative.
-25. Data unknown, delayed, atau offline tidak pernah dipresentasikan sebagai `SAFE`.
-26. Polygon diberi makna zona referensi manual statis, bukan prediksi realtime.
-27. Evacuation route diberi makna rute manual, bukan hasil automatic routing.
-28. Map overview tidak memuat raw telemetry, credential, hash, atau `totalCount`.
-29. Map provider/WebGL gagal tetap menghasilkan accessible fallback list.
-30. Map legend dan marker tidak mengandalkan warna saja.
-31. Kedua role dapat membaca active SOP metadata.
-32. Site tanpa active SOP menghasilkan `SOP_NOT_FOUND` dan UI unavailable yang jujur.
-33. Hanya `PROJECT_OWNER` dapat mengunggah SOP.
-34. Upload selain declared `application/pdf` ditolak.
-35. Filename tanpa ekstensi `.pdf` tersanitasi/ditolak sesuai contract.
-36. File tanpa PDF magic signature ditolak walaupun MIME dan ekstensi benar.
-37. File kosong ditolak.
-38. File lebih dari 10 MiB ditolak dengan 413.
-39. Upload menghitung dan menyimpan SHA-256 yang benar.
-40. Object storage key opaque dan tidak berasal dari filename pengguna.
-41. SOP object berada pada storage privat tanpa public/permanent URL.
-42. Metadata dan active pointer SOP berubah secara atomik.
-43. Kegagalan persistence setelah upload membersihkan orphan object.
-44. Setiap upload sukses membuat immutable version baru dan versi lama tetap ada.
-45. SOP version list newest-first memakai cursor tanpa `totalCount`.
-46. Download SOP melalui API terautentikasi menghasilkan PDF dan `nosniff`.
-47. Cross-organization SOP content tidak dapat diunduh.
-48. SOP response/audit tidak memuat object key, bytes, token, atau provider detail.
-49. Dokumentasi/UI tidak mengklaim pemeriksaan PDF menjamin malware-free.
-50. Frontend merevoke temporary Blob URL setelah SOP selesai digunakan.
-51. Kedua role dapat mengekspor telemetry CSV dalam organization scope.
-52. CSV menolak `from >= to` dan rentang lebih dari 31 hari.
-53. CSV memakai rentang `[from,to)` dan urutan oldest-first dengan stable ID tie-breaker.
-54. CSV kosong tetap memiliki header row.
-55. CSV memenuhi quoting/escaping RFC 4180.
-56. Text diawali `=`, `+`, `-`, atau `@` dinetralkan terhadap formula injection.
-57. Null diekspor sebagai field kosong dan tidak diubah menjadi nol.
-58. Risk `UNKNOWN` tetap `UNKNOWN` dan tidak diubah menjadi `SAFE`.
-59. CSV tidak memuat raw payload, credential, hash, atau Authorization.
-60. Kedua role dapat membuat report job dan menerima 202 tanpa menunggu PDF.
-61. Job baru mulai pada `QUEUED` dan durable status mengikuti enum contract.
-62. Rentang report memakai `[from,to)` dan maksimum 31 hari.
-63. Worker BullMQ retry terbatas serta idempotent terhadap duplicate processing.
-64. Job sukses menghasilkan private PDF artifact dengan checksum dan expiry.
-65. Artifact report tidak dapat diakses melalui public/permanent URL.
-66. Job gagal hanya mengekspos failure code tersanitasi, bukan stack/provider detail.
-67. Report list organization-wide newest-first memakai cursor tanpa `totalCount`.
-68. Download hanya tersedia untuk job `SUCCEEDED` yang belum expired.
-69. Artifact expired menghasilkan 410 dan durable job metadata tetap `EXPIRED`.
-70. Regenerate selalu membuat job baru, termasuk setelah `FAILED` atau `EXPIRED`.
-71. PDF mempertahankan missing data dan memberi label “Status saat laporan dibuat” tanpa
-    merekonstruksi current-state historis atau kesimpulan geoteknis.
-72. UI polling 3 detik/backoff berhenti pada terminal state, navigasi, organization switch, atau
-    unmount; seluruh flow map/SOP/report accessible dan tidak membocorkan secret ke browser
-    storage, URL, log, artifact test, response, atau repository.
-
-## 10. Phase 07 production-readiness acceptance
-
-Seluruh 60 kriteria berikut berstatus **PENDING**. Target engineering dan evidence dibekukan dalam
-[`docs/19_PHASE_07_PRODUCTION_READINESS_CONTRACT.md`](19_PHASE_07_PRODUCTION_READINESS_CONTRACT.md);
-dokumen ini tidak mengklaim test, backup/restore, deployment, atau error tracking telah tersedia.
-
-### Performance/load (1–12)
-
-1. **PENDING** — k6 smoke test di environment non-production terisolasi memenuhi target smoke.
-2. **PENDING** — k6 load authenticated API memenuhi target failure, check, p95, p99, dan capacity.
-3. **PENDING** — k6 stress test mencatat titik degradasi tanpa silent data corruption.
-4. **PENDING** — k6 spike test membuktikan recovery ke target latency/error setelah spike.
-5. **PENDING** — k6 endurance test memenuhi target dan tidak menunjukkan tren resource/error tak terjelaskan.
-6. **PENDING** — workload authenticated memakai bearer dan `X-Organization-Id` organisasi test.
-7. **PENDING** — telemetry workload memakai device test, payload valid unik/idempoten, bukan device lapangan.
-8. **PENDING** — workload critical read mencakup dashboard, monitoring, alert list, dan path yang dicatat.
-9. **PENDING** — hasil membedakan application, timeout, transport, dan check failures.
-10. **PENDING** — evidence memuat commit/build, script checksum, environment, dataset, dan hasil lengkap.
-11. **PENDING** — data test dibersihkan/di-retain secara terisolasi tanpa menghapus data production.
-12. **PENDING** — test tidak memicu emergency publik, sirene nyata, atau remote siren.
-
-### Backup/restore (13–23)
-
-13. **PENDING** — runbook menetapkan PostgreSQL sebagai data durable authoritative dan mencakup database lengkap.
-14. **PENDING** — private object storage artifact dokumen/report dan manifestnya dicakup backup.
-15. **PENDING** — Redis dikecualikan sebagai authoritative business history dan recovery-nya didokumentasikan.
-16. **PENDING** — backup terjadwal memenuhi target RPO engineering dan mencatat backup sukses terakhir.
-17. **PENDING** — backup terenkripsi in transit/at rest dengan akses least privilege dan secret tersanitasi.
-18. **PENDING** — artifact memiliki nama terstruktur, manifest, UTC timestamp, ukuran, dan checksum tervalidasi.
-19. **PENDING** — retensi terdokumentasi dan tidak menghapus artifact yang masih diwajibkan.
-20. **PENDING** — restore dilakukan ke environment bersih terisolasi, bukan sumber/production.
-21. **PENDING** — restore verification membuktikan schema, referential integrity, sampling data, dan artifact readability.
-22. **PENDING** — restore drill memenuhi target RTO engineering dengan waktu dan deviasi tercatat.
-23. **PENDING** — runbook mencakup rollback/recovery restore failure dan secret handling tanpa klaim HA/SLA.
-
-### Production deployment (24–34)
-
-24. **PENDING** — deployment production terpisah dari compose development/reference dan tidak menyatakannya production-ready.
-25. **PENDING** — seluruh production image dipin, tanpa tag `latest`.
-26. **PENDING** — API/web production build dapat ditelusuri ke commit dan artifact deploy.
-27. **PENDING** — PostgreSQL, Redis, object storage privat; port admin tidak publik.
-28. **PENDING** — TLS/reverse proxy dan endpoint publik yang diperlukan diverifikasi.
-29. **PENDING** — environment/secret berada di luar source control dan tidak muncul pada output/log.
-30. **PENDING** — health/readiness check lulus sebelum traffic dinyatakan siap.
-31. **PENDING** — migration-before-app startup dan backup sebelum perubahan berisiko terbukti dijalankan.
-32. **PENDING** — rollback aplikasi dan recovery migration didokumentasikan serta diuji aman.
-33. **PENDING** — least privilege, durable volume, dan restart behavior diverifikasi.
-34. **PENDING** — evidence deployment menyimpan UTC, operator, commit/image, check, dan batasan tanpa klaim HA.
-
-### Error tracking/observability (35–42)
-
-35. **PENDING** — backend/frontend capture error relevan tanpa tracking failure merusak core flow.
-36. **PENDING** — event error memiliki correlation/request ID ke log tersanitasi.
-37. **PENDING** — event error memuat release/commit dan environment identity.
-38. **PENDING** — sanitization meniadakan Authorization, token, password, dan sensitive browser storage.
-39. **PENDING** — sanitization meniadakan device credential/hash, raw telemetry, storage key/credential, dan bytes dokumen.
-40. **PENDING** — context error dibatasi untuk diagnosis dan menjaga organization privacy.
-41. **PENDING** — alerting/escalation error terdokumentasi dengan owner, severity, dan respons.
-42. **PENDING** — failure injection aman membuktikan capture/sanitization tanpa secret pada tracker/log.
-
-### Security review (43–50)
-
-43. **PENDING** — auth/authz dan organization isolation regression lulus untuk kedua role dan cross-org tetap ditolak/404.
-44. **PENDING** — dependency audit/manual secret review mencatat severity, owner, dan remediation.
-45. **PENDING** — secret scanning repository/deployment artifact selesai tanpa secret aktif tak tertangani.
-46. **PENDING** — security headers, CORS, rate limit, dan error envelope diverifikasi.
-47. **PENDING** — upload validation/private object storage diverifikasi tanpa public URL/credential/object key.
-48. **PENDING** — formula-injection defense dan log/error sanitization diuji ulang.
-49. **PENDING** — backup security dan deployment network exposure ditinjau dan finding dicatat.
-50. **PENDING** — permissions dan UNKNOWN semantics tidak melemah; remote siren tidak ada.
-
-### Incident simulation (51–56)
-
-51. **PENDING** — API unavailable/restart simulation membuktikan recovery dan failure state tanpa fabricated SAFE.
-52. **PENDING** — PostgreSQL unavailable/recovery simulation mendokumentasikan failure dan recovery aktual.
-53. **PENDING** — Redis unavailable/recovery dan report-worker interruption/recovery mendokumentasikan state/retry/integrity.
-54. **PENDING** — object storage unavailable/recovery membuktikan failure state aman dan recovery.
-55. **PENDING** — SSE disconnect/reconnect membuktikan REST authoritative/refetch; report realtime tetap out of scope.
-56. **PENDING** — stale/offline telemetry, failed deployment/rollback, dan corrupted backup detection disimulasikan aman tanpa emergency/sirene.
-
-### UAT/release decision (57–60)
-
-57. **PENDING** — Project Owner UAT semua flow: auth, Monitoring Points, Devices, Dashboard, Alerts, Map, SOP, Reports, Settings/Audit Log.
-58. **PENDING** — School Admin UAT flow yang diizinkan dan denial Owner-only, termasuk Settings/Audit Log permissions.
-59. **PENDING** — UAT mencatat accessibility/responsive dasar serta loading/error/empty/offline/stale/UNKNOWN tanpa SAFE palsu.
-60. **PENDING** — P7-06 mengarsipkan sign-off/evidence/blocker/release decision; `phase-07-complete` hanya setelah merge dan PASS final.
+## 1. Status dokumen
+
+Kriteria Phase 01–07 dan bukti pada `docs/14` sampai `docs/18` adalah **historical/pre-scope-reset**. Bukti tersebut tidak dihapus atau diubah, tetapi tidak menjadi acceptance final untuk produk satu-perangkat. P7-02 smoke/load/stress evidence, bila ada, hanya baseline sebelum reset dan bukan penerimaan production final.
+
+Acceptance final dibangun bertahap melalui R1–R10. Tidak ada hasil test yang diklaim oleh dokumen ini; setiap status PASS memerlukan evidence run setelah implementasi scope baru stabil.
+
+## 2. Acceptance scope baru
+
+### Overview
+
+- Nilai current authoritative dirender dengan unit, timestamp, dan freshness yang benar.
+- Histori sensor relevan tersedia sebagai chart independen.
+- Celah/null dipertahankan; tidak ada interpolasi menyeberangi gap atau nilai nol palsu.
+- Status risiko berasal dari evaluasi server authoritative.
+- Telemetry stale, offline, invalid, atau required data unavailable menghasilkan `UNKNOWN`, tidak pernah `SAFE`.
+
+### Perangkat
+
+- Status connected, disconnected, dan unknown ditampilkan benar beserta `last seen`.
+- Setiap sensor required menunjukkan readable, unreadable, atau unknown.
+- Pembacaan stale tidak dipresentasikan sebagai current.
+- Firmware/hardware/battery hanya ditampilkan bila sumbernya authoritative dan tidak mengubah kriteria hazard tanpa persetujuan.
+
+### Profil Risiko
+
+- Update threshold valid tersimpan dan digunakan oleh evaluasi deterministic.
+- Tidak ada hard-coded-only truth; profile/version yang aktif dapat dijelaskan.
+- Perubahan konfigurasi menghasilkan audit yang memadai.
+- Kombinasi threshold invalid ditolak sebelum penerapan dan UI meminta konfirmasi.
+- Test tidak membuat atau mengasumsikan nilai ilmiah/geoteknis baru.
+
+### Audit Log
+
+- Transisi status disimpan dan ditampilkan dengan previous/current status serta timestamp.
+- State yang tidak berubah tidak menghasilkan duplicate transition entry.
+- Alasan, snapshot sensor, dan referensi profil tersedia bila ada.
+- Riwayat immutable/auditable; audit konfigurasi threshold tetap dapat ditelusuri.
+
+### Telemetry
+
+- Ingestion valid diterima dengan credential perangkat yang sah.
+- `(deviceId, messageId)` unik/idempotent; retry duplicate memberi perilaku aman tanpa duplikasi histori/state/transisi.
+- Credential invalid ditolak tanpa membocorkan secret.
+- Required sensor invalid menghasilkan penolakan/karantina terstruktur dan tidak dapat menghasilkan `SAFE`.
+- Data terlambat disimpan untuk histori namun tidak menggantikan current state yang lebih baru.
+
+## 3. Jenis bukti dan gate
+
+- Unit test: risk engine pure/deterministic, urutan `UNKNOWN` dan validasi profile.
+- Integration test: ingestion, idempotency, persistence, current state, audit, dan authorization.
+- Browser/E2E: empat halaman, loading/error/empty/no-data/accessibility state dan update profil.
+- Contract validation: target OpenAPI direvisi pada R2 sebelum atau bersama perubahan runtime.
+- Performance: ingestion dan endpoint dashboard minimal diuji setelah R1–R8 stabil; acceptance performance final harus dijalankan ulang, bukan mewarisi P7-02.
+
+## 4. Kriteria release final
+
+R10 hanya dapat diputuskan setelah acceptance R8, firmware/integrasi R9 yang relevan, dan performance/UAT scope final memiliki evidence aktual. Tidak ada ketentuan historical yang mengaktifkan release final secara otomatis.
