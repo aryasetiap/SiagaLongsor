@@ -13,17 +13,8 @@ import { configureApp } from '../bootstrap/configure-app.js';
 import { APP_CONFIG, type AppConfig } from '../config/app-config.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { DeviceCredentialService } from '../devices/device-credential.service.js';
-import {
-  AlertStatus,
-  AlertType,
-  DeviceLifecycleStatus,
-  FirmwareRiskLevel,
-  NetworkType,
-  Role,
-} from '../generated/prisma/enums.js';
+import { AlertStatus, AlertType, Role } from '../generated/prisma/enums.js';
 import { RedisService } from '../redis/redis.service.js';
-import type { TelemetryDto } from '../telemetry/dto/telemetry.dto.js';
-import { TelemetryService } from '../telemetry/telemetry.service.js';
 import {
   acquireGlobalConnectivityFixtureLock,
   type IntegrationSuiteLock,
@@ -57,10 +48,7 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
   let ownerAToken: string;
   let adminAToken: string;
   let ownerBToken: string;
-  let deviceId: string;
-  let deviceCredentialHash: string;
   const hardwareId = `RT_${runId}`.toUpperCase();
-  let telemetrySequence = 0;
   let fixtureLock: IntegrationSuiteLock | undefined;
 
   beforeAll(async () => {
@@ -114,7 +102,7 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
       data: { ...provisionalProfileData(), organizationId: organizationAId, siteId: siteAId },
     });
     const credential = await instanceA.get(DeviceCredentialService).issue();
-    const device = await prisma.device.create({
+    await prisma.device.create({
       data: {
         organizationId: organizationAId,
         siteId: siteAId,
@@ -125,8 +113,6 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
         credentialRotatedAt: credential.issuedAt,
       },
     });
-    deviceId = device.id;
-    deviceCredentialHash = device.credentialHash;
     await prisma.user.createMany({
       data: [
         {
@@ -518,39 +504,6 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
     await stream.close();
   });
 
-  it('publishes telemetry risk transitions while suppressing duplicates and late data', async () => {
-    const stream = await openStream(baseB, ownerAToken, organizationAId);
-    await stream.reader.nextFrame();
-    const danger = telemetryPayload({ risk: FirmwareRiskLevel.DANGER, tilt: 9 });
-    expect((await ingestTelemetry(danger)).duplicate).toBe(false);
-    const createdEvents = [await stream.reader.nextEvent(), await stream.reader.nextEvent()];
-    expect(createdEvents.map((event) => event.eventType)).toEqual([
-      'MONITORING_POINT_STATE_CHANGED',
-      'ALERT_CREATED',
-    ]);
-
-    expect((await ingestTelemetry(danger)).duplicate).toBe(true);
-    await expect(stream.reader.nextEvent(300)).rejects.toThrow('SSE timeout');
-
-    const late = telemetryPayload({
-      risk: FirmwareRiskLevel.SAFE,
-      tilt: 1,
-      timestamp: new Date(Date.now() - 86_400_000).toISOString(),
-    });
-    expect((await ingestTelemetry(late)).duplicate).toBe(false);
-    await expect(stream.reader.nextEvent(300)).rejects.toThrow('SSE timeout');
-
-    const repeated = telemetryPayload({ risk: FirmwareRiskLevel.DANGER, tilt: 9 });
-    expect((await ingestTelemetry(repeated)).duplicate).toBe(false);
-    const observedEvents = [await stream.reader.nextEvent(), await stream.reader.nextEvent()];
-    expect(observedEvents.map((event) => event.eventType)).toEqual([
-      'MONITORING_POINT_STATE_CHANGED',
-      'ALERT_OBSERVED',
-    ]);
-
-    await stream.close();
-  });
-
   it('closes streams at token expiry and after membership deactivation, then cleans registry state', async () => {
     const session = await prisma.refreshSession.findFirstOrThrow({
       where: { userId: adminAId, revokedAt: null },
@@ -638,45 +591,6 @@ describe.sequential('Phase 05 realtime SSE across API instances', () => {
     });
     expect(response.status).toBe(200);
     return ((await response.json()) as { accessToken: string }).accessToken;
-  }
-
-  function telemetryPayload(options: {
-    readonly risk: FirmwareRiskLevel;
-    readonly tilt: number;
-    readonly timestamp?: string;
-  }) {
-    telemetrySequence += 1;
-    return {
-      messageId: `msg_${randomUUID()}`,
-      bootId: `realtime-boot-${runId}-${telemetrySequence}`,
-      sequence: telemetrySequence,
-      timestamp: options.timestamp ?? new Date(Date.now() - 1_000).toISOString(),
-      firmwareVersion: '5.0.0',
-      network: { type: NetworkType.WIFI, signalRssi: -60 },
-      readings: {
-        tiltMagnitudeDeg: options.tilt,
-        soilMoisturePct: 50,
-        rainfallMmHour: 5,
-        batteryVoltage: 12.5,
-      },
-      deviceAssessment: { riskLevel: options.risk, sirenActive: false },
-    };
-  }
-
-  function ingestTelemetry(payload: ReturnType<typeof telemetryPayload>) {
-    return instanceA.get(TelemetryService).ingest(
-      {
-        id: deviceId,
-        organizationId: organizationAId,
-        siteId: siteAId,
-        monitoringPointId: pointAId,
-        hardwareId,
-        lifecycleStatus: DeviceLifecycleStatus.ENABLED,
-        authenticatedCredentialHash: deviceCredentialHash,
-      },
-      payload.messageId,
-      payload as TelemetryDto,
-    );
   }
 });
 

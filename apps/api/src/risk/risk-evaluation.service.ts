@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
 
-import { AlertObservationService } from '../alerts/alert-observation.service.js';
-import { riskAlertTypes } from '../alerts/risk-alert-policy.js';
 import {
   Prisma,
   type CurrentMonitoringPointState,
@@ -9,15 +7,12 @@ import {
   type RiskProfile,
   type Telemetry,
 } from '../generated/prisma/client.js';
-import { AlertType } from '../generated/prisma/enums.js';
 import type { RealtimeDescriptor } from '../realtime/realtime.types.js';
 import { evaluateRisk } from './risk-engine.js';
 import type { RiskEngineProfile, RiskEngineState } from './risk-engine.types.js';
 
 @Injectable()
 export class RiskEvaluationService {
-  constructor(private readonly alerts: AlertObservationService) {}
-
   async evaluateAcceptedTelemetry(
     transaction: Prisma.TransactionClient,
     input: {
@@ -49,26 +44,25 @@ export class RiskEvaluationService {
       previous: previous === null ? null : toEngineState(previous),
     });
 
-    const assessment =
-      profile === null
-        ? null
-        : await transaction.riskAssessment.create({
-            data: {
-              organizationId: input.device.organizationId,
-              siteId: input.device.siteId,
-              monitoringPointId: input.device.monitoringPointId,
-              deviceId: input.device.id,
-              telemetryId: input.telemetry.id,
-              riskProfileId: profile.id,
-              riskProfileVersion: profile.version,
-              serverRisk: result.assessmentRisk,
-              firmwareRisk: input.telemetry.firmwareRiskLevel,
-              firmwareSirenActive: input.telemetry.firmwareSirenActive,
-              reasons: [...result.reasons],
-              affectsCurrentState: result.affectsCurrentState,
-              evaluatedAt: input.evaluatedAt,
-            },
-          });
+    if (profile !== null) {
+      await transaction.riskAssessment.create({
+        data: {
+          organizationId: input.device.organizationId,
+          siteId: input.device.siteId,
+          monitoringPointId: input.device.monitoringPointId,
+          deviceId: input.device.id,
+          telemetryId: input.telemetry.id,
+          riskProfileId: profile.id,
+          riskProfileVersion: profile.version,
+          serverRisk: result.assessmentRisk,
+          firmwareRisk: input.telemetry.firmwareRiskLevel,
+          firmwareSirenActive: input.telemetry.firmwareSirenActive,
+          reasons: [...result.reasons],
+          affectsCurrentState: result.affectsCurrentState,
+          evaluatedAt: input.evaluatedAt,
+        },
+      });
+    }
 
     if (result.nextState === null) return [];
     const previousStatus = previous?.serverRisk ?? 'UNKNOWN';
@@ -148,28 +142,6 @@ export class RiskEvaluationService {
         alertId: null,
       },
     ];
-    if (assessment === null) return realtime;
-    const base = {
-      organizationId: input.device.organizationId,
-      siteId: input.device.siteId,
-      monitoringPointId: input.device.monitoringPointId,
-      deviceId: input.device.id,
-      observedAt: input.evaluatedAt,
-      riskAssessmentId: assessment.id,
-      telemetryId: input.telemetry.id,
-    };
-    for (const type of riskAlertTypes(result)) {
-      const observation = await this.alerts.observe(transaction, {
-        ...base,
-        type,
-        reasons:
-          type === AlertType.DEVICE_SERVER_MISMATCH
-            ? ['DEVICE_SERVER_MISMATCH']
-            : result.reasons.filter((reason) => reason !== 'DEVICE_SERVER_MISMATCH'),
-        observationKey: `telemetry:${input.telemetry.id}:${type}`,
-      });
-      if (observation.realtime !== null) realtime.push(observation.realtime);
-    }
     return realtime;
   }
 }
