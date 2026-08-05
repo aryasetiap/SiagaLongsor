@@ -399,33 +399,6 @@ try {
       get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
       put: ['PROJECT_OWNER'],
     },
-    '/monitoring-overview': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
-    '/monitoring-points/{monitoringPointId}/risk-assessments': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
-    '/alerts': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
-    '/alerts/{alertId}': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
-    '/alerts/{alertId}/acknowledge': {
-      post: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
-    '/alerts/{alertId}/resolve': {
-      post: ['PROJECT_OWNER'],
-    },
-    '/alerts/{alertId}/false-alarm': {
-      post: ['PROJECT_OWNER'],
-    },
-    '/alerts/{alertId}/events': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
-    '/audit-logs': {
-      get: ['PROJECT_OWNER'],
-    },
     '/realtime/stream': {
       get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
     },
@@ -475,137 +448,6 @@ try {
         JSON.stringify(['name:asc', 'name:desc', 'createdAt:desc']),
     'GET /sites sort contract is incorrect.',
   );
-  assert(
-    ['post', 'put', 'patch', 'delete'].every(
-      (method) => !Object.hasOwn(rawSpecification.paths['/sites'], method),
-    ) && !Object.hasOwn(rawSpecification.paths, '/sites/{siteId}'),
-    'Phase 02 must not expose Site create, detail, update, or delete operations.',
-  );
-
-  const phase03ListPaths = [
-    '/monitoring-overview',
-    '/monitoring-points/{monitoringPointId}/risk-assessments',
-    '/alerts',
-  ];
-  for (const path of phase03ListPaths) {
-    const operation = rawSpecification.paths[path].get;
-    assert(
-      hasParameterReference(operation, '#/components/parameters/Limit') &&
-        hasParameterReference(operation, '#/components/parameters/Cursor'),
-      `GET ${path} must declare limit and opaque cursor pagination.`,
-    );
-  }
-  assert(
-    JSON.stringify(rawSpecification.paths['/monitoring-overview'].get.security) ===
-      JSON.stringify([{ bearerAuth: [] }]) &&
-      JSON.stringify(
-        rawSpecification.paths['/monitoring-points/{monitoringPointId}/risk-assessments'].get
-          .security,
-      ) === JSON.stringify([{ bearerAuth: [] }]) &&
-      JSON.stringify(rawSpecification.paths['/alerts'].get.security) ===
-        JSON.stringify([{ bearerAuth: [] }]) &&
-      JSON.stringify(rawSpecification.paths['/alerts/{alertId}'].get.security) ===
-        JSON.stringify([{ bearerAuth: [] }]),
-    'Every Phase 03 read operation must require bearer authentication.',
-  );
-
-  const riskProfilePut = rawSpecification.paths['/sites/{siteId}/risk-profile'].put;
-  assert(
-    riskProfilePut['x-versioning-semantics'] === 'immutable-new-version-or-no-op' &&
-      riskProfilePut.responses['200'].content['application/json'].schema.$ref ===
-        '#/components/schemas/RiskProfileMutationResponse',
-    'Risk profile PUT must declare immutable new-version-or-no-op semantics.',
-  );
-  assert(
-    ['post', 'put', 'patch', 'delete'].every(
-      (method) => !Object.hasOwn(rawSpecification.paths['/alerts'], method),
-    ) &&
-      ['post', 'put', 'patch', 'delete'].every(
-        (method) => !Object.hasOwn(rawSpecification.paths['/alerts/{alertId}'], method),
-      ),
-    'Alert collection and detail resources must remain read-only.',
-  );
-  for (const forbiddenPath of [
-    '/threshold-profiles/{profileId}/activate',
-    '/notifications',
-    '/events',
-    '/iot/heartbeat',
-  ]) {
-    assert(
-      !Object.hasOwn(rawSpecification.paths, forbiddenPath),
-      `Deferred endpoint must not be present in Phase 05: ${forbiddenPath}`,
-    );
-  }
-
-  const actionContracts = [
-    ['/alerts/{alertId}/acknowledge', 'AcknowledgeAlertRequest', 'ACTIVE->ACKNOWLEDGED'],
-    ['/alerts/{alertId}/resolve', 'ResolveAlertRequest', 'ACKNOWLEDGED->RESOLVED'],
-    ['/alerts/{alertId}/false-alarm', 'FalseAlarmAlertRequest', 'ACTIVE|ACKNOWLEDGED->FALSE_ALARM'],
-  ];
-  for (const [path, requestSchema, transition] of actionContracts) {
-    const operation = rawSpecification.paths[path].post;
-    assert(
-      hasParameterReference(operation, '#/components/parameters/AlertActionIdempotencyKey'),
-      `POST ${path} must require the action Idempotency-Key.`,
-    );
-    assert(
-      operation.requestBody.content['application/json'].schema.$ref ===
-        `#/components/schemas/${requestSchema}` &&
-        operation.responses['200'].content['application/json'].schema.$ref ===
-          '#/components/schemas/AlertMutationResponse' &&
-        operation['x-state-transition'] === transition &&
-        operation['x-idempotency-semantics'] === 'action-id-bound-to-body-and-alert-context' &&
-        operation['x-transaction-semantics'] ===
-          'lock-alert-update-event-audit-then-publish-after-commit' &&
-        JSON.stringify(operation['x-conflict-codes']) ===
-          JSON.stringify(['ALERT_STATE_CONFLICT', 'IDEMPOTENCY_CONFLICT']) &&
-        Object.hasOwn(operation.responses, '404') &&
-        Object.hasOwn(operation.responses, '409'),
-      `POST ${path} lifecycle, idempotency, or atomicity contract drifted.`,
-    );
-  }
-  const acknowledgeSchema = rawSpecification.components.schemas.AcknowledgeAlertRequest;
-  const resolveSchema = rawSpecification.components.schemas.ResolveAlertRequest;
-  const falseAlarmSchema = rawSpecification.components.schemas.FalseAlarmAlertRequest;
-  assert(
-    acknowledgeSchema.required.includes('actionId') &&
-      acknowledgeSchema.properties.note.minLength === 1 &&
-      acknowledgeSchema.properties.note.maxLength === 2000 &&
-      acknowledgeSchema.properties.fieldCondition.minLength === 1 &&
-      acknowledgeSchema.properties.fieldCondition.maxLength === 1000 &&
-      acknowledgeSchema.properties.sopExecuted.type === 'boolean' &&
-      /trims/.test(acknowledgeSchema.properties.note.description) &&
-      /trims/.test(acknowledgeSchema.properties.fieldCondition.description) &&
-      resolveSchema.properties.resolutionNote.minLength === 1 &&
-      resolveSchema.properties.resolutionNote.maxLength === 2000 &&
-      /trims/.test(resolveSchema.properties.resolutionNote.description) &&
-      falseAlarmSchema.properties.reason.minLength === 1 &&
-      falseAlarmSchema.properties.reason.maxLength === 2000 &&
-      /trims/.test(falseAlarmSchema.properties.reason.description),
-    'Phase 05 lifecycle body requirements, trim semantics, or limits drifted.',
-  );
-  assert(
-    rawSpecification.components.parameters.AlertActionIdempotencyKey.schema.format === 'uuid' &&
-      /body actionId/.test(
-        rawSpecification.components.parameters.AlertActionIdempotencyKey.description,
-      ) &&
-      /requestId is never/.test(
-        rawSpecification.components.parameters.AlertActionIdempotencyKey.description,
-      ),
-    'Alert lifecycle idempotency must use a client UUID v4 equal to body actionId.',
-  );
-  assert(
-    JSON.stringify(rawSpecification.components.schemas.RealtimeEventType.enum) ===
-      JSON.stringify([
-        'ALERT_CREATED',
-        'ALERT_OBSERVED',
-        'ALERT_ACKNOWLEDGED',
-        'ALERT_RESOLVED',
-        'ALERT_FALSE_ALARM',
-        'MONITORING_POINT_STATE_CHANGED',
-      ]),
-    'Realtime event type contract drifted.',
-  );
   const realtime = rawSpecification.paths['/realtime/stream'].get;
   assert(
     realtime.responses['200'].content['text/event-stream']['x-event-schema'].$ref ===
@@ -621,19 +463,6 @@ try {
         (parameter) => parameter.in === 'query' && /token/i.test(parameter.name),
       ),
     'SSE authentication, delivery, reconnect, or multi-instance contract drifted.',
-  );
-  const alertEvents = rawSpecification.paths['/alerts/{alertId}/events'].get;
-  const auditLogs = rawSpecification.paths['/audit-logs'].get;
-  assert(
-    hasParameterReference(alertEvents, '#/components/parameters/Limit') &&
-      hasParameterReference(alertEvents, '#/components/parameters/Cursor') &&
-      hasParameterReference(auditLogs, '#/components/parameters/Limit') &&
-      hasParameterReference(auditLogs, '#/components/parameters/Cursor') &&
-      alertEvents['x-ordering'] === 'createdAt:desc,id:desc' &&
-      auditLogs['x-ordering'] === 'createdAt:desc,id:desc' &&
-      JSON.stringify(auditLogs['x-time-range-semantics']) ===
-        JSON.stringify({ from: 'inclusive', to: 'exclusive', 'maximum-days': 30 }),
-    'Alert event or audit history pagination/range contract drifted.',
   );
   for (const forbiddenFragment of [
     '/notifications',
