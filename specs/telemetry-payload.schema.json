@@ -56,12 +56,12 @@
       "required": ["tiltMagnitudeDeg", "soilMoisturePct", "rainfallMmHour", "batteryVoltage"],
       "properties": {
         "tiltXDeg": {
-          "type": "number",
+          "type": ["number", "null"],
           "minimum": -180,
           "maximum": 180
         },
         "tiltYDeg": {
-          "type": "number",
+          "type": ["number", "null"],
           "minimum": -180,
           "maximum": 180
         },

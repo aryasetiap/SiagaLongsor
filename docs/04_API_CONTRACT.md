@@ -209,11 +209,14 @@ Required body:
 - `timestamp`
 - `firmwareVersion`
 - `readings`
-- `deviceAssessment`
 
 `network` optional. Semua object menolak property yang tidak dikenal. `bootId` panjangnya 1–64,
 berubah pada setiap boot, dan tetap sama dalam satu boot session. Primary idempotency adalah
 `(deviceId, messageId)`; sequence uniqueness adalah `(deviceId, bootId, sequence)`.
+
+`readings` wajib memuat `tiltMagnitudeDeg`, `soilMoisturePct`, `rainfallMmHour`, dan
+`batteryVoltage`. Nilai `null` berarti sensor unavailable/unreadable dan tidak boleh diganti dengan
+`0`. `tiltXDeg` dan `tiltYDeg` adalah diagnostik optional yang menerima numeric finite atau `null`.
 
 `rainfallMmHour` adalah finite number minimum 0 dan tidak memiliki static maximum. Batas atas
 teknis baru ditentukan secara configurable setelah datasheet sensor dan kalibrasi lapangan
