@@ -1,0 +1,16 @@
+import type { ApiErrorEnvelope } from '../src/api/contracts';
+
+export const validationErrorFixture: ApiErrorEnvelope = {
+  error: {
+    code: 'VALIDATION_ERROR',
+    message: 'Payload tidak valid.',
+    details: [
+      {
+        field: 'readings.soilMoisturePct',
+        messages: ['Harus bernilai antara 0 dan 100.'],
+      },
+    ],
+  },
+  requestId: 'req_01K1B6JZTHB7M8Q9K2R4V6W8XY',
+  timestamp: '2026-07-30T08:00:00.000Z',
+};
