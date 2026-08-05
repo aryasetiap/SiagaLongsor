@@ -1,6 +1,11 @@
 # Phase 07 production-readiness contract
 
-Status: **P7-01 active/current**. This document freezes Phase 07 requirements before implementation.
+> **STATUS NOTICE — pre-scope-reset contract.** This contract is paused/superseded for final
+> release purposes by the R1 single-device scope reset. Its prior evidence remains historical
+> baseline only; it does not establish final production readiness. Final production-readiness
+> criteria will be rebuilt after R1–R8 stabilize. Phase 07 is not complete.
+
+Status: **paused/superseded for final release purposes after the R1 scope reset**. This document is retained as a historical pre-reset production-readiness contract and no longer defines the final product release scope.
 It does not claim k6 tests, backup/restore, production deployment, error tracking, security review,
 incident simulation, UAT, or a release decision have been completed.
 
@@ -14,6 +19,8 @@ acceptance criteria remain pending in
 Phase 07 provides evidence for performance testing, backup/restore, production deployment,
 observability, security review, incident simulation, and UAT. REST remains authoritative; Phase 05
 SSE is only an invalidation signal, and report realtime/SSE remains out of scope.
+
+> **Historical terms below.** The remaining requirements in this document describe the pre-scope-reset system and are retained only for traceability. References to Redis/BullMQ, object storage, organization isolation, multiple roles, SSE, Alerts, Map/SOP, Reports, and related Phase 02–06 architecture are not current final-product requirements unless explicitly retained by the R1 scope reset or re-approved during R2–R7.
 
 Phase 02–06 invariants do not change: TypeScript strict, Next.js, NestJS, PostgreSQL/Prisma,
 Redis/BullMQ, private object storage, bearer authentication plus `X-Organization-Id`,

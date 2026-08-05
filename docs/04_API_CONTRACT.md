@@ -1,5 +1,37 @@
 # API Contract
 
+> **Revised target contract — R1 scope reset.** Runtime dan `specs/openapi.yaml` saat ini masih
+> merepresentasikan implementasi pre-reset. Tidak ada endpoint runtime yang dihapus dalam R1;
+> bagian Phase 01–06 di bawah adalah catatan runtime/history, bukan kebutuhan produk final.
+>
+> Arah kontrak minimal untuk refactor berikutnya adalah konseptual (bukan klaim bahwa endpoint ini
+> sudah tersedia):
+>
+> ```text
+> POST /api/v1/auth/login
+> GET  /api/v1/auth/me
+> GET  /api/v1/health
+> POST /api/v1/iot/telemetry
+> GET  /api/v1/overview
+> GET  /api/v1/device
+> GET  /api/v1/risk-profile
+> PUT  /api/v1/risk-profile
+> GET  /api/v1/audit-log
+> ```
+>
+> Target semantics: login/me untuk administrator; health untuk liveness API; telemetry memakai
+> credential perangkat dan idempotency; overview memberi current authoritative state dan history
+> sensor; device memberi konektivitas/last seen/health setiap sensor; risk profile memberi profile
+> threshold versioned dan PUT tervalidasi/auditable; audit log memprioritaskan transisi hazard
+> beserta alasan, snapshot, dan referensi profile bila ada. Required telemetry stale, offline,
+> invalid, atau unavailable selalu menghasilkan `UNKNOWN`, tidak pernah `SAFE`.
+>
+> R2 wajib memperbarui machine-readable OpenAPI **sebelum atau bersama** perubahan implementasi
+> menurut workflow contract-first. R1 sengaja tidak mengubah `specs/openapi.yaml` atau mendefinisikan
+> schema OpenAPI lengkap.
+
+## Pre-reset runtime/history
+
 Base path: `/api/v1`
 
 `specs/openapi.yaml` adalah kontrak machine-readable. Dokumen ini menjelaskan semantics yang tidak
