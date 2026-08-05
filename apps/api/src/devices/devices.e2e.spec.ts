@@ -8,13 +8,12 @@ import request, {
   type Response as SuperTestResponse,
   type Test as SuperTestRequest,
 } from 'supertest';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../app.module.js';
 import { configureApp } from '../bootstrap/configure-app.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { DeviceLifecycleStatus, NetworkType, Role } from '../generated/prisma/enums.js';
-import { RealtimePostCommitService } from '../realtime/realtime-post-commit.service.js';
 import { DeviceCredentialService } from './device-credential.service.js';
 
 describe('Device and credential API', () => {
@@ -464,8 +463,6 @@ describe('Device and credential API', () => {
         evaluatedAt: new Date(),
       },
     });
-    const postCommit = app.get(RealtimePostCommitService);
-    const dispatch = vi.spyOn(postCommit, 'dispatch').mockResolvedValue(undefined);
     const first = await disable(ownerToken, device.id);
     const second = await disable(ownerToken, device.id);
 
@@ -488,14 +485,6 @@ describe('Device and credential API', () => {
         where: { entityId: device.id, eventType: 'DEVICE_DISABLED' },
       }),
     ).toBe(1);
-    expect(dispatch.mock.calls.flatMap(([descriptors]) => descriptors)).toEqual([
-      expect.objectContaining({
-        eventType: 'MONITORING_POINT_STATE_CHANGED',
-        organizationId: organizationAId,
-        monitoringPointId: device.monitoringPointId,
-      }),
-    ]);
-    dispatch.mockRestore();
   });
 
   it('allows a replacement after the previous device is disabled', async () => {

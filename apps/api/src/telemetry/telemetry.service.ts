@@ -14,7 +14,6 @@ import { PrismaService } from '../database/prisma.service.js';
 import { Prisma, type Device } from '../generated/prisma/client.js';
 import { DeviceLifecycleStatus, FirmwareRiskLevel } from '../generated/prisma/enums.js';
 import { RiskEvaluationService } from '../risk/risk-evaluation.service.js';
-import { RealtimePostCommitService } from '../realtime/realtime-post-commit.service.js';
 import type { TelemetryDto } from './dto/telemetry.dto.js';
 import type { AuthenticatedDevice, TelemetryAcceptedResponse } from './telemetry.types.js';
 
@@ -24,7 +23,6 @@ export class TelemetryService {
     private readonly prisma: PrismaService,
     @Inject(APP_CONFIG) private readonly config: AppConfig,
     private readonly riskEvaluation: RiskEvaluationService,
-    private readonly realtime: RealtimePostCommitService,
   ) {}
 
   async ingest(
@@ -79,7 +77,7 @@ export class TelemetryService {
             message: 'messageId telah digunakan untuk payload berbeda.',
           });
         }
-        return { telemetry: existing, duplicate: true, realtime: [] };
+        return { telemetry: existing, duplicate: true };
       }
 
       const sequenceConflict = await transaction.telemetry.findUnique({
@@ -144,17 +142,15 @@ export class TelemetryService {
             : {}),
         },
       });
-      const realtime = await this.riskEvaluation.evaluateAcceptedTelemetry(transaction, {
+      await this.riskEvaluation.evaluateAcceptedTelemetry(transaction, {
         device,
         telemetry,
         affectsCurrentState: isLatest,
         evaluatedAt: serverReceivedAt,
       });
 
-      return { telemetry, duplicate: false, realtime };
+      return { telemetry, duplicate: false };
     });
-
-    await this.realtime.dispatch(result.realtime);
 
     return {
       accepted: true,
