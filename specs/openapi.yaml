@@ -707,49 +707,6 @@ paths:
         '404': { $ref: '#/components/responses/NotFound' }
         '429': { $ref: '#/components/responses/RateLimited' }
         '500': { $ref: '#/components/responses/InternalError' }
-  /realtime/stream:
-    get:
-      operationId: streamRealtimeNotifications
-      tags: [Realtime]
-      summary: Stream organization-scoped change notifications
-      description: >-
-        Notification-only SSE stream; REST remains authoritative. Authentication uses bearer and
-        X-Organization-Id headers via fetch-based streaming, never a token query parameter.
-        Last-Event-ID is accepted for observability only and does not provide durable replay or
-        exactly-once delivery. Server sends a keepalive comment every 15 seconds. On reconnect the
-        client refetches authoritative REST state and applies jittered delays of 1, 2, 5, 10, then
-        30 seconds maximum. Redis Pub/Sub fans out committed events across instances; publication
-        failure never rolls back the database transaction.
-      security:
-        - bearerAuth: []
-      x-required-roles: [PROJECT_OWNER, SCHOOL_ADMIN]
-      x-delivery-semantics: notification-only-at-most-best-effort-no-replay
-      x-keepalive-seconds: 15
-      x-reconnect-seconds: [1, 2, 5, 10, 30]
-      parameters:
-        - $ref: '#/components/parameters/OrganizationId'
-        - $ref: '#/components/parameters/LastEventId'
-      responses:
-        '200':
-          description: SSE notification stream; each data field conforms to RealtimeEvent
-          headers:
-            x-request-id: { $ref: '#/components/headers/XRequestId' }
-            Cache-Control:
-              schema: { type: string, const: no-cache }
-            X-Accel-Buffering:
-              schema: { type: string, const: 'no' }
-          content:
-            text/event-stream:
-              schema: { type: string }
-              x-event-schema: { $ref: '#/components/schemas/RealtimeEvent' }
-              examples:
-                alert:
-                  externalValue: ./examples/phase-05/realtime-event.alert-created.json
-                acknowledged:
-                  externalValue: ./examples/phase-05/realtime-event.alert-acknowledged.json
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '500': { $ref: '#/components/responses/InternalError' }
 components:
   securitySchemes:
     bearerAuth:
