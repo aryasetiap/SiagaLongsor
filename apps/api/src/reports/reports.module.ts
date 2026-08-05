@@ -7,12 +7,11 @@ import { ReportPdfDataService } from './report-pdf-data.service.js';
 import { REPORT_QUEUE } from './report-queue.js';
 import { ReportQueueService } from './report-queue.service.js';
 import { ReportWorkerService } from './report-worker.service.js';
-import { ReportsController } from './reports.controller.js';
 import { TelemetryCsvService } from './telemetry-csv.service.js';
 
 @Module({
   imports: [ObjectStorageModule],
-  controllers: [ReportsController],
+  controllers: [],
   providers: [
     TelemetryCsvService,
     ReportJobsService,

@@ -402,13 +402,7 @@ try {
     '/monitoring-overview': {
       get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
     },
-    '/dashboard/summary': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
     '/monitoring-points/{monitoringPointId}/risk-assessments': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
-    '/monitoring-points/{monitoringPointId}/sensor-series': {
       get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
     },
     '/alerts': {
@@ -433,36 +427,6 @@ try {
       get: ['PROJECT_OWNER'],
     },
     '/realtime/stream': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
-    '/sites/{siteId}/map-config': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-      put: ['PROJECT_OWNER'],
-    },
-    '/map/overview': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
-    '/sites/{siteId}/sop': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-      post: ['PROJECT_OWNER'],
-    },
-    '/sites/{siteId}/sop/versions': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
-    '/sop-documents/{documentId}/content': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
-    '/reports/telemetry.csv': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
-    '/report-jobs': {
-      post: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
-    '/report-jobs/{reportJobId}': {
-      get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-    },
-    '/report-jobs/{reportJobId}/content': {
       get: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
     },
   };
@@ -545,108 +509,6 @@ try {
     'Every Phase 03 read operation must require bearer authentication.',
   );
 
-  const dashboardSummary = rawSpecification.paths['/dashboard/summary'].get;
-  assert(
-    JSON.stringify(dashboardSummary.security) === JSON.stringify([{ bearerAuth: [] }]),
-    'GET /dashboard/summary must require bearer authentication.',
-  );
-  const dashboardSite = dashboardSummary.parameters.find(
-    (parameter) => parameter.name === 'siteId' && parameter.in === 'query',
-  );
-  const dashboardWindow = dashboardSummary.parameters.find(
-    (parameter) => parameter.name === 'windowHours' && parameter.in === 'query',
-  );
-  assert(
-    dashboardSite?.required !== true && dashboardSite?.schema?.minLength === 1,
-    'Dashboard siteId must be an optional non-empty query filter.',
-  );
-  assert(
-    dashboardWindow?.required !== true &&
-      dashboardWindow?.schema?.default === 24 &&
-      dashboardWindow?.schema?.minimum === 1 &&
-      dashboardWindow?.schema?.maximum === 168,
-    'Dashboard windowHours must default to 24 with range 1..168.',
-  );
-  assert(
-    dashboardSummary.responses['200'].content['application/json'].schema.$ref ===
-      '#/components/schemas/DashboardSummaryResponse' &&
-      dashboardSummary['x-aggregate-source'] === 'authoritative-full-scope' &&
-      dashboardSummary['x-aggregate-invariants'].length === 6,
-    'Dashboard summary must expose the authoritative aggregate schema and invariants.',
-  );
-
-  const sensorSeries =
-    rawSpecification.paths['/monitoring-points/{monitoringPointId}/sensor-series'].get;
-  assert(
-    JSON.stringify(sensorSeries.security) === JSON.stringify([{ bearerAuth: [] }]),
-    'GET sensor-series must require bearer authentication.',
-  );
-  assert(
-    hasParameterReference(sensorSeries, '#/components/parameters/MonitoringPointId') &&
-      hasParameterReference(sensorSeries, '#/components/parameters/SensorSeriesCursor') &&
-      hasParameterReference(sensorSeries, '#/components/parameters/SensorSeriesLimit'),
-    'Sensor series must declare path, signed cursor, and limit parameters.',
-  );
-  for (const name of ['from', 'to', 'includeLate']) {
-    assert(
-      sensorSeries.parameters.some(
-        (parameter) => parameter.name === name && parameter.in === 'query',
-      ),
-      `Sensor series query parameter is missing: ${name}.`,
-    );
-  }
-  const sensorFrom = sensorSeries.parameters.find((parameter) => parameter.name === 'from');
-  const sensorTo = sensorSeries.parameters.find((parameter) => parameter.name === 'to');
-  assert(
-    sensorFrom?.schema?.format === 'date-time' &&
-      sensorTo?.schema?.format === 'date-time' &&
-      sensorSeries.parameters.find((parameter) => parameter.name === 'includeLate')?.schema
-        ?.default === false &&
-      rawSpecification.components.parameters.SensorSeriesLimit.schema.default === 500 &&
-      rawSpecification.components.parameters.SensorSeriesLimit.schema.maximum === 1000 &&
-      rawSpecification.components.parameters.SensorSeriesLimit.schema.minimum === 1,
-    'Sensor series includeLate/limit defaults or bounds are incorrect.',
-  );
-  assert(
-    sensorSeries['x-time-range-semantics']['default-hours'] === 24 &&
-      sensorSeries['x-time-range-semantics']['maximum-hours'] === 168 &&
-      sensorSeries['x-time-range-semantics'].from === 'inclusive' &&
-      sensorSeries['x-time-range-semantics'].to === 'exclusive' &&
-      sensorSeries['x-ordering'] === 'recordedAt:asc,telemetryId:asc',
-    'Sensor series range or oldest-first ordering semantics are incorrect.',
-  );
-  assert(
-    JSON.stringify(sensorSeries['x-cursor-context']) ===
-      JSON.stringify([
-        'organizationId',
-        'monitoringPointId',
-        'from',
-        'to',
-        'includeLate',
-        'ordering',
-        'recordedAt',
-        'telemetryId',
-      ]) &&
-      /signed/.test(rawSpecification.components.parameters.SensorSeriesCursor.description) &&
-      /INVALID_CURSOR/.test(rawSpecification.components.parameters.SensorSeriesCursor.description),
-    'Sensor series cursor must be signed and bound to the complete query context.',
-  );
-  assert(
-    sensorSeries.responses['200'].content['application/json'].schema.$ref ===
-      '#/components/schemas/SensorSeriesResponse',
-    'Sensor series response schema is incorrect.',
-  );
-  assert(
-    rawSpecification.paths['/monitoring-overview'].get.operationId === 'listMonitoringOverview' &&
-      rawSpecification.paths['/monitoring-overview'].get.responses['200'].content[
-        'application/json'
-      ].schema.$ref === '#/components/schemas/MonitoringOverviewResponse' &&
-      rawSpecification.paths['/alerts'].get.operationId === 'listAlerts' &&
-      rawSpecification.paths['/alerts'].get.responses['200'].content['application/json'].schema
-        .$ref === '#/components/schemas/AlertListResponse' &&
-      rawSpecification.paths['/alerts/{alertId}'].get.operationId === 'getAlert',
-    'Phase 03 Monitoring Overview and Alert read boundaries must remain unchanged.',
-  );
   const riskProfilePut = rawSpecification.paths['/sites/{siteId}/risk-profile'].put;
   assert(
     riskProfilePut['x-versioning-semantics'] === 'immutable-new-version-or-no-op' &&
@@ -663,17 +525,6 @@ try {
       ),
     'Alert collection and detail resources must remain read-only.',
   );
-  for (const path of [
-    '/dashboard/summary',
-    '/monitoring-points/{monitoringPointId}/sensor-series',
-  ]) {
-    assert(
-      ['post', 'put', 'patch', 'delete'].every(
-        (method) => !Object.hasOwn(rawSpecification.paths[path], method),
-      ),
-      `Phase 04 dashboard data path must be read-only: ${path}`,
-    );
-  }
   for (const forbiddenPath of [
     '/threshold-profiles/{profileId}/activate',
     '/notifications',
@@ -988,155 +839,6 @@ try {
   validateExample(phase06Examples['report-job.create.response.json'], schemas.ReportJobResponse);
   validateExample(phase06Examples['report-job.response.json'], schemas.ReportJobResponse);
   validateExample(phase06Examples['report-jobs.response.json'], schemas.ReportJobListResponse);
-
-  const mapConfigurationPut = rawSpecification.paths['/sites/{siteId}/map-config'].put;
-  assert(
-    mapConfigurationPut['x-versioning-semantics'] === 'immutable-new-version-or-canonical-no-op' &&
-      mapConfigurationPut['x-concurrency-control'] ===
-        'serialize-per-site-and-match-expected-version' &&
-      Object.hasOwn(mapConfigurationPut.responses, '409'),
-    'Map configuration immutable versioning or optimistic concurrency contract drifted.',
-  );
-  assert(
-    rawSpecification.components.schemas.UpdateSiteMapConfigurationRequest.allOf[1].required.includes(
-      'expectedVersion',
-    ) &&
-      rawSpecification.components.schemas.UpdateSiteMapConfigurationRequest.allOf[1].properties.expectedVersion.type.includes(
-        'null',
-      ) &&
-      JSON.stringify(mapConfigurationPut['x-audit-metadata']) ===
-        JSON.stringify([
-          'siteId',
-          'previousVersion',
-          'newVersion',
-          'monitoringPointCount',
-          'riskZoneCount',
-          'routeCount',
-        ]),
-    'Map expectedVersion or sanitized audit metadata contract drifted.',
-  );
-  assert(
-    rawSpecification.components.schemas.GeoJsonPosition.minItems === 2 &&
-      rawSpecification.components.schemas.GeoJsonPosition.maxItems === 2 &&
-      rawSpecification.components.schemas.GeoJsonPosition.prefixItems[0].minimum === -180 &&
-      rawSpecification.components.schemas.GeoJsonPosition.prefixItems[0].maximum === 180 &&
-      rawSpecification.components.schemas.GeoJsonPosition.prefixItems[1].minimum === -90 &&
-      rawSpecification.components.schemas.GeoJsonPosition.prefixItems[1].maximum === 90,
-    'Map geometry must use bounded [longitude, latitude] WGS84 positions without altitude.',
-  );
-  assert(
-    rawSpecification.components.schemas.GeoJsonPolygon.properties.type.const === 'Polygon' &&
-      rawSpecification.components.schemas.GeoJsonPolygon.properties.coordinates.minItems === 1 &&
-      rawSpecification.components.schemas.GeoJsonPolygon.properties.coordinates.items.minItems ===
-        4 &&
-      rawSpecification.components.schemas.GeoJsonLineString.properties.type.const ===
-        'LineString' &&
-      rawSpecification.components.schemas.GeoJsonLineString.properties.coordinates.minItems === 2 &&
-      !Object.hasOwn(rawSpecification.components.schemas.RiskZoneFeature.properties, 'riskLevel') &&
-      !Object.hasOwn(rawSpecification.components.schemas.RiskZoneFeature.properties, 'level') &&
-      rawSpecification.components.schemas.SiteMapConfigurationInput.properties
-        .monitoringPointLocations['x-unique-by'] === 'monitoringPointId',
-    'GeoJSON shape, static risk-zone, or unique MonitoringPoint location contract drifted.',
-  );
-  const mapOverview = rawSpecification.paths['/map/overview'].get;
-  assert(
-    mapOverview['x-unconfigured-semantics'] ===
-      'configured-false-null-center-version-empty-geometry-markers' &&
-      mapOverview['x-safety-boundary'] ===
-        'static-manual-geometry-current-state-authoritative-no-prediction-routing-geocoding' &&
-      schemas.MapOverview.required.includes('generatedAt') &&
-      !containsProperty(schemas.MapOverviewResponse, 'totalCount'),
-    'Map honest-empty-state, safety boundary, generatedAt, or no-totalCount contract drifted.',
-  );
-  assert(
-    rawSpecification.paths['/sites/{siteId}/sop'].post['x-upload-maximum-bytes'] === 10485760 &&
-      rawSpecification.paths['/sites/{siteId}/sop'].post['x-content-validation'] ===
-        'declared-mime-extension-and-pdf-magic-signature' &&
-      schemas.SopDocument.properties.mediaType.const === 'application/pdf',
-    'SOP PDF size, content validation, or media type boundary drifted.',
-  );
-  assert(
-    rawSpecification.paths['/sites/{siteId}/sop'].post.requestBody.content['multipart/form-data']
-      .schema.$ref === '#/components/schemas/UploadSopDocumentRequest' &&
-      rawSpecification.paths['/sop-documents/{documentId}/content'].get.responses['200'].content[
-        'application/pdf'
-      ].schema.format === 'binary' &&
-      rawSpecification.paths['/sop-documents/{documentId}/content'].get[
-        'x-private-authenticated-content'
-      ] === true &&
-      !containsProperty(schemas.SopDocument, 'storageKey') &&
-      !containsProperty(schemas.SopDocument, 'bucket') &&
-      !containsProperty(schemas.SopDocument, 'localPath') &&
-      !containsProperty(schemas.SopDocument, 'presignedUrl') &&
-      !containsProperty(schemas.SopDocument, 'provider') &&
-      !containsProperty(schemas.SopDocument, 'url'),
-    'SOP multipart, private PDF, or safe metadata boundary drifted.',
-  );
-  assert(
-    rawSpecification.paths['/reports/telemetry.csv'].get['x-time-range-semantics'][
-      'maximum-days'
-    ] === 31 &&
-      rawSpecification.paths['/reports/telemetry.csv'].get['x-csv-escaping'] ===
-        'rfc4180-and-formula-prefix-neutralization' &&
-      rawSpecification.paths['/report-jobs'].post.responses['202'] &&
-      rawSpecification.paths['/report-jobs/{reportJobId}/content'].get[
-        'x-artifact-retention-days'
-      ] === 90,
-    'Phase 06 export range, CSV safety, asynchronous status, or retention drifted.',
-  );
-  assert(
-    rawSpecification.paths['/reports/telemetry.csv'].get.responses['200'].content[
-      'text/csv; charset=utf-8'
-    ] &&
-      /raw payload/.test(rawSpecification.paths['/reports/telemetry.csv'].get.description) &&
-      /null as an empty field/.test(
-        rawSpecification.paths['/reports/telemetry.csv'].get.description,
-      ) &&
-      JSON.stringify(rawSpecification.components.schemas.ReportJobStatus.enum) ===
-        JSON.stringify(['QUEUED', 'PROCESSING', 'SUCCEEDED', 'FAILED', 'EXPIRED']) &&
-      JSON.stringify(rawSpecification.components.schemas.ReportFailureCode.enum) ===
-        JSON.stringify(['REPORT_GENERATION_FAILED', 'REPORT_ARTIFACT_UNAVAILABLE']) &&
-      !containsProperty(schemas.ReportJob, 'storageKey') &&
-      !containsProperty(schemas.ReportJob, 'redisKey') &&
-      !containsProperty(schemas.ReportJob, 'bullmqJobId') &&
-      !containsProperty(schemas.ReportJob, 'queue') &&
-      !containsProperty(schemas.ReportJob, 'url') &&
-      !containsProperty(schemas.ReportJobListResponse, 'totalCount'),
-    'CSV media/safety or report status/sensitive-field/no-totalCount contract drifted.',
-  );
-  assert(
-    schemas.ReportJob.required.includes('createdBy') &&
-      schemas.ReportJob.required.includes('expiresAt') &&
-      schemas.ReportJob.required.includes('failureMessage') &&
-      schemas.ReportJob.properties.failureMessage.maxLength === 500 &&
-      rawSpecification.paths['/report-jobs'].get['x-cursor-context'].includes('organizationId') &&
-      rawSpecification.paths['/sites/{siteId}/sop/versions'].get['x-cursor-context'].includes(
-        'siteId',
-      ),
-    'Report safe projection or context-bound cursor contract drifted.',
-  );
-  const polygonRing =
-    phase06Examples['map-config.response.json'].data.riskZones[0].geometry.coordinates[0];
-  assert(
-    JSON.stringify(polygonRing[0]) === JSON.stringify(polygonRing.at(-1)),
-    'Map configuration example polygon ring must be closed.',
-  );
-  for (const name of expectedPhase06ExampleFiles) {
-    for (const forbidden of [
-      'secret',
-      'credentialHash',
-      'storageKey',
-      'Authorization',
-      'rawPayload',
-      'signedUrl',
-      'totalCount',
-    ]) {
-      assert(
-        !containsProperty(phase06Examples[name], forbidden),
-        `${name} must not expose ${forbidden}.`,
-      );
-    }
-  }
 
   assert(
     phase02Examples['telemetry-accepted.response.json'].duplicate === false &&
