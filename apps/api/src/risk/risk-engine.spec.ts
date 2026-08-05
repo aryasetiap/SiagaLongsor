@@ -11,7 +11,11 @@ import type {
 const profile: RiskEngineProfile = {
   id: 'profile-1',
   version: 1,
-  safe: { tiltMagnitudeDegLt: 3, soilMoisturePctLt: 65, rainfallMmHourLt: 20 },
+  safe: {
+    tiltMagnitudeDegLt: 3,
+    soilMoisturePctLt: 65,
+    rainfallMmHourLt: 20,
+  },
   danger: {
     tiltMagnitudeDegGt: 8,
     rainfallMmHourGt: 50,
@@ -22,6 +26,9 @@ const profile: RiskEngineProfile = {
     soilMoisturePct: [0, 100],
     rainfallMmHour: [0, 1000],
   },
+
+  // Retained in persistence for legacy compatibility.
+  // R2 direct-boundary semantics do not use these values to delay hazard changes.
   watchConsecutiveSamples: 2,
   dangerConsecutiveSamples: 1,
   downgradeStableMinutes: 10,
@@ -63,43 +70,167 @@ function state(risk: ServerRisk, overrides: Partial<RiskEngineState> = {}): Risk
   };
 }
 
-describe('evaluateRisk', () => {
+describe('evaluateRisk - R2 direct boundary semantics', () => {
+  it('returns SAFE when all required hazard readings are below WATCH thresholds', () => {
+    const result = evaluateRisk(input());
+
+    expect(result.assessmentRisk).toBe('SAFE');
+    expect(result.reasons).toContain('SAFE_THRESHOLDS_MET');
+  });
+
   it.each([
-    ['SAFE', 1, 40, 5, 'SAFE_THRESHOLDS_MET'],
-    ['WATCH', 3, 40, 5, 'WATCH_THRESHOLDS_MET'],
-    ['WATCH', 1, 65, 5, 'WATCH_THRESHOLDS_MET'],
-    ['WATCH', 1, 70, 5, 'WATCH_THRESHOLDS_MET'],
-    ['WATCH', 1, 40, 20, 'WATCH_THRESHOLDS_MET'],
-    ['WATCH', 1, 40, 50, 'WATCH_THRESHOLDS_MET'],
-    ['WATCH', 1, 40, 51, 'WATCH_THRESHOLDS_MET'],
-    ['DANGER', 8.01, 40, 5, 'DANGER_TILT'],
-    ['DANGER', 1, 85.01, 50.01, 'DANGER_RAIN_MOISTURE'],
-    ['WATCH', 8, 40, 5, 'WATCH_THRESHOLDS_MET'],
-    ['WATCH', 1, 85, 50, 'WATCH_THRESHOLDS_MET'],
+    ['tilt', 3, 40, 5],
+    ['soil moisture', 1, 65, 5],
+    ['rainfall', 1, 40, 20],
+  ] as const)('returns WATCH at the exact %s WATCH boundary', (_name, tilt, moisture, rainfall) => {
+    const result = evaluateRisk(
+      input({
+        telemetry: {
+          tiltMagnitudeDeg: tilt,
+          soilMoisturePct: moisture,
+          rainfallMmHour: rainfall,
+          firmwareRisk: 'WATCH',
+        },
+      }),
+    );
+
+    expect(result.assessmentRisk).toBe('WATCH');
+    expect(result.reasons).toContain('WATCH_THRESHOLDS_MET');
+  });
+
+  it('does not require consecutive WATCH samples in R2', () => {
+    const result = evaluateRisk(
+      input({
+        telemetry: {
+          tiltMagnitudeDeg: 4,
+          soilMoisturePct: 40,
+          rainfallMmHour: 5,
+          firmwareRisk: 'WATCH',
+        },
+      }),
+    );
+
+    expect(result.assessmentRisk).toBe('WATCH');
+    expect(result.reasons).not.toContain('WATCH_HYSTERESIS_PENDING');
+  });
+
+  it.each([
+    ['tilt', 8, 40, 5, 'DANGER_TILT'],
+    ['soil moisture', 1, 85, 5, 'DANGER_SOIL_MOISTURE'],
+    ['rainfall', 1, 40, 50, 'DANGER_RAINFALL'],
   ] as const)(
-    'classifies %s from tilt=%s moisture=%s rainfall=%s',
-    (expected, tilt, moisture, rainfall, reason) => {
+    'returns DANGER when %s reaches its exact DANGER boundary',
+    (_name, tilt, moisture, rainfall, reason) => {
       const result = evaluateRisk(
         input({
-          affectsCurrentState: false,
           telemetry: {
             tiltMagnitudeDeg: tilt,
             soilMoisturePct: moisture,
             rainfallMmHour: rainfall,
-            firmwareRisk: expected,
+            firmwareRisk: 'DANGER',
           },
         }),
       );
-      expect(result.assessmentRisk).toBe(expected);
+
+      expect(result.assessmentRisk).toBe('DANGER');
       expect(result.reasons).toContain(reason);
     },
   );
 
+  it('allows tilt alone to cause DANGER', () => {
+    const result = evaluateRisk(
+      input({
+        telemetry: {
+          tiltMagnitudeDeg: 9,
+          soilMoisturePct: 40,
+          rainfallMmHour: 5,
+          firmwareRisk: 'DANGER',
+        },
+      }),
+    );
+
+    expect(result.assessmentRisk).toBe('DANGER');
+    expect(result.reasons).toContain('DANGER_TILT');
+  });
+
+  it('allows soil moisture alone to cause DANGER', () => {
+    const result = evaluateRisk(
+      input({
+        telemetry: {
+          tiltMagnitudeDeg: 1,
+          soilMoisturePct: 90,
+          rainfallMmHour: 5,
+          firmwareRisk: 'DANGER',
+        },
+      }),
+    );
+
+    expect(result.assessmentRisk).toBe('DANGER');
+    expect(result.reasons).toContain('DANGER_SOIL_MOISTURE');
+  });
+
+  it('allows rainfall alone to cause DANGER', () => {
+    const result = evaluateRisk(
+      input({
+        telemetry: {
+          tiltMagnitudeDeg: 1,
+          soilMoisturePct: 40,
+          rainfallMmHour: 60,
+          firmwareRisk: 'DANGER',
+        },
+      }),
+    );
+
+    expect(result.assessmentRisk).toBe('DANGER');
+    expect(result.reasons).toContain('DANGER_RAINFALL');
+  });
+
+  it('collects independent DANGER reasons when multiple thresholds are reached', () => {
+    const result = evaluateRisk(
+      input({
+        telemetry: {
+          tiltMagnitudeDeg: 9,
+          soilMoisturePct: 90,
+          rainfallMmHour: 60,
+          firmwareRisk: 'DANGER',
+        },
+      }),
+    );
+
+    expect(result.candidateRisk).toBe('DANGER');
+    expect(result.reasons).toEqual(
+      expect.arrayContaining(['DANGER_TILT', 'DANGER_SOIL_MOISTURE', 'DANGER_RAINFALL']),
+    );
+  });
+
   it.each([
-    ['missing sensor', null, 40, 5, 'REQUIRED_SENSOR_MISSING'],
-    ['negative rainfall', 1, 40, -1, 'REQUIRED_SENSOR_INVALID'],
-    ['moisture above range', 1, 101, 5, 'REQUIRED_SENSOR_INVALID'],
-  ] as const)('returns UNKNOWN for %s', (_name, tilt, moisture, rainfall, reason) => {
+    ['tilt', null, 40, 5],
+    ['soil moisture', 1, null, 5],
+    ['rainfall', 1, 40, null],
+  ] as const)(
+    'returns UNKNOWN when required %s reading is unavailable',
+    (_name, tilt, moisture, rainfall) => {
+      const result = evaluateRisk(
+        input({
+          telemetry: {
+            tiltMagnitudeDeg: tilt,
+            soilMoisturePct: moisture,
+            rainfallMmHour: rainfall,
+            firmwareRisk: 'UNKNOWN',
+          },
+        }),
+      );
+
+      expect(result.assessmentRisk).toBe('UNKNOWN');
+      expect(result.reasons).toContain('REQUIRED_SENSOR_MISSING');
+    },
+  );
+
+  it.each([
+    ['negative rainfall', 1, 40, -1],
+    ['moisture above range', 1, 101, 5],
+    ['tilt above range', 181, 40, 5],
+  ] as const)('returns UNKNOWN for invalid %s', (_name, tilt, moisture, rainfall) => {
     const result = evaluateRisk(
       input({
         telemetry: {
@@ -110,8 +241,9 @@ describe('evaluateRisk', () => {
         },
       }),
     );
+
     expect(result.assessmentRisk).toBe('UNKNOWN');
-    expect(result.reasons).toContain(reason);
+    expect(result.reasons).toContain('REQUIRED_SENSOR_INVALID');
   });
 
   it.each([
@@ -120,36 +252,23 @@ describe('evaluateRisk', () => {
     [{ profile: null }, 'PROFILE_UNAVAILABLE'],
   ] as const)('prioritizes UNKNOWN precondition', (override, reason) => {
     const result = evaluateRisk(input(override));
+
     expect(result.assessmentRisk).toBe('UNKNOWN');
     expect(result.reasons).toContain(reason);
   });
 
-  it('requires two consecutive WATCH samples', () => {
-    const first = evaluateRisk(
+  it.each([
+    ['DELAYED', 'TELEMETRY_DELAYED'],
+    ['OFFLINE', 'DEVICE_OFFLINE'],
+  ] as const)('never reports SAFE for %s live connectivity', (connectivity, reason) => {
+    const result = evaluateRisk(
       input({
-        telemetry: {
-          tiltMagnitudeDeg: 4,
-          soilMoisturePct: 40,
-          rainfallMmHour: 5,
-          firmwareRisk: 'WATCH',
-        },
+        liveConnectivity: connectivity,
       }),
     );
-    expect(first.assessmentRisk).toBe('UNKNOWN');
-    expect(first.reasons).toContain('WATCH_HYSTERESIS_PENDING');
 
-    const second = evaluateRisk(
-      input({
-        previous: first.nextState,
-        telemetry: {
-          tiltMagnitudeDeg: 4,
-          soilMoisturePct: 40,
-          rainfallMmHour: 5,
-          firmwareRisk: 'WATCH',
-        },
-      }),
-    );
-    expect(second.assessmentRisk).toBe('WATCH');
+    expect(result.effectiveServerRisk).toBe('UNKNOWN');
+    expect(result.reasons).toContain(reason);
   });
 
   it('upgrades to DANGER immediately', () => {
@@ -164,53 +283,30 @@ describe('evaluateRisk', () => {
         },
       }),
     );
+
     expect(result.assessmentRisk).toBe('DANGER');
   });
 
-  it('applies DANGER precedence over otherwise non-safe readings', () => {
+  it('downgrades immediately when current valid readings classify SAFE', () => {
     const result = evaluateRisk(
       input({
+        previous: state('DANGER'),
         telemetry: {
-          tiltMagnitudeDeg: 9,
-          soilMoisturePct: 90,
-          rainfallMmHour: 60,
-          firmwareRisk: 'DANGER',
+          tiltMagnitudeDeg: 1,
+          soilMoisturePct: 40,
+          rainfallMmHour: 5,
+          firmwareRisk: 'SAFE',
         },
       }),
     );
-    expect(result.candidateRisk).toBe('DANGER');
-    expect(result.reasons).toEqual(expect.arrayContaining(['DANGER_TILT', 'DANGER_RAIN_MOISTURE']));
+
+    expect(result.assessmentRisk).toBe('SAFE');
+    expect(result.reasons).not.toContain('DOWNGRADE_STABILITY_PENDING');
   });
 
-  it.each([
-    ['DELAYED', 'TELEMETRY_DELAYED'],
-    ['OFFLINE', 'DEVICE_OFFLINE'],
-  ] as const)('never reports SAFE for %s live connectivity', (connectivity, reason) => {
-    const result = evaluateRisk(input({ liveConnectivity: connectivity }));
-    expect(result.effectiveServerRisk).toBe('UNKNOWN');
-    expect(result.reasons).toContain(reason);
-  });
+  it('does not mutate current projection for late telemetry', () => {
+    const previous = state('SAFE');
 
-  it('holds a downgrade until stability duration passes', () => {
-    const pending = evaluateRisk(
-      input({
-        previous: state('DANGER'),
-        evaluatedAt: new Date('2026-07-31T00:00:00.000Z'),
-      }),
-    );
-    expect(pending.assessmentRisk).toBe('DANGER');
-    expect(pending.reasons).toContain('DOWNGRADE_STABILITY_PENDING');
-    const stable = evaluateRisk(
-      input({
-        previous: pending.nextState,
-        evaluatedAt: new Date('2026-07-31T00:10:00.000Z'),
-      }),
-    );
-    expect(stable.assessmentRisk).toBe('SAFE');
-  });
-
-  it('does not mutate projection or hysteresis for late telemetry', () => {
-    const previous = state('SAFE', { watchCount: 1 });
     const result = evaluateRisk(
       input({
         affectsCurrentState: false,
@@ -223,14 +319,22 @@ describe('evaluateRisk', () => {
         },
       }),
     );
+
     expect(result.assessmentRisk).toBe('DANGER');
     expect(result.nextState).toBeNull();
+    expect(result.affectsCurrentState).toBe(false);
   });
 
-  it('resets prospective counters when device or profile changes', () => {
+  it('uses direct WATCH semantics after device or profile context changes', () => {
     for (const previous of [
-      state('WATCH', { deviceId: 'old-device', watchCount: 8 }),
-      state('WATCH', { profileVersion: 99, watchCount: 8 }),
+      state('WATCH', {
+        deviceId: 'old-device',
+        watchCount: 8,
+      }),
+      state('WATCH', {
+        profileVersion: 99,
+        watchCount: 8,
+      }),
     ]) {
       const result = evaluateRisk(
         input({
@@ -243,8 +347,9 @@ describe('evaluateRisk', () => {
           },
         }),
       );
+
+      expect(result.assessmentRisk).toBe('WATCH');
       expect(result.nextState?.watchCount).toBe(1);
-      expect(result.assessmentRisk).toBe('UNKNOWN');
     }
   });
 
@@ -252,23 +357,44 @@ describe('evaluateRisk', () => {
     const first = evaluateRisk(
       input({
         previous: state('SAFE'),
-        telemetry: { ...input().telemetry, firmwareRisk: 'WATCH' },
+        telemetry: {
+          ...input().telemetry,
+          firmwareRisk: 'WATCH',
+        },
       }),
     );
+
     const second = evaluateRisk(
-      input({ previous: first.nextState, telemetry: firstInputMismatch() }),
+      input({
+        previous: first.nextState,
+        telemetry: mismatchedFirmwareTelemetry(),
+      }),
     );
+
     const third = evaluateRisk(
-      input({ previous: second.nextState, telemetry: firstInputMismatch() }),
+      input({
+        previous: second.nextState,
+        telemetry: mismatchedFirmwareTelemetry(),
+      }),
     );
+
     expect(first.reasons).toContain('DEVICE_SERVER_MISMATCH');
     expect(second.mismatchThresholdReached).toBe(false);
     expect(third.mismatchThresholdReached).toBe(true);
-    const agreed = evaluateRisk(input({ previous: third.nextState }));
+
+    const agreed = evaluateRisk(
+      input({
+        previous: third.nextState,
+      }),
+    );
+
     expect(agreed.nextState?.mismatchCount).toBe(0);
   });
 });
 
-function firstInputMismatch() {
-  return { ...input().telemetry, firmwareRisk: 'WATCH' as const };
+function mismatchedFirmwareTelemetry() {
+  return {
+    ...input().telemetry,
+    firmwareRisk: 'WATCH' as const,
+  };
 }

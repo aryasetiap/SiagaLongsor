@@ -451,14 +451,26 @@ describe('Telemetry ingestion API', () => {
     expect(responses.every((item) => item.body.error.code === 'VALIDATION_ERROR')).toBe(true);
   });
 
-  it('rejects non-finite, negative rainfall, unsafe sequence, and excessive future timestamp', async () => {
+  it('rejects negative rainfall, malformed numeric reading, unsafe sequence, and excessive future timestamp', async () => {
     const responses = await Promise.all([
-      ingest({ ...validPayload(), readings: { ...validPayload().readings, rainfallMmHour: -1 } }),
       ingest({
         ...validPayload(),
-        readings: { ...validPayload().readings, rainfallMmHour: Number.POSITIVE_INFINITY },
+        readings: {
+          ...validPayload().readings,
+          rainfallMmHour: -1,
+        },
       }),
-      ingest({ ...validPayload(), sequence: Number.MAX_SAFE_INTEGER + 1 }),
+      ingest({
+        ...validPayload(),
+        readings: {
+          ...validPayload().readings,
+          rainfallMmHour: 'Infinity',
+        },
+      }),
+      ingest({
+        ...validPayload(),
+        sequence: Number.MAX_SAFE_INTEGER + 1,
+      }),
       ingest({
         ...validPayload(),
         timestamp: new Date(Date.now() + 301_000).toISOString(),
@@ -466,6 +478,7 @@ describe('Telemetry ingestion API', () => {
     ]);
 
     expect(responses.map((item) => item.status)).toEqual([400, 400, 400, 400]);
+
     expect(responses.every((item) => item.body.error.code === 'VALIDATION_ERROR')).toBe(true);
   });
 

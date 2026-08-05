@@ -316,9 +316,9 @@ export function toSensorSeriesItem(telemetry: SeriesTelemetry): SensorSeriesItem
     recordedAt: telemetry.deviceTimestamp.toISOString(),
     serverReceivedAt: telemetry.serverReceivedAt.toISOString(),
     isLate: telemetry.riskAssessment?.affectsCurrentState === false,
-    tiltMagnitudeDeg: telemetry.tiltMagnitudeDeg.toNumber(),
-    soilMoisturePct: telemetry.soilMoisturePct.toNumber(),
-    rainfallMmHour: telemetry.rainfallMmHour.toNumber(),
+    tiltMagnitudeDeg: telemetry.tiltMagnitudeDeg?.toNumber() ?? null,
+    soilMoisturePct: telemetry.soilMoisturePct?.toNumber() ?? null,
+    rainfallMmHour: telemetry.rainfallMmHour?.toNumber() ?? null,
     batteryVoltage: telemetry.batteryVoltage?.toNumber() ?? null,
   };
 }

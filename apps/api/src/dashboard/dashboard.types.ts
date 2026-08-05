@@ -34,9 +34,9 @@ export interface SensorSeriesItem {
   readonly recordedAt: string;
   readonly serverReceivedAt: string;
   readonly isLate: boolean;
-  readonly tiltMagnitudeDeg: number;
-  readonly soilMoisturePct: number;
-  readonly rainfallMmHour: number;
+  readonly tiltMagnitudeDeg: number | null;
+  readonly soilMoisturePct: number | null;
+  readonly rainfallMmHour: number | null;
   readonly batteryVoltage: number | null;
 }
 

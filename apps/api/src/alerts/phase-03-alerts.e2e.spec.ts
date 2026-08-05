@@ -239,7 +239,7 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
     expect((await ingest(telemetryDevice.hardwareId, telemetrySecret, firstWatch)).status).toBe(
       201,
     );
-    expect(await alertCount(AlertType.RISK_WATCH, telemetryPointId)).toBe(0);
+    expect(await alertCount(AlertType.RISK_WATCH, telemetryPointId)).toBe(1);
     const secondResponse = await ingest(telemetryDevice.hardwareId, telemetrySecret, secondWatch);
     expect(secondResponse.status).toBe(201);
     expect(secondResponse.body).not.toHaveProperty('serverRisk');
@@ -248,13 +248,13 @@ describe('Phase 03 alerts, connectivity, and read APIs', () => {
     const watchAlert = await prisma.alert.findFirstOrThrow({
       where: { monitoringPointId: telemetryPointId, type: AlertType.RISK_WATCH },
     });
-    expect(watchAlert.occurrenceCount).toBe(1);
+    expect(watchAlert.occurrenceCount).toBe(2);
     expect((await ingest(telemetryDevice.hardwareId, telemetrySecret, secondWatch)).status).toBe(
       200,
     );
     expect(
       (await prisma.alert.findUniqueOrThrow({ where: { id: watchAlert.id } })).occurrenceCount,
-    ).toBe(1);
+    ).toBe(2);
 
     const late = payload({
       risk: FirmwareRiskLevel.DANGER,

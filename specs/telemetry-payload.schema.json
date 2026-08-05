@@ -5,15 +5,7 @@
   "description": "Canonical Phase 02 telemetry request body. Device identity is established by the Authorization header, not duplicated in this payload.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "messageId",
-    "bootId",
-    "sequence",
-    "timestamp",
-    "firmwareVersion",
-    "readings",
-    "deviceAssessment"
-  ],
+  "required": ["messageId", "bootId", "sequence", "timestamp", "firmwareVersion", "readings"],
   "properties": {
     "messageId": {
       "type": "string",
@@ -74,22 +66,22 @@
           "maximum": 180
         },
         "tiltMagnitudeDeg": {
-          "type": "number",
+          "type": ["number", "null"],
           "minimum": 0,
           "maximum": 180
         },
         "soilMoisturePct": {
-          "type": "number",
+          "type": ["number", "null"],
           "minimum": 0,
           "maximum": 100
         },
         "rainfallMmHour": {
-          "type": "number",
+          "type": ["number", "null"],
           "minimum": 0,
           "description": "Rainfall intensity in millimetres per hour. No static maximum is defined before sensor datasheet review and field calibration."
         },
         "batteryVoltage": {
-          "type": "number",
+          "type": ["number", "null"],
           "minimum": 0,
           "maximum": 30
         }
