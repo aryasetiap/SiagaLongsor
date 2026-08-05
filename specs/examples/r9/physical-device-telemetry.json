@@ -1,0 +1,19 @@
+{
+  "messageId": "01J9R9A00000000000000001",
+  "bootId": "boot-r9a-example",
+  "sequence": 1,
+  "timestamp": "2026-08-06T00:00:00Z",
+  "firmwareVersion": "r9a-contract-example",
+  "network": {
+    "type": "WIFI",
+    "signalRssi": -67
+  },
+  "readings": {
+    "tiltXDeg": 0.2,
+    "tiltYDeg": -0.1,
+    "tiltMagnitudeDeg": 0.3,
+    "soilMoisturePct": 45.0,
+    "rainfallMmHour": 0,
+    "batteryVoltage": 12.4
+  }
+}
