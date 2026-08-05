@@ -5,9 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { type ReactNode, useState } from 'react';
 
 import { useAuth } from '../auth/auth-context';
-import type { Principal, Role } from '../auth/auth-types';
-import { useOrganization } from '../organization/organization-context';
-import { RealtimeIndicator } from '../realtime/realtime-indicator';
+import type { Principal } from '../auth/auth-types';
 import { BrandMark } from './brand-mark';
 
 interface ApplicationShellProps {
@@ -19,49 +17,25 @@ interface ApplicationShellProps {
 
 interface NavigationItem {
   readonly label: string;
-  readonly href?: string;
-  readonly roles: readonly Role[];
+  readonly href: string;
 }
 
-const navigation: readonly NavigationItem[] = [
-  { label: 'Overview', href: '/overview', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
-  {
-    label: 'Monitoring',
-    href: '/monitoring-points',
-    roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-  },
-  { label: 'Peringatan', href: '/alerts', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
-  { label: 'Peta & Evakuasi', href: '/map', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
-  {
-    label: 'Perangkat',
-    href: '/devices',
-    roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-  },
-  { label: 'Laporan', href: '/reports', roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'] },
-  {
-    label: 'Profil Risiko',
-    href: '/settings/risk-profile',
-    roles: ['PROJECT_OWNER', 'SCHOOL_ADMIN'],
-  },
-  {
-    label: 'Audit Log',
-    href: '/settings/audit-log',
-    roles: ['PROJECT_OWNER'],
-  },
+export const primaryNavigation: readonly NavigationItem[] = [
+  { label: 'Overview', href: '/overview' },
+  { label: 'Perangkat', href: '/devices' },
+  { label: 'Profil Risiko', href: '/settings/risk-profile' },
+  { label: 'Audit Log', href: '/settings/audit-log' },
 ];
 
 export function ApplicationShell({ principal, title, subtitle, children }: ApplicationShellProps) {
   const router = useRouter();
   const pathname = usePathname();
   const auth = useAuth();
-  const organization = useOrganization();
   const [loggingOut, setLoggingOut] = useState(false);
-  const membership = organization.activeMembership;
-  const role = membership?.role;
-  const visibleNavigation =
-    role === undefined
-      ? navigation.slice(0, 1)
-      : navigation.filter((item) => item.roles.includes(role));
+  const hasProjectOwnerAccess = principal.memberships.some(
+    (membership) => membership.role === 'PROJECT_OWNER',
+  );
+  const visibleNavigation = hasProjectOwnerAccess ? primaryNavigation : [];
 
   async function logout(): Promise<void> {
     setLoggingOut(true);
@@ -92,21 +66,7 @@ export function ApplicationShell({ principal, title, subtitle, children }: Appli
               (pathname === item.href ||
                 (item.href !== '/overview' && pathname.startsWith(`${item.href}/`)));
 
-            return item.href === undefined ? (
-              <button
-                key={item.label}
-                type="button"
-                disabled
-                title="Belum tersedia pada fase ini"
-                className="shell-nav-item shrink-0 cursor-not-allowed opacity-50"
-              >
-                <NavigationIcon label={item.label} />
-                <span>{item.label}</span>
-                <span className="ml-auto hidden text-[10px] font-medium text-slate-400 md:inline">
-                  Segera
-                </span>
-              </button>
-            ) : (
+            return (
               <Link
                 key={item.label}
                 href={item.href}
@@ -121,28 +81,15 @@ export function ApplicationShell({ principal, title, subtitle, children }: Appli
         </nav>
 
         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 md:mt-8">
-          <p className="text-xs font-semibold text-slate-500">Lingkup aktif</p>
-          {organization.availableMemberships.length > 1 && (
-            <label className="mt-2 block text-xs font-semibold text-slate-600">
-              Organisasi aktif
-              <select
-                value={organization.activeOrganizationId ?? ''}
-                onChange={(event) => organization.selectOrganization(event.target.value)}
-                className="mt-1.5 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus-visible:outline-2 focus-visible:outline-blue-600"
-              >
-                <option value="">Pilih organisasi</option>
-                {organization.availableMemberships.map((candidate) => (
-                  <option key={candidate.organizationId} value={candidate.organizationId}>
-                    {candidate.organizationName}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <p className="mt-2 truncate text-sm font-bold text-slate-900">
-            {membership?.organizationName ?? 'Belum ada organisasi'}
+          <p className="text-xs font-semibold text-slate-500">Akses produk</p>
+          <p className="mt-2 text-sm font-bold text-slate-900">
+            {hasProjectOwnerAccess ? 'Administrator perangkat' : 'Akses terbatas'}
           </p>
-          <p className="mt-1 text-xs text-slate-500">{formatRole(role)}</p>
+          {!hasProjectOwnerAccess && (
+            <p className="mt-1 text-xs text-slate-500">
+              Halaman pemantauan memerlukan akses Project Owner.
+            </p>
+          )}
         </div>
       </aside>
 
@@ -153,9 +100,6 @@ export function ApplicationShell({ principal, title, subtitle, children }: Appli
             <h1 className="mt-1 text-lg font-bold text-slate-950">{title}</h1>
           </div>
 
-          <div className="ml-auto hidden md:block">
-            <RealtimeIndicator />
-          </div>
           <details className="group relative">
             <summary className="flex cursor-pointer list-none items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
               <span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-sm font-bold text-blue-700">
@@ -165,7 +109,9 @@ export function ApplicationShell({ principal, title, subtitle, children }: Appli
                 <span className="block max-w-44 truncate text-sm font-bold text-slate-900">
                   {principal.name}
                 </span>
-                <span className="block text-xs text-slate-500">{formatRole(role)}</span>
+                <span className="block text-xs text-slate-500">
+                  {hasProjectOwnerAccess ? 'Project Owner' : 'Akses terbatas'}
+                </span>
               </span>
               <span aria-hidden="true" className="text-slate-400">
                 ▾
@@ -192,10 +138,6 @@ export function ApplicationShell({ principal, title, subtitle, children }: Appli
           </details>
         </header>
 
-        <div className="border-b border-slate-200 bg-white px-5 pb-3 md:hidden">
-          <RealtimeIndicator />
-        </div>
-
         <main className="px-5 py-6 sm:px-8 sm:py-8">{children}</main>
       </div>
     </div>
@@ -208,12 +150,6 @@ function NavigationIcon({ label }: { readonly label: string }) {
       {label.slice(0, 1)}
     </span>
   );
-}
-
-function formatRole(role: Role | undefined): string {
-  if (role === 'PROJECT_OWNER') return 'Project Owner';
-  if (role === 'SCHOOL_ADMIN') return 'Admin Sekolah';
-  return 'Tanpa role aktif';
 }
 
 function initials(name: string): string {

@@ -6,7 +6,6 @@ import { ApplicationShell } from '../components/application-shell';
 import { AuthProvider, type AuthClient, useAuth } from './auth-context';
 import type { Principal, Role } from './auth-types';
 import { ProtectedRoute } from './protected-route';
-import { OrganizationProvider } from '../organization/organization-context';
 
 const navigationMocks = vi.hoisted(() => ({
   pathname: '/overview',
@@ -102,76 +101,53 @@ describe('AuthProvider and protected content', () => {
     finishLogin?.(createPrincipal('SCHOOL_ADMIN'));
   });
 
-  it.each([
-    ['PROJECT_OWNER' as const, true],
-    ['SCHOOL_ADMIN' as const, false],
-  ])('renders the expected menu structure for %s', async (role, seesOwnerMenu) => {
-    const principal = createPrincipal(role);
-    render(
-      <AuthProvider
-        client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
-      >
-        <OrganizationProvider>
+  it.each(['PROJECT_OWNER' as const, 'SCHOOL_ADMIN' as const])(
+    'renders the R3 menu access state for %s',
+    async (role) => {
+      const principal = createPrincipal(role);
+      render(
+        <AuthProvider
+          client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
+        >
           <ApplicationShell principal={principal} title="Overview">
             <p>Konten shell</p>
           </ApplicationShell>
-        </OrganizationProvider>
-      </AuthProvider>,
-    );
-
-    expect(
-      (await screen.findAllByText(role === 'PROJECT_OWNER' ? 'Project Owner' : 'Admin Sekolah'))
-        .length,
-    ).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: /Overview/ })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Monitoring/ })).toHaveAttribute(
-      'href',
-      '/monitoring-points',
-    );
-    expect(screen.getByRole('link', { name: /Perangkat/ })).toHaveAttribute('href', '/devices');
-    expect(screen.getByRole('link', { name: /Peringatan/ })).toHaveAttribute('href', '/alerts');
-    expect(screen.getByRole('link', { name: /Profil Risiko/ })).toHaveAttribute(
-      'href',
-      '/settings/risk-profile',
-    );
-    if (seesOwnerMenu) {
-      expect(screen.getByRole('link', { name: /Audit Log/ })).toHaveAttribute(
-        'href',
-        '/settings/audit-log',
+        </AuthProvider>,
       );
-    } else {
-      expect(screen.queryByRole('link', { name: /Audit Log/ })).not.toBeInTheDocument();
-    }
-  });
 
-  it('uses the selected organization role for shell identity and navigation', async () => {
-    const user = userEvent.setup();
+      if (role === 'PROJECT_OWNER') {
+        expect(screen.getByRole('link', { name: /Overview/ })).toHaveAttribute('href', '/overview');
+        expect(screen.getByRole('link', { name: /Perangkat/ })).toHaveAttribute('href', '/devices');
+        expect(screen.getByRole('link', { name: /Profil Risiko/ })).toHaveAttribute(
+          'href',
+          '/settings/risk-profile',
+        );
+        expect(screen.getByRole('link', { name: /Audit Log/ })).toHaveAttribute(
+          'href',
+          '/settings/audit-log',
+        );
+      } else {
+        expect(screen.getByText(/memerlukan akses Project Owner/)).toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: /Overview/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole('link', { name: /Audit Log/ })).not.toBeInTheDocument();
+      }
+    },
+  );
+
+  it('derives R3 access from the authenticated principal without an organization selector', async () => {
     const principal = createMultiOrganizationPrincipal();
     render(
       <AuthProvider
         client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
       >
-        <OrganizationProvider>
-          <ApplicationShell principal={principal} title="Overview">
-            <p>Konten shell</p>
-          </ApplicationShell>
-        </OrganizationProvider>
+        <ApplicationShell principal={principal} title="Overview">
+          <p>Konten shell</p>
+        </ApplicationShell>
       </AuthProvider>,
     );
 
-    const selector = await screen.findByRole('combobox', { name: 'Organisasi aktif' });
-    expect(selector).toHaveValue('');
-    expect(screen.queryByRole('link', { name: /Perangkat/ })).not.toBeInTheDocument();
-
-    await user.selectOptions(selector, 'org-owner');
-    expect(screen.getAllByText('Organisasi Pemilik').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Project Owner').length).toBeGreaterThan(0);
-    expect(screen.getByRole('link', { name: /Perangkat/ })).toBeInTheDocument();
-
-    await user.selectOptions(selector, 'org-admin');
-    expect(screen.getAllByText('Organisasi Admin').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Admin Sekolah').length).toBeGreaterThan(0);
-    expect(screen.queryByText('Project Owner')).not.toBeInTheDocument();
+    expect(screen.queryByRole('combobox', { name: 'Organisasi aktif' })).not.toBeInTheDocument();
+    expect(screen.getByText('Administrator perangkat')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Perangkat/ })).toBeInTheDocument();
   });
 
@@ -186,12 +162,10 @@ describe('AuthProvider and protected content', () => {
           logout,
         })}
       >
-        <OrganizationProvider>
-          <ApplicationShell principal={principal} title="Overview">
-            <p>Konten shell</p>
-          </ApplicationShell>
-          <AuthStateProbe />
-        </OrganizationProvider>
+        <ApplicationShell principal={principal} title="Overview">
+          <p>Konten shell</p>
+        </ApplicationShell>
+        <AuthStateProbe />
       </AuthProvider>,
     );
 
@@ -204,40 +178,35 @@ describe('AuthProvider and protected content', () => {
     ).toBeInTheDocument();
   });
 
-  it('marks Monitoring as active using the current pathname', async () => {
-    navigationMocks.pathname = '/monitoring-points';
+  it('marks Overview as active using the current pathname', async () => {
+    navigationMocks.pathname = '/overview';
     const principal = createPrincipal('PROJECT_OWNER');
     render(
       <AuthProvider
         client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
       >
-        <OrganizationProvider>
-          <ApplicationShell principal={principal} title="Titik monitoring">
-            <p>Daftar titik monitoring</p>
-          </ApplicationShell>
-        </OrganizationProvider>
+        <ApplicationShell principal={principal} title="Overview">
+          <p>Ringkasan kondisi</p>
+        </ApplicationShell>
       </AuthProvider>,
     );
 
-    expect(await screen.findByRole('link', { name: /Monitoring/ })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: /Overview/ })).toHaveAttribute(
       'aria-current',
       'page',
     );
-    expect(screen.getByRole('link', { name: /Overview/ })).not.toHaveAttribute('aria-current');
   });
 
   it('marks Devices as active using the current pathname', async () => {
     navigationMocks.pathname = '/devices';
-    const principal = createPrincipal('SCHOOL_ADMIN');
+    const principal = createPrincipal('PROJECT_OWNER');
     render(
       <AuthProvider
         client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
       >
-        <OrganizationProvider>
-          <ApplicationShell principal={principal} title="Perangkat">
-            <p>Daftar perangkat</p>
-          </ApplicationShell>
-        </OrganizationProvider>
+        <ApplicationShell principal={principal} title="Perangkat">
+          <p>Diagnostik perangkat</p>
+        </ApplicationShell>
       </AuthProvider>,
     );
 
@@ -248,20 +217,18 @@ describe('AuthProvider and protected content', () => {
   });
 
   it.each([
-    ['/alerts', /Peringatan/],
     ['/settings/risk-profile', /Profil Risiko/],
-  ])('marks the Phase 03 navigation for %s as active', async (pathname, accessibleName) => {
+    ['/settings/audit-log', /Audit Log/],
+  ])('marks the R3 navigation for %s as active', async (pathname, accessibleName) => {
     navigationMocks.pathname = pathname;
-    const principal = createPrincipal('SCHOOL_ADMIN');
+    const principal = createPrincipal('PROJECT_OWNER');
     render(
       <AuthProvider
         client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
       >
-        <OrganizationProvider>
-          <ApplicationShell principal={principal} title="Operasional">
-            <p>Konten operasional</p>
-          </ApplicationShell>
-        </OrganizationProvider>
+        <ApplicationShell principal={principal} title="Operasional">
+          <p>Konten operasional</p>
+        </ApplicationShell>
       </AuthProvider>,
     );
 
