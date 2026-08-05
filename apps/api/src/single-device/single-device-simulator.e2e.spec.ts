@@ -128,8 +128,6 @@ describe('R4 simulator single-device HTTP acceptance', () => {
 
   afterAll(async () => {
     if (prisma !== undefined) {
-      await prisma.alertEvent.deleteMany({ where: { telemetry: { device: { organizationId } } } });
-      await prisma.alert.deleteMany({ where: { organizationId } });
       await prisma.auditLog.deleteMany({ where: { organizationId } });
       await prisma.currentMonitoringPointState.deleteMany({ where: { organizationId } });
       await prisma.riskAssessment.deleteMany({ where: { organizationId } });
@@ -308,9 +306,6 @@ describe('R4 simulator single-device HTTP acceptance', () => {
     expect((await get('/device')).body.data.batteryVoltage).toBe(29);
     expect((await get('/overview')).body.data.readings.tiltMagnitudeDeg).toBe(0);
 
-    expect(await prisma.alert.count({ where: { organizationId } })).toBe(0);
-    expect(await prisma.alertEvent.count({ where: { alert: { organizationId } } })).toBe(0);
-
     const evaluator = app.get(ConnectivityEvaluatorService);
     const latestState = await prisma.currentMonitoringPointState.findUniqueOrThrow({
       where: { monitoringPointId: pointId },
@@ -330,8 +325,6 @@ describe('R4 simulator single-device HTTP acceptance', () => {
     expect(delayedState.connectivityStatus).toBe('DELAYED');
     expect(delayedState.serverRisk).toBe('UNKNOWN');
     expect(await auditCount()).toBe(delayedAuditCount + 1);
-    expect(await prisma.alert.count({ where: { organizationId } })).toBe(0);
-    expect(await prisma.alertEvent.count({ where: { alert: { organizationId } } })).toBe(0);
 
     await prisma.telemetry.update({
       where: { id: latestTelemetryId },
@@ -345,7 +338,6 @@ describe('R4 simulator single-device HTTP acceptance', () => {
     expect(offlineState.connectivityStatus).toBe('OFFLINE');
     expect(offlineState.serverRisk).toBe('UNKNOWN');
     expect(await auditCount()).toBe(offlineAuditCount);
-    expect(await prisma.alert.count({ where: { organizationId } })).toBe(0);
   });
 });
 

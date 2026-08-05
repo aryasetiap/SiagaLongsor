@@ -169,3 +169,7 @@ Block deletion when any of the following is true:
 ## R6 infrastructure cleanup result
 
 R6 cleanup removed the unreachable Realtime/SSE application infrastructure, dormant Reports application and queue/worker code, and object-storage application services/configuration. Exclusive BullMQ, PDF, and S3 dependencies were removed and the lockfile was regenerated. Redis remains retained because health checks, authentication/telemetry rate limiting, and distributed connectivity locking still use it. Connectivity scheduling and stale/offline `UNKNOWN` behavior remain active. Prisma models, migrations, report/map/SOP schema, and Alert/AlertEvent schema remain deferred to R7.
+
+## R7 database/schema cleanup result
+
+R7 removed the obsolete `Alert`, `AlertEvent`, `AlertLifecycleAction`, `ReportJob`, map configuration, and SOP document models, together with their alert/report/map/SOP enums and relations. The forward migration `20260805233000_r7_remove_obsolete_schema` drops only those tables/types; historical migrations remain unchanged. Organization, Membership, Site, MonitoringPoint, Device provisioning, Telemetry, RiskProfile, RiskAssessment, CurrentMonitoringPointState, AuditLog, authentication, and connectivity schema remain retained for the final runtime and R9 provisioning.

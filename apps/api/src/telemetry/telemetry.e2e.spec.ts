@@ -95,10 +95,6 @@ describe('Telemetry ingestion API', () => {
           WHERE "organizationId" = ${organizationId}
           FOR UPDATE
         `);
-        await transaction.alertEvent.deleteMany({
-          where: { alert: { organizationId } },
-        });
-        await transaction.alert.deleteMany({ where: { organizationId } });
         await transaction.auditLog.deleteMany({ where: { organizationId } });
         await transaction.currentMonitoringPointState.deleteMany({ where: { organizationId } });
         await transaction.riskAssessment.deleteMany({ where: { organizationId } });

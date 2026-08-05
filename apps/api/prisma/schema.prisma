@@ -50,50 +50,6 @@ enum CalibrationStatus {
   CALIBRATED
 }
 
-enum AlertType {
-  RISK_WATCH
-  RISK_DANGER
-  DEVICE_DELAYED
-  DEVICE_OFFLINE
-  DEVICE_SERVER_MISMATCH
-}
-
-enum AlertSeverity {
-  INFO
-  WARNING
-  CRITICAL
-}
-
-enum AlertStatus {
-  ACTIVE
-  ACKNOWLEDGED
-  RESOLVED
-  FALSE_ALARM
-}
-
-enum AlertLifecycleActionType {
-  ACKNOWLEDGE
-  RESOLVE
-  FALSE_ALARM
-}
-
-enum ReportType {
-  SITE_PERIOD_SUMMARY_PDF
-}
-
-enum ReportJobStatus {
-  QUEUED
-  PROCESSING
-  SUCCEEDED
-  FAILED
-  EXPIRED
-}
-
-enum ReportFailureCode {
-  REPORT_GENERATION_FAILED
-  REPORT_ARTIFACT_UNAVAILABLE
-}
-
 model Organization {
   id                           String                        @id @default(cuid())
   name                         String
@@ -106,11 +62,6 @@ model Organization {
   riskProfiles                 RiskProfile[]
   riskAssessments              RiskAssessment[]
   currentMonitoringPointStates CurrentMonitoringPointState[]
-  alerts                       Alert[]
-  alertLifecycleActions        AlertLifecycleAction[]
-  mapConfigurations            SiteMapConfiguration[]
-  sopDocuments                 SopDocumentVersion[]
-  reportJobs                   ReportJob[]
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
 }
@@ -128,12 +79,6 @@ model Site {
   riskProfiles                 RiskProfile[]
   riskAssessments              RiskAssessment[]
   currentMonitoringPointStates CurrentMonitoringPointState[]
-  alerts                       Alert[]
-  mapConfigurations            SiteMapConfiguration[]
-  activeMapConfiguration       ActiveSiteMapConfiguration?
-  sopDocuments                 SopDocumentVersion[]
-  activeSopDocument            ActiveSiteSopDocument?
-  reportJobs                   ReportJob[]
   createdAt                    DateTime                      @default(now())
   updatedAt                    DateTime                      @updatedAt
 
@@ -156,7 +101,6 @@ model MonitoringPoint {
   telemetry           Telemetry[]
   riskAssessments     RiskAssessment[]
   currentState        CurrentMonitoringPointState?
-  alerts              Alert[]
   createdAt           DateTime                     @default(now()) @db.Timestamptz(3)
   updatedAt           DateTime                     @updatedAt @db.Timestamptz(3)
 
@@ -165,78 +109,6 @@ model MonitoringPoint {
   @@index([organizationId, isActive, createdAt(sort: Desc), id])
   @@index([siteId, createdAt(sort: Desc), id])
   @@index([organizationId, name, id])
-}
-
-model SiteMapConfiguration {
-  id             String                      @id @default(cuid())
-  organizationId String
-  siteId         String
-  version        Int
-  configuration  Json
-  canonicalHash  String                      @db.Char(64)
-  createdById    String
-  organization   Organization                @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  site           Site                        @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  createdBy      User                        @relation(fields: [createdById], references: [id], onDelete: Restrict)
-  activePointer  ActiveSiteMapConfiguration?
-  createdAt      DateTime                    @default(now()) @db.Timestamptz(3)
-  activatedAt    DateTime                    @default(now()) @db.Timestamptz(3)
-
-  @@unique([siteId, version])
-  @@unique([id, siteId, organizationId])
-  @@index([organizationId, siteId, version(sort: Desc)])
-  @@index([createdById, createdAt(sort: Desc)])
-}
-
-model ActiveSiteMapConfiguration {
-  siteId          String               @id
-  organizationId  String
-  configurationId String               @unique
-  site            Site                 @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  configuration   SiteMapConfiguration @relation(fields: [configurationId, siteId, organizationId], references: [id, siteId, organizationId], onDelete: Restrict)
-  updatedAt       DateTime             @updatedAt @db.Timestamptz(3)
-
-  @@unique([siteId, organizationId])
-  @@unique([configurationId, siteId, organizationId])
-  @@index([organizationId])
-}
-
-model SopDocumentVersion {
-  id               String                 @id @default(cuid())
-  organizationId   String
-  siteId           String
-  version          Int
-  title            String                 @db.VarChar(200)
-  description      String?
-  originalFileName String                 @db.VarChar(255)
-  mediaType        String                 @db.VarChar(64)
-  sizeBytes        Int
-  sha256           String                 @db.Char(64)
-  objectKey        String                 @unique @db.VarChar(255)
-  uploadedById     String
-  organization     Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  site             Site                   @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  uploadedBy       User                   @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
-  activePointer    ActiveSiteSopDocument?
-  uploadedAt       DateTime               @default(now()) @db.Timestamptz(3)
-
-  @@unique([siteId, version])
-  @@unique([id, siteId, organizationId])
-  @@index([organizationId, siteId, uploadedAt(sort: Desc), id(sort: Desc)])
-  @@index([uploadedById, uploadedAt(sort: Desc)])
-}
-
-model ActiveSiteSopDocument {
-  siteId         String             @id
-  organizationId String
-  documentId     String             @unique
-  site           Site               @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  document       SopDocumentVersion @relation(fields: [documentId, siteId, organizationId], references: [id, siteId, organizationId], onDelete: Restrict)
-  updatedAt      DateTime           @updatedAt @db.Timestamptz(3)
-
-  @@unique([siteId, organizationId])
-  @@unique([documentId, siteId, organizationId])
-  @@index([organizationId])
 }
 
 model Device {
@@ -261,7 +133,6 @@ model Device {
   telemetry           Telemetry[]
   riskAssessments     RiskAssessment[]
   currentStates       CurrentMonitoringPointState[]
-  alerts              Alert[]
   createdAt           DateTime                      @default(now()) @db.Timestamptz(3)
   updatedAt           DateTime                      @updatedAt @db.Timestamptz(3)
 
@@ -299,7 +170,6 @@ model Telemetry {
   monitoringPoint      MonitoringPoint              @relation(fields: [monitoringPointId], references: [id], onDelete: Restrict)
   riskAssessment       RiskAssessment?
   currentState         CurrentMonitoringPointState?
-  alertEvents          AlertEvent[]
 
   @@unique([deviceId, messageId])
   @@unique([deviceId, bootId, sequence])
@@ -377,7 +247,6 @@ model RiskAssessment {
   device              Device            @relation(fields: [deviceId], references: [id], onDelete: Restrict)
   telemetry           Telemetry         @relation(fields: [telemetryId], references: [id], onDelete: Restrict)
   riskProfile         RiskProfile       @relation(fields: [riskProfileId, riskProfileVersion], references: [id, version], onDelete: Restrict)
-  alertEvents         AlertEvent[]
 
   @@index([organizationId, evaluatedAt(sort: Desc), id])
   @@index([monitoringPointId, evaluatedAt(sort: Desc), id])
@@ -417,100 +286,18 @@ model CurrentMonitoringPointState {
   @@index([deviceId])
 }
 
-model Alert {
-  id                String                 @id @default(cuid())
-  organizationId    String
-  siteId            String
-  monitoringPointId String
-  deviceId          String?
-  type              AlertType
-  severity          AlertSeverity
-  status            AlertStatus            @default(ACTIVE)
-  deduplicationKey  String                 @db.VarChar(512)
-  reasons           Json
-  firstObservedAt   DateTime               @db.Timestamptz(3)
-  lastObservedAt    DateTime               @db.Timestamptz(3)
-  occurrenceCount   Int                    @default(1)
-  organization      Organization           @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  site              Site                   @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  monitoringPoint   MonitoringPoint        @relation(fields: [monitoringPointId, siteId, organizationId], references: [id, siteId, organizationId], onDelete: Restrict)
-  device            Device?                @relation(fields: [deviceId, monitoringPointId], references: [id, monitoringPointId], onDelete: Restrict)
-  events            AlertEvent[]
-  lifecycleActions  AlertLifecycleAction[]
-  createdAt         DateTime               @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime               @updatedAt @db.Timestamptz(3)
-
-  @@unique([id, organizationId])
-  @@index([organizationId, lastObservedAt(sort: Desc), id])
-  @@index([organizationId, status, severity, lastObservedAt(sort: Desc), id])
-  @@index([siteId, monitoringPointId, type, status])
-  @@index([deduplicationKey, status])
-}
-
-model AlertEvent {
-  id               String                @id @default(cuid())
-  alertId          String
-  eventType        String                @db.VarChar(64)
-  observationKey   String?               @unique @db.VarChar(512)
-  riskAssessmentId String?
-  telemetryId      String?
-  actorId          String?
-  observedAt       DateTime?             @db.Timestamptz(3)
-  actedAt          DateTime?             @db.Timestamptz(3)
-  metadata         Json
-  alert            Alert                 @relation(fields: [alertId], references: [id], onDelete: Restrict)
-  riskAssessment   RiskAssessment?       @relation(fields: [riskAssessmentId], references: [id], onDelete: Restrict)
-  telemetry        Telemetry?            @relation(fields: [telemetryId], references: [id], onDelete: Restrict)
-  actor            User?                 @relation(fields: [actorId], references: [id], onDelete: SetNull)
-  lifecycleAction  AlertLifecycleAction?
-  createdAt        DateTime              @default(now()) @db.Timestamptz(3)
-
-  @@index([alertId, observedAt(sort: Desc), id])
-  @@index([alertId, createdAt(sort: Desc), id])
-  @@index([riskAssessmentId])
-  @@index([telemetryId])
-  @@index([actorId, createdAt(sort: Desc), id])
-}
-
-model AlertLifecycleAction {
-  actionId         String                   @id @db.Uuid
-  organizationId   String
-  alertId          String
-  actionType       AlertLifecycleActionType
-  payloadHash      String                   @db.Char(64)
-  eventId          String                   @unique
-  auditLogId       String                   @unique
-  actorId          String
-  originalResponse Json
-  occurredAt       DateTime                 @db.Timestamptz(3)
-  organization     Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  alert            Alert                    @relation(fields: [alertId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  event            AlertEvent               @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  auditLog         AuditLog                 @relation(fields: [auditLogId], references: [id], onDelete: Restrict)
-  actor            User                     @relation(fields: [actorId], references: [id], onDelete: Restrict)
-  createdAt        DateTime                 @default(now()) @db.Timestamptz(3)
-
-  @@index([organizationId, alertId, createdAt(sort: Desc)])
-  @@index([actorId, createdAt(sort: Desc)])
-}
-
 model User {
-  id                    String                 @id @default(cuid())
-  email                 String
-  normalizedEmail       String                 @unique
-  name                  String
-  passwordHash          String
-  isActive              Boolean                @default(true)
-  memberships           Membership[]
-  refreshSessions       RefreshSession[]
-  auditLogs             AuditLog[]
-  alertEvents           AlertEvent[]
-  alertLifecycleActions AlertLifecycleAction[]
-  mapConfigurations     SiteMapConfiguration[]
-  uploadedSopDocuments  SopDocumentVersion[]
-  reportJobs            ReportJob[]
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
+  id              String           @id @default(cuid())
+  email           String
+  normalizedEmail String           @unique
+  name            String
+  passwordHash    String
+  isActive        Boolean          @default(true)
+  memberships     Membership[]
+  refreshSessions RefreshSession[]
+  auditLogs       AuditLog[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 
   @@index([isActive])
 }
@@ -552,57 +339,20 @@ model RefreshSession {
   @@index([sessionFamilyId])
 }
 
-model ReportJob {
-  id                   String             @id @default(cuid())
-  organizationId       String
-  siteId               String
-  reportType           ReportType
-  from                 DateTime           @db.Timestamptz(3)
-  to                   DateTime           @db.Timestamptz(3)
-  status               ReportJobStatus    @default(QUEUED)
-  createdById          String
-  requestedAt          DateTime           @default(now()) @db.Timestamptz(3)
-  startedAt            DateTime?          @db.Timestamptz(3)
-  completedAt          DateTime?          @db.Timestamptz(3)
-  expiresAt            DateTime?          @db.Timestamptz(3)
-  failureCode          ReportFailureCode?
-  failureMessage       String?            @db.VarChar(500)
-  artifactFileName     String?            @db.VarChar(255)
-  artifactMediaType    String?            @db.VarChar(64)
-  artifactSizeBytes    Int?
-  artifactSha256       String?            @db.Char(64)
-  artifactObjectKey    String?            @unique @db.VarChar(255)
-  artifactGeneratedAt  DateTime?          @db.Timestamptz(3)
-  processingToken      String?            @db.Uuid
-  processingLeaseUntil DateTime?          @db.Timestamptz(3)
-  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  site                 Site               @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  createdBy            User               @relation(fields: [createdById], references: [id], onDelete: Restrict)
-
-  @@unique([id, organizationId])
-  @@index([organizationId, requestedAt(sort: Desc), id(sort: Desc)])
-  @@index([organizationId, status, requestedAt(sort: Desc), id(sort: Desc)])
-  @@index([organizationId, siteId, requestedAt(sort: Desc), id(sort: Desc)])
-  @@index([organizationId, reportType, requestedAt(sort: Desc), id(sort: Desc)])
-  @@index([status, processingLeaseUntil])
-  @@index([createdById, requestedAt(sort: Desc)])
-}
-
 model AuditLog {
-  id              String                @id @default(cuid())
-  organizationId  String?
-  actorId         String?
-  eventType       String
-  entityType      String?
-  entityId        String?
-  requestId       String
-  ipAddress       String?
-  userAgent       String?
-  metadata        Json
-  organization    Organization?         @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  actor           User?                 @relation(fields: [actorId], references: [id], onDelete: SetNull)
-  lifecycleAction AlertLifecycleAction?
-  createdAt       DateTime              @default(now())
+  id             String        @id @default(cuid())
+  organizationId String?
+  actorId        String?
+  eventType      String
+  entityType     String?
+  entityId       String?
+  requestId      String
+  ipAddress      String?
+  userAgent      String?
+  metadata       Json
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  actor          User?         @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  createdAt      DateTime      @default(now())
 
   @@index([organizationId, createdAt(sort: Desc)])
   @@index([organizationId, createdAt(sort: Desc), id])
