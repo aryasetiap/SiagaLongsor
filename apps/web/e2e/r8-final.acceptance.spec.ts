@@ -28,9 +28,15 @@ test('PROJECT_OWNER dapat membuka empat halaman produk single-device', async ({ 
 
   await page.goto('/settings/risk-profile');
   await expect(page.getByRole('heading', { name: 'Profil Risiko', exact: true })).toBeVisible();
-  await expect(
-    page.getByText(/Profil risiko|Data tidak dapat dimuat|Profil risiko tidak dapat dimuat/),
-  ).toBeVisible();
+
+  await expect(page.getByLabel('Kemiringan WATCH')).toBeVisible();
+  await expect(page.getByLabel('Kemiringan DANGER')).toBeVisible();
+  await expect(page.getByLabel('Kelembapan tanah WATCH')).toBeVisible();
+  await expect(page.getByLabel('Kelembapan tanah DANGER')).toBeVisible();
+  await expect(page.getByLabel('Curah hujan WATCH')).toBeVisible();
+  await expect(page.getByLabel('Curah hujan DANGER')).toBeVisible();
+
+  await expect(page.getByRole('button', { name: 'Simpan', exact: true })).toBeVisible();
 
   await page.goto('/settings/audit-log');
   await expect(page.getByRole('heading', { name: 'Audit Log', exact: true })).toBeVisible();
