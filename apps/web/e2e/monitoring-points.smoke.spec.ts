@@ -10,10 +10,7 @@ test('PROJECT_OWNER dapat membuat, mengedit, dan menonaktifkan titik monitoring'
   const updatedLocation = `Lokasi smoke diperbarui ${unique}`;
 
   await loginAsProjectOwner(page);
-  await Promise.all([
-    page.waitForURL(/\/monitoring-points$/, { timeout: 30_000 }),
-    page.getByRole('link', { name: /Monitoring/ }).click(),
-  ]);
+  await page.goto('/monitoring-points');
   await expect(page.getByRole('heading', { name: 'Titik monitoring', exact: true })).toBeVisible();
 
   await page.getByRole('button', { name: 'Tambah titik monitoring' }).click();

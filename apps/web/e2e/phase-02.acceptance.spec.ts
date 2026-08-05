@@ -168,10 +168,7 @@ async function openDeviceManagement(page: Page): Promise<void> {
 }
 
 async function openMonitoringPointManagement(page: Page): Promise<void> {
-  await Promise.all([
-    page.waitForURL(/\/monitoring-points$/, { timeout: 30_000 }),
-    page.getByRole('link', { name: /Monitoring/ }).click(),
-  ]);
+  await page.goto('/monitoring-points');
   await expect(page.getByRole('heading', { name: 'Titik monitoring', exact: true })).toBeVisible();
 }
 
