@@ -41,7 +41,12 @@ function requiredCredential(
     | 'E2E_SCHOOL_ADMIN_EMAIL'
     | 'E2E_SCHOOL_ADMIN_PASSWORD',
 ) {
-  const value = process.env[name]?.trim();
-  if (!value) throw new Error(`${name} wajib tersedia.`);
+  const fallback = name.replace(/^E2E_/, 'SEED_') as
+    | 'SEED_PROJECT_OWNER_EMAIL'
+    | 'SEED_PROJECT_OWNER_PASSWORD'
+    | 'SEED_SCHOOL_ADMIN_EMAIL'
+    | 'SEED_SCHOOL_ADMIN_PASSWORD';
+  const value = process.env[name]?.trim() || process.env[fallback]?.trim();
+  if (!value) throw new Error(`${name} atau ${fallback} wajib tersedia.`);
   return value;
 }
