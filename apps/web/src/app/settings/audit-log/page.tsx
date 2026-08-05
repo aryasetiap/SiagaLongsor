@@ -1,10 +1,9 @@
 'use client';
 
-import { AuditLogManager } from '../../../audit/audit-log-manager';
 import { getDefaultApiClient } from '../../../auth/default-api-client';
 import { ProtectedRoute } from '../../../auth/protected-route';
 import { ApplicationShell } from '../../../components/application-shell';
-import { useOrganization } from '../../../organization/organization-context';
+import { AuditPanel, ProjectOwnerRequired } from '../../../single-device/panels';
 
 export default function AuditLogPage() {
   return (
@@ -13,29 +12,26 @@ export default function AuditLogPage() {
         <ApplicationShell
           principal={principal}
           title="Audit Log"
-          subtitle="Riwayat perubahan sensitif yang telah disanitasi."
+          subtitle="Riwayat perubahan status risiko yang bersifat otoritatif."
         >
-          <AuditLogContent />
+          {principal.memberships.some((membership) => membership.role === 'PROJECT_OWNER') ? (
+            <SingleDeviceAudit />
+          ) : (
+            <ProjectOwnerRequired />
+          )}
         </ApplicationShell>
       )}
     </ProtectedRoute>
   );
 }
 
-function AuditLogContent() {
-  const organization = useOrganization();
+function SingleDeviceAudit() {
   const api = getDefaultApiClient();
-  if (organization.activeMembership?.role !== 'PROJECT_OWNER')
-    return (
-      <div role="alert" className="error-banner">
-        Halaman ini hanya tersedia untuk Project Owner.
-      </div>
-    );
-  if (organization.activeOrganizationId === null || api.client === null)
-    return (
-      <div role="alert" className="error-banner">
-        Organisasi atau konfigurasi API belum tersedia.
-      </div>
-    );
-  return <AuditLogManager client={api.client} organizationId={organization.activeOrganizationId} />;
+  return api.client === null ? (
+    <div role="alert" className="error-banner">
+      {api.configurationError ?? 'Konfigurasi API frontend tidak tersedia.'}
+    </div>
+  ) : (
+    <AuditPanel client={api.client} />
+  );
 }
