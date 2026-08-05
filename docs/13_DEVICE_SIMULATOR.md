@@ -1,7 +1,6 @@
 # Device Telemetry Simulator
 
-Simulator mengirim telemetry canonical ke API nyata untuk development, demo, dan acceptance
-testing Phase 02. Nilai `deviceAssessment.riskLevel: SAFE` dihasilkan sebagai simulasi laporan
+Simulator mengirim telemetry canonical ke API nyata untuk development dan acceptance sebelum firmware ESP32 tersedia. Nilai `deviceAssessment.riskLevel: SAFE` dihasilkan sebagai simulasi laporan
 firmware, bukan server risk assessment dan bukan keputusan keselamatan server.
 
 ## Prasyarat
@@ -47,15 +46,19 @@ firmware, bukan server risk assessment dan bukan keputusan keselamatan server.
 
 ## Configuration
 
-| Variable                   | Wajib | Default                        |
-| -------------------------- | ----: | ------------------------------ |
-| `SIMULATOR_API_BASE_URL`   | Tidak | `http://localhost:3000/api/v1` |
-| `SIMULATOR_HARDWARE_ID`    |    Ya | -                              |
-| `SIMULATOR_DEVICE_SECRET`  |    Ya | -                              |
-| `SIMULATOR_SCENARIO`       | Tidak | `normal`                       |
-| `SIMULATOR_COUNT`          | Tidak | `10`                           |
-| `SIMULATOR_INTERVAL_MS`    | Tidak | `5000`                         |
-| `SIMULATOR_SEQUENCE_START` | Tidak | `1`                            |
+| Variable                       | Wajib | Default                        |
+| ------------------------------ | ----: | ------------------------------ |
+| `SIMULATOR_API_BASE_URL`       | Tidak | `http://localhost:3000/api/v1` |
+| `SIMULATOR_HARDWARE_ID`        |    Ya | -                              |
+| `SIMULATOR_DEVICE_SECRET`      |    Ya | -                              |
+| `SIMULATOR_SCENARIO`           | Tidak | `normal`                       |
+| `SIMULATOR_COUNT`              | Tidak | `10`                           |
+| `SIMULATOR_INTERVAL_MS`        | Tidak | `5000`                         |
+| `SIMULATOR_SEQUENCE_START`     | Tidak | `1`                            |
+| `SIMULATOR_TILT_MAGNITUDE_DEG` | Tidak | `0.9` (demo)                   |
+| `SIMULATOR_SOIL_MOISTURE_PCT`  | Tidak | `62.5` (demo)                  |
+| `SIMULATOR_RAINFALL_MM_HOUR`   | Tidak | `12.4` (demo)                  |
+| `SIMULATOR_BATTERY_VOLTAGE`    | Tidak | `12.7` (demo)                  |
 
 Default port 3000 mendukung deployment yang mengekspos API melalui gateway yang sama. Untuk API
 development NestJS secara langsung, set `SIMULATOR_API_BASE_URL` ke
@@ -63,6 +66,8 @@ development NestJS secara langsung, set `SIMULATOR_API_BASE_URL` ke
 
 CLI hanya menerima option non-rahasia: `--scenario`, `--count`, `--interval`, dan
 `--sequence-start`. Secret sengaja tidak memiliki CLI option.
+
+Nilai sensor adalah input development/test, bukan rekomendasi threshold longsor ilmiah. Gunakan literal kecil `null` untuk menyatakan sensor tidak tersedia secara jujur (misalnya `$env:SIMULATOR_TILT_MAGNITUDE_DEG = "null"` atau `export SIMULATOR_TILT_MAGNITUDE_DEG=null`); nilai tidak disubstitusi menjadi nol.
 
 ## PowerShell
 
@@ -103,6 +108,7 @@ Jalankan salah satu nama berikut melalui `--scenario <nama>`:
 - `sequence-conflict`: memverifikasi `409 SEQUENCE_CONFLICT`.
 - `idempotency-conflict`: memverifikasi `409 IDEMPOTENCY_CONFLICT`.
 - `late`: mengirim data terkini lalu data satu jam lebih lama; keduanya harus diterima.
+- `missing-tilt`: mengirim telemetri dengan `tiltMagnitudeDeg: null` untuk memverifikasi status server `UNKNOWN`.
 
 Contoh:
 
@@ -116,3 +122,5 @@ corepack pnpm --filter @siagalongsor/api simulator:device -- --scenario late
 Gunakan `--help` untuk ringkasan konfigurasi. Simulator berhenti dengan exit code non-zero ketika
 konfigurasi invalid, API tidak tersedia, response tidak dapat diparse, atau hasil scenario tidak
 sesuai kontrak. `SIGINT` dan `SIGTERM` menghentikan simulator secara graceful.
+
+Setelah mengirim sample, verifikasi alur manual di dashboard: **Overview** menampilkan pembacaan/histori/risk otoritatif, **Perangkat** menampilkan keterbacaan sensor, lalu **Audit Log** menampilkan transisi risk. Server tetap merupakan penentu risk; simulator tidak menentukan keselamatan.

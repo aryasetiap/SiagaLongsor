@@ -6,6 +6,7 @@ export const SIMULATOR_SCENARIOS = [
   'sequence-conflict',
   'idempotency-conflict',
   'late',
+  'missing-tilt',
 ] as const;
 
 export type SimulatorScenario = (typeof SIMULATOR_SCENARIOS)[number];
@@ -18,6 +19,14 @@ export interface SimulatorConfig {
   readonly count: number;
   readonly intervalMs: number;
   readonly sequenceStart: number;
+  readonly readings: SimulatorReadings;
+}
+
+export interface SimulatorReadings {
+  readonly tiltMagnitudeDeg: number | null;
+  readonly soilMoisturePct: number | null;
+  readonly rainfallMmHour: number | null;
+  readonly batteryVoltage: number | null;
 }
 
 export interface TelemetryPayload {
@@ -33,10 +42,10 @@ export interface TelemetryPayload {
   readonly readings: {
     readonly tiltXDeg: number;
     readonly tiltYDeg: number;
-    readonly tiltMagnitudeDeg: number;
-    readonly soilMoisturePct: number;
-    readonly rainfallMmHour: number;
-    readonly batteryVoltage: number;
+    readonly tiltMagnitudeDeg: number | null;
+    readonly soilMoisturePct: number | null;
+    readonly rainfallMmHour: number | null;
+    readonly batteryVoltage: number | null;
   };
   readonly deviceAssessment: {
     readonly riskLevel: 'SAFE';
@@ -138,6 +147,36 @@ export function parseSimulatorConfig(
       'sequence-start',
       0,
     ),
+    readings: {
+      tiltMagnitudeDeg: parseReading(
+        environment.SIMULATOR_TILT_MAGNITUDE_DEG,
+        'SIMULATOR_TILT_MAGNITUDE_DEG',
+        0,
+        180,
+        0.9,
+      ),
+      soilMoisturePct: parseReading(
+        environment.SIMULATOR_SOIL_MOISTURE_PCT,
+        'SIMULATOR_SOIL_MOISTURE_PCT',
+        0,
+        100,
+        62.5,
+      ),
+      rainfallMmHour: parseReading(
+        environment.SIMULATOR_RAINFALL_MM_HOUR,
+        'SIMULATOR_RAINFALL_MM_HOUR',
+        0,
+        undefined,
+        12.4,
+      ),
+      batteryVoltage: parseReading(
+        environment.SIMULATOR_BATTERY_VOLTAGE,
+        'SIMULATOR_BATTERY_VOLTAGE',
+        0,
+        30,
+        12.7,
+      ),
+    },
   };
 }
 
@@ -155,6 +194,12 @@ export function generateTelemetryPayload(
   state: SimulatorState,
   now = new Date(),
   randomId: () => string = randomUUID,
+  readings: SimulatorReadings = {
+    tiltMagnitudeDeg: 0.9,
+    soilMoisturePct: 62.5,
+    rainfallMmHour: 12.4,
+    batteryVoltage: 12.7,
+  },
 ): TelemetryPayload {
   if (!Number.isSafeInteger(state.nextSequence) || state.nextSequence < 0) {
     throw new SimulatorError('SEQUENCE_INVALID', 'Sequence simulator berada di luar batas aman.');
@@ -173,10 +218,7 @@ export function generateTelemetryPayload(
     readings: {
       tiltXDeg: 0.8,
       tiltYDeg: -0.4,
-      tiltMagnitudeDeg: 0.9,
-      soilMoisturePct: 62.5,
-      rainfallMmHour: 12.4,
-      batteryVoltage: 12.7,
+      ...readings,
     },
     deviceAssessment: {
       riskLevel: 'SAFE',
@@ -216,6 +258,15 @@ export async function runSimulator(
       return;
     case 'late':
       await runLate(config, state, runtime, signal);
+      return;
+    case 'missing-tilt':
+      await runNormal(
+        { ...config, readings: { ...config.readings, tiltMagnitudeDeg: null } },
+        state,
+        runtime,
+        signal,
+      );
+      return;
   }
 }
 
@@ -271,7 +322,12 @@ async function runNormal(
 ): Promise<void> {
   for (let index = 0; index < config.count; index += 1) {
     assertNotCancelled(signal);
-    const payload = generateTelemetryPayload(state, runtime.now(), runtime.randomId);
+    const payload = generateTelemetryPayload(
+      state,
+      runtime.now(),
+      runtime.randomId,
+      config.readings,
+    );
     await sendAndValidate(config, runtime, payload, { status: 201, duplicate: false }, signal);
     if (index < config.count - 1) await runtime.wait(config.intervalMs, signal);
   }
@@ -283,7 +339,7 @@ async function runDuplicate(
   runtime: SimulatorDependencies,
   signal: AbortSignal,
 ): Promise<void> {
-  const payload = generateTelemetryPayload(state, runtime.now(), runtime.randomId);
+  const payload = generateTelemetryPayload(state, runtime.now(), runtime.randomId, config.readings);
   await sendAndValidate(config, runtime, payload, { status: 201, duplicate: false }, signal);
   await runtime.wait(config.intervalMs, signal);
   await sendAndValidate(config, runtime, payload, { status: 200, duplicate: true }, signal);
@@ -295,7 +351,7 @@ async function runSequenceConflict(
   runtime: SimulatorDependencies,
   signal: AbortSignal,
 ): Promise<void> {
-  const first = generateTelemetryPayload(state, runtime.now(), runtime.randomId);
+  const first = generateTelemetryPayload(state, runtime.now(), runtime.randomId, config.readings);
   const second: TelemetryPayload = {
     ...first,
     messageId: `msg_${runtime.randomId()}`,
@@ -317,7 +373,7 @@ async function runIdempotencyConflict(
   runtime: SimulatorDependencies,
   signal: AbortSignal,
 ): Promise<void> {
-  const first = generateTelemetryPayload(state, runtime.now(), runtime.randomId);
+  const first = generateTelemetryPayload(state, runtime.now(), runtime.randomId, config.readings);
   const second: TelemetryPayload = {
     ...first,
     readings: {
@@ -343,11 +399,12 @@ async function runLate(
   signal: AbortSignal,
 ): Promise<void> {
   const currentTime = runtime.now();
-  const current = generateTelemetryPayload(state, currentTime, runtime.randomId);
+  const current = generateTelemetryPayload(state, currentTime, runtime.randomId, config.readings);
   const late = generateTelemetryPayload(
     state,
     new Date(currentTime.getTime() - 60 * 60 * 1_000),
     runtime.randomId,
+    config.readings,
   );
   await sendAndValidate(config, runtime, current, { status: 201, duplicate: false }, signal);
   await runtime.wait(config.intervalMs, signal);
@@ -537,6 +594,26 @@ function parseInteger(value: string, name: string, minimum: number): number {
   if (!Number.isSafeInteger(parsed) || parsed < minimum) {
     throw new SimulatorError('CONFIG_INVALID', `${name} berada di luar batas yang valid.`);
   }
+  return parsed;
+}
+
+function parseReading(
+  value: string | undefined,
+  name: string,
+  minimum: number,
+  maximum: number | undefined,
+  fallback: number,
+): number | null {
+  if (value === undefined || value.length === 0) return fallback;
+  if (value === 'null') return null;
+  if (!/^(?:\d+(?:\.\d+)?|\.\d+)$/.test(value))
+    throw new SimulatorError(
+      'CONFIG_INVALID',
+      `${name} harus berupa angka terbatas atau literal null.`,
+    );
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < minimum || (maximum !== undefined && parsed > maximum))
+    throw new SimulatorError('CONFIG_INVALID', `${name} berada di luar rentang telemetry.`);
   return parsed;
 }
 
