@@ -13,6 +13,117 @@ info:
 servers:
   - url: /api/v1
 paths:
+  /overview:
+    get:
+      tags: [SingleDevice]
+      summary: Read the single-device monitoring overview
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER]
+      parameters:
+        - name: from
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          required: false
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Authoritative single-device overview
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SingleDeviceOverviewResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /device:
+    get:
+      tags: [SingleDevice]
+      summary: Read single-device connectivity and sensor diagnostics
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER]
+      responses:
+        '200':
+          description: Single-device diagnostics
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SingleDeviceDiagnosticsResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /risk-profile:
+    get:
+      tags: [SingleDevice]
+      summary: Read the active simplified single-device risk profile
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER]
+      responses:
+        '200':
+          description: Active simplified risk profile
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SingleDeviceRiskProfileResponse' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+    put:
+      tags: [SingleDevice]
+      summary: Create and activate the next simplified single-device risk-profile version
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/SingleDeviceRiskProfileUpdateRequest' }
+      responses:
+        '200':
+          description: Risk profile update result
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SingleDeviceRiskProfileMutationResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+
+  /audit-log:
+    get:
+      tags: [SingleDevice]
+      summary: List authoritative risk-status transitions
+      security: [{ bearerAuth: [] }]
+      x-required-roles: [PROJECT_OWNER]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Cursor-paginated authoritative risk transitions
+          headers:
+            x-request-id: { $ref: '#/components/headers/XRequestId' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SingleDeviceAuditLogResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
   /health:
     get:
       tags: [Operations]
@@ -1875,6 +1986,245 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
+    SingleDeviceSensorReading:
+      type: [number, 'null']
+
+    SingleDeviceSensorReadings:
+      type: object
+      additionalProperties: false
+      required: [tiltMagnitudeDeg, soilMoisturePct, rainfallMmHour]
+      properties:
+        tiltMagnitudeDeg: { $ref: '#/components/schemas/SingleDeviceSensorReading' }
+        soilMoisturePct: { $ref: '#/components/schemas/SingleDeviceSensorReading' }
+        rainfallMmHour: { $ref: '#/components/schemas/SingleDeviceSensorReading' }
+
+    SingleDeviceSeriesPoint:
+      type: object
+      additionalProperties: false
+      required: [timestamp, value]
+      properties:
+        timestamp: { type: string, format: date-time }
+        value: { type: [number, 'null'] }
+
+    SingleDeviceSeries:
+      type: object
+      additionalProperties: false
+      required: [tiltMagnitudeDeg, soilMoisturePct, rainfallMmHour]
+      properties:
+        tiltMagnitudeDeg:
+          type: array
+          items: { $ref: '#/components/schemas/SingleDeviceSeriesPoint' }
+        soilMoisturePct:
+          type: array
+          items: { $ref: '#/components/schemas/SingleDeviceSeriesPoint' }
+        rainfallMmHour:
+          type: array
+          items: { $ref: '#/components/schemas/SingleDeviceSeriesPoint' }
+
+    SingleDeviceOverviewRisk:
+      type: object
+      additionalProperties: false
+      required: [status, reasons, observedAt, freshness]
+      properties:
+        status: { $ref: '#/components/schemas/RiskLevel' }
+        reasons:
+          type: array
+          items: { $ref: '#/components/schemas/RiskReason' }
+        observedAt: { type: [string, 'null'], format: date-time }
+        freshness:
+          type: string
+          enum: [ONLINE, DELAYED, OFFLINE, UNKNOWN, UNAVAILABLE]
+
+    SingleDeviceOverviewRange:
+      type: object
+      additionalProperties: false
+      required: [from, to]
+      properties:
+        from: { type: string, format: date-time }
+        to: { type: string, format: date-time }
+
+    SingleDeviceOverviewData:
+      type: object
+      additionalProperties: false
+      required: [generatedAt, configured, risk, readings, series, range]
+      properties:
+        generatedAt: { type: string, format: date-time }
+        configured: { type: boolean }
+        risk: { $ref: '#/components/schemas/SingleDeviceOverviewRisk' }
+        readings: { $ref: '#/components/schemas/SingleDeviceSensorReadings' }
+        series: { $ref: '#/components/schemas/SingleDeviceSeries' }
+        range: { $ref: '#/components/schemas/SingleDeviceOverviewRange' }
+
+    SingleDeviceOverviewResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SingleDeviceOverviewData' }
+
+    SingleDeviceSensorHealth:
+      type: string
+      enum: [READABLE, UNREADABLE, UNKNOWN]
+
+    SingleDeviceSensorHealthSet:
+      type: object
+      additionalProperties: false
+      required: [tilt, soilMoisture, rainfall]
+      properties:
+        tilt: { $ref: '#/components/schemas/SingleDeviceSensorHealth' }
+        soilMoisture: { $ref: '#/components/schemas/SingleDeviceSensorHealth' }
+        rainfall: { $ref: '#/components/schemas/SingleDeviceSensorHealth' }
+
+    SingleDeviceNetwork:
+      type: [object, 'null']
+      additionalProperties: false
+      required: [type, signalRssi]
+      properties:
+        type:
+          type: string
+          enum: [WIFI, CELLULAR, UNKNOWN]
+        signalRssi: { type: [number, 'null'] }
+
+    SingleDeviceDiagnosticsData:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          configured,
+          hardwareId,
+          displayName,
+          firmwareVersion,
+          connectivity,
+          lastSeenAt,
+          lastTelemetryAt,
+          network,
+          batteryVoltage,
+          sensors,
+        ]
+      properties:
+        configured: { type: boolean }
+        hardwareId: { type: [string, 'null'] }
+        displayName: { type: [string, 'null'] }
+        firmwareVersion: { type: [string, 'null'] }
+        connectivity: { $ref: '#/components/schemas/ConnectivityStatus' }
+        lastSeenAt: { type: [string, 'null'], format: date-time }
+        lastTelemetryAt: { type: [string, 'null'], format: date-time }
+        network: { $ref: '#/components/schemas/SingleDeviceNetwork' }
+        batteryVoltage: { type: [number, 'null'] }
+        sensors: { $ref: '#/components/schemas/SingleDeviceSensorHealthSet' }
+
+    SingleDeviceDiagnosticsResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SingleDeviceDiagnosticsData' }
+
+    SingleDeviceThreshold:
+      type: object
+      additionalProperties: false
+      required: [watch, danger]
+      description: WATCH must be lower than DANGER and both values must remain inside the stored technical range.
+      properties:
+        watch: { type: number, minimum: 0 }
+        danger: { type: number, minimum: 0 }
+
+    SingleDeviceRiskProfile:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          version,
+          calibrationStatus,
+          activatedAt,
+          notes,
+          tiltMagnitudeDeg,
+          soilMoisturePct,
+          rainfallMmHour,
+        ]
+      properties:
+        version: { type: integer, minimum: 1 }
+        calibrationStatus: { $ref: '#/components/schemas/CalibrationStatus' }
+        activatedAt: { type: string, format: date-time }
+        notes: { type: [string, 'null'], maxLength: 2000 }
+        tiltMagnitudeDeg: { $ref: '#/components/schemas/SingleDeviceThreshold' }
+        soilMoisturePct: { $ref: '#/components/schemas/SingleDeviceThreshold' }
+        rainfallMmHour: { $ref: '#/components/schemas/SingleDeviceThreshold' }
+
+    SingleDeviceRiskProfileResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SingleDeviceRiskProfile' }
+
+    SingleDeviceRiskProfileUpdateRequest:
+      type: object
+      additionalProperties: false
+      required: [tiltMagnitudeDeg, soilMoisturePct, rainfallMmHour]
+      properties:
+        tiltMagnitudeDeg: { $ref: '#/components/schemas/SingleDeviceThreshold' }
+        soilMoisturePct: { $ref: '#/components/schemas/SingleDeviceThreshold' }
+        rainfallMmHour: { $ref: '#/components/schemas/SingleDeviceThreshold' }
+        calibrationStatus: { $ref: '#/components/schemas/CalibrationStatus' }
+        notes: { type: [string, 'null'], maxLength: 2000 }
+
+    SingleDeviceRiskProfileMutationData:
+      type: object
+      additionalProperties: false
+      required: [profile, changed]
+      properties:
+        profile: { $ref: '#/components/schemas/SingleDeviceRiskProfile' }
+        changed: { type: boolean }
+
+    SingleDeviceRiskProfileMutationResponse:
+      type: object
+      additionalProperties: false
+      required: [data]
+      properties:
+        data: { $ref: '#/components/schemas/SingleDeviceRiskProfileMutationData' }
+
+    SingleDeviceRiskAuditEntry:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          previousStatus,
+          currentStatus,
+          reasons,
+          sensorSnapshot,
+          riskProfile,
+          telemetryId,
+          occurredAt,
+        ]
+      properties:
+        id: { type: string, minLength: 1 }
+        previousStatus: { $ref: '#/components/schemas/RiskLevel' }
+        currentStatus: { $ref: '#/components/schemas/RiskLevel' }
+        reasons:
+          type: array
+          items: { $ref: '#/components/schemas/RiskReason' }
+        sensorSnapshot: { $ref: '#/components/schemas/SingleDeviceSensorReadings' }
+        riskProfile:
+          type: object
+          additionalProperties: false
+          required: [id, version]
+          properties:
+            id: { type: [string, 'null'] }
+            version: { type: [integer, 'null'], minimum: 1 }
+        telemetryId: { type: [string, 'null'] }
+        occurredAt: { type: string, format: date-time }
+
+    SingleDeviceAuditLogResponse:
+      type: object
+      additionalProperties: false
+      required: [data, page]
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/SingleDeviceRiskAuditEntry' }
+        page: { $ref: '#/components/schemas/PageInfo' }
     HealthResponse:
       type: object
       additionalProperties: false
@@ -2251,6 +2601,8 @@ components:
         - DEVICE_SERVER_MISMATCH
         - WATCH_HYSTERESIS_PENDING
         - DOWNGRADE_STABILITY_PENDING
+        - DANGER_SOIL_MOISTURE
+        - DANGER_RAINFALL
     SafeThresholds:
       type: object
       additionalProperties: false

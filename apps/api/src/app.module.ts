@@ -15,6 +15,7 @@ import { ReportsModule } from './reports/reports.module.js';
 import { RiskModule } from './risk/risk.module.js';
 import { SitesModule } from './sites/sites.module.js';
 import { TelemetryModule } from './telemetry/telemetry.module.js';
+import { SingleDeviceModule } from './single-device/single-device.module.js';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { TelemetryModule } from './telemetry/telemetry.module.js';
     SitesModule,
     RiskModule,
     TelemetryModule,
+    SingleDeviceModule,
   ],
 })
 export class AppModule {}

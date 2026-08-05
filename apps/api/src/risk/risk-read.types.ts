@@ -86,10 +86,10 @@ export interface MonitoringOverviewItem {
     readonly telemetryId: string;
     readonly deviceTimestamp: string;
     readonly serverReceivedAt: string;
-    readonly tiltMagnitudeDeg: number;
-    readonly soilMoisturePct: number;
-    readonly rainfallMmHour: number;
-    readonly batteryVoltage: number;
+    readonly tiltMagnitudeDeg: number | null;
+    readonly soilMoisturePct: number | null;
+    readonly rainfallMmHour: number | null;
+    readonly batteryVoltage: number | null;
   } | null;
   readonly currentState: {
     readonly monitoringPointId: string;

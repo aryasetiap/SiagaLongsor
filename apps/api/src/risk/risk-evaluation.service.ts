@@ -41,9 +41,9 @@ export class RiskEvaluationService {
       affectsCurrentState: input.affectsCurrentState,
       evaluatedAt: input.evaluatedAt,
       telemetry: {
-        tiltMagnitudeDeg: input.telemetry.tiltMagnitudeDeg.toNumber(),
-        soilMoisturePct: input.telemetry.soilMoisturePct.toNumber(),
-        rainfallMmHour: input.telemetry.rainfallMmHour.toNumber(),
+        tiltMagnitudeDeg: input.telemetry.tiltMagnitudeDeg?.toNumber() ?? null,
+        soilMoisturePct: input.telemetry.soilMoisturePct?.toNumber() ?? null,
+        rainfallMmHour: input.telemetry.rainfallMmHour?.toNumber() ?? null,
         firmwareRisk: input.telemetry.firmwareRiskLevel,
       },
       previous: previous === null ? null : toEngineState(previous),
@@ -71,6 +71,7 @@ export class RiskEvaluationService {
           });
 
     if (result.nextState === null) return [];
+    const previousStatus = previous?.serverRisk ?? 'UNKNOWN';
     await transaction.currentMonitoringPointState.upsert({
       where: { monitoringPointId: input.device.monitoringPointId },
       create: {
@@ -110,6 +111,32 @@ export class RiskEvaluationService {
         pendingDowngradeSince: result.nextState.pendingDowngradeSince,
       },
     });
+    if (previousStatus !== result.nextState.serverRisk) {
+      await transaction.auditLog.create({
+        data: {
+          organizationId: input.device.organizationId,
+          actorId: null,
+          eventType: 'RISK_STATUS_CHANGED',
+          entityType: 'CurrentMonitoringPointState',
+          entityId: input.device.monitoringPointId,
+          requestId: `telemetry:${input.telemetry.id}`,
+          metadata: {
+            previousStatus,
+            currentStatus: result.nextState.serverRisk,
+            reasons: [...result.reasons],
+            telemetryId: input.telemetry.id,
+            riskProfileId: profile?.id ?? null,
+            riskProfileVersion: profile?.version ?? null,
+            sensorSnapshot: {
+              tiltMagnitudeDeg: input.telemetry.tiltMagnitudeDeg?.toNumber() ?? null,
+              soilMoisturePct: input.telemetry.soilMoisturePct?.toNumber() ?? null,
+              rainfallMmHour: input.telemetry.rainfallMmHour?.toNumber() ?? null,
+            },
+            occurredAt: input.evaluatedAt.toISOString(),
+          },
+        },
+      });
+    }
 
     const realtime: RealtimeDescriptor[] = [
       {

@@ -287,10 +287,10 @@ model Telemetry {
   signalRssi           Decimal?                     @db.Decimal(7, 2)
   tiltXDeg             Decimal?                     @db.Decimal(8, 4)
   tiltYDeg             Decimal?                     @db.Decimal(8, 4)
-  tiltMagnitudeDeg     Decimal                      @db.Decimal(8, 4)
-  soilMoisturePct      Decimal                      @db.Decimal(7, 4)
-  rainfallMmHour       Decimal                      @db.Decimal(65, 20)
-  batteryVoltage       Decimal                      @db.Decimal(8, 4)
+  tiltMagnitudeDeg     Decimal?                     @db.Decimal(8, 4)
+  soilMoisturePct      Decimal?                     @db.Decimal(7, 4)
+  rainfallMmHour       Decimal?                     @db.Decimal(65, 20)
+  batteryVoltage       Decimal?                     @db.Decimal(8, 4)
   firmwareRiskLevel    FirmwareRiskLevel
   firmwareSirenActive  Boolean
   canonicalPayloadHash String                       @db.Char(64)

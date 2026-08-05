@@ -7,13 +7,6 @@ import type {
   ServerRisk,
 } from './risk-engine.types.js';
 
-const riskRank: Readonly<Record<ServerRisk, number>> = {
-  UNKNOWN: 0,
-  SAFE: 1,
-  WATCH: 2,
-  DANGER: 3,
-};
-
 export function evaluateRisk(input: EvaluateRiskInput): RiskEngineResult {
   const candidate = classify(input);
   const contextChanged =
@@ -27,37 +20,14 @@ export function evaluateRisk(input: EvaluateRiskInput): RiskEngineResult {
     return result(candidate.risk, candidate.risk, candidate.reasons, input, null, 0);
   }
 
-  let effectiveRisk = candidate.risk;
+  const effectiveRisk = candidate.risk;
   const reasons = [...candidate.reasons];
   const watchCount = candidate.risk === 'WATCH' ? (baseline?.watchCount ?? 0) + 1 : 0;
   const dangerCount = candidate.risk === 'DANGER' ? (baseline?.dangerCount ?? 0) + 1 : 0;
-  let pendingDowngradeRisk: ServerRisk | null = null;
-  let pendingDowngradeSince: Date | null = null;
+  const pendingDowngradeRisk: ServerRisk | null = null;
+  const pendingDowngradeSince: Date | null = null;
 
-  if (candidate.risk === 'WATCH' && watchCount < (input.profile?.watchConsecutiveSamples ?? 1)) {
-    effectiveRisk = baseline?.serverRisk ?? 'UNKNOWN';
-    reasons.push('WATCH_HYSTERESIS_PENDING');
-  } else if (
-    candidate.risk === 'DANGER' &&
-    dangerCount < (input.profile?.dangerConsecutiveSamples ?? 1)
-  ) {
-    effectiveRisk = baseline?.serverRisk ?? 'UNKNOWN';
-  } else if (
-    baseline !== null &&
-    candidate.risk !== 'UNKNOWN' &&
-    riskRank[candidate.risk] < riskRank[baseline.serverRisk]
-  ) {
-    const samePending = baseline.pendingDowngradeRisk === candidate.risk;
-    const since = samePending ? baseline.pendingDowngradeSince : input.evaluatedAt;
-    const stableMilliseconds = input.evaluatedAt.getTime() - (since?.getTime() ?? 0);
-    const requiredMilliseconds = (input.profile?.downgradeStableMinutes ?? 0) * 60_000;
-    if (stableMilliseconds < requiredMilliseconds) {
-      effectiveRisk = baseline.serverRisk;
-      pendingDowngradeRisk = candidate.risk;
-      pendingDowngradeSince = since;
-      reasons.push('DOWNGRADE_STABILITY_PENDING');
-    }
-  }
+  // R2 final-product path intentionally applies direct boundary semantics; legacy fields remain persisted for compatibility.
 
   const mismatch = input.telemetry.firmwareRisk !== effectiveRisk;
   const mismatchCount = mismatch ? (baseline?.mismatchCount ?? 0) + 1 : 0;
@@ -113,15 +83,14 @@ function classify(input: EvaluateRiskInput): {
   }
 
   const dangerReasons: RiskReason[] = [];
-  if (tiltMagnitudeDeg > input.profile.danger.tiltMagnitudeDegGt) {
+  if (tiltMagnitudeDeg >= input.profile.danger.tiltMagnitudeDegGt) {
     dangerReasons.push('DANGER_TILT');
   }
-  if (
-    rainfallMmHour > input.profile.danger.rainfallMmHourGt &&
-    soilMoisturePct > input.profile.danger.soilMoisturePctGt
-  ) {
-    dangerReasons.push('DANGER_RAIN_MOISTURE');
+  if (rainfallMmHour >= input.profile.danger.rainfallMmHourGt) {
+    dangerReasons.push('DANGER_RAINFALL');
   }
+  if (soilMoisturePct >= input.profile.danger.soilMoisturePctGt)
+    dangerReasons.push('DANGER_SOIL_MOISTURE');
   if (dangerReasons.length > 0) return { risk: 'DANGER', reasons: dangerReasons };
 
   if (

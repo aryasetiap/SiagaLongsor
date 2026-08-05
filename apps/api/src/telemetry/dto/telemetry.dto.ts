@@ -13,6 +13,8 @@ import {
   Min,
   MinLength,
   ValidateNested,
+  IsDefined,
+  ValidateIf,
 } from 'class-validator';
 
 import { FirmwareRiskLevel, NetworkType } from '../../generated/prisma/enums.js';
@@ -30,82 +32,67 @@ export class TelemetryNetworkDto {
 
 export class TelemetryReadingsDto {
   @IsOptional()
+  @ValidateIf((_object, value) => value !== null)
   @IsNumber({ allowInfinity: false, allowNaN: false })
   @Min(-180)
   @Max(180)
-  tiltXDeg?: number;
+  tiltXDeg?: number | null;
 
   @IsOptional()
+  @ValidateIf((_object, value) => value !== null)
   @IsNumber({ allowInfinity: false, allowNaN: false })
   @Min(-180)
   @Max(180)
-  tiltYDeg?: number;
+  tiltYDeg?: number | null;
 
+  @ValidateIf((_object, value) => value !== null)
+  @IsDefined()
   @IsNumber({ allowInfinity: false, allowNaN: false })
   @Min(0)
   @Max(180)
-  tiltMagnitudeDeg!: number;
+  tiltMagnitudeDeg!: number | null;
 
+  @ValidateIf((_object, value) => value !== null)
+  @IsDefined()
   @IsNumber({ allowInfinity: false, allowNaN: false })
   @Min(0)
   @Max(100)
-  soilMoisturePct!: number;
+  soilMoisturePct!: number | null;
 
+  @ValidateIf((_object, value) => value !== null)
+  @IsDefined()
   @IsNumber({ allowInfinity: false, allowNaN: false })
   @Min(0)
-  rainfallMmHour!: number;
+  rainfallMmHour!: number | null;
 
+  @ValidateIf((_object, value) => value !== null)
+  @IsDefined()
   @IsNumber({ allowInfinity: false, allowNaN: false })
   @Min(0)
   @Max(30)
-  batteryVoltage!: number;
+  batteryVoltage!: number | null;
 }
 
 export class DeviceAssessmentDto {
-  @IsEnum(FirmwareRiskLevel)
-  riskLevel!: FirmwareRiskLevel;
-
-  @IsBoolean()
-  sirenActive!: boolean;
+  @IsEnum(FirmwareRiskLevel) riskLevel!: FirmwareRiskLevel;
+  @IsBoolean() sirenActive!: boolean;
 }
 
 export class TelemetryDto {
-  @IsString()
-  @MinLength(8)
-  @MaxLength(64)
-  messageId!: string;
-
-  @IsString()
-  @MinLength(1)
-  @MaxLength(64)
-  bootId!: string;
-
-  @IsInt()
-  @Min(0)
-  @Max(Number.MAX_SAFE_INTEGER)
-  sequence!: number;
-
-  @IsISO8601({ strict: true, strictSeparator: true })
-  timestamp!: string;
-
-  @IsString()
-  @MinLength(1)
-  @MaxLength(32)
-  firmwareVersion!: string;
-
+  @IsString() @MinLength(8) @MaxLength(64) messageId!: string;
+  @IsString() @MinLength(1) @MaxLength(64) bootId!: string;
+  @IsInt() @Min(0) @Max(Number.MAX_SAFE_INTEGER) sequence!: number;
+  @IsISO8601({ strict: true, strictSeparator: true }) timestamp!: string;
+  @IsString() @MinLength(1) @MaxLength(32) firmwareVersion!: string;
   @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => TelemetryNetworkDto)
   network?: TelemetryNetworkDto;
-
-  @IsObject()
-  @ValidateNested()
-  @Type(() => TelemetryReadingsDto)
-  readings!: TelemetryReadingsDto;
-
+  @IsObject() @ValidateNested() @Type(() => TelemetryReadingsDto) readings!: TelemetryReadingsDto;
+  @IsOptional()
   @IsObject()
   @ValidateNested()
   @Type(() => DeviceAssessmentDto)
-  deviceAssessment!: DeviceAssessmentDto;
+  deviceAssessment?: DeviceAssessmentDto;
 }

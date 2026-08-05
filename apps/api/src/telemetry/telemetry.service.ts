@@ -12,7 +12,7 @@ import {
 import { APP_CONFIG, type AppConfig } from '../config/app-config.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { Prisma, type Device } from '../generated/prisma/client.js';
-import { DeviceLifecycleStatus } from '../generated/prisma/enums.js';
+import { DeviceLifecycleStatus, FirmwareRiskLevel } from '../generated/prisma/enums.js';
 import { RiskEvaluationService } from '../risk/risk-evaluation.service.js';
 import { RealtimePostCommitService } from '../realtime/realtime-post-commit.service.js';
 import type { TelemetryDto } from './dto/telemetry.dto.js';
@@ -118,8 +118,8 @@ export class TelemetryService {
           soilMoisturePct: input.readings.soilMoisturePct,
           rainfallMmHour: input.readings.rainfallMmHour,
           batteryVoltage: input.readings.batteryVoltage,
-          firmwareRiskLevel: input.deviceAssessment.riskLevel,
-          firmwareSirenActive: input.deviceAssessment.sirenActive,
+          firmwareRiskLevel: input.deviceAssessment?.riskLevel ?? FirmwareRiskLevel.UNKNOWN,
+          firmwareSirenActive: input.deviceAssessment?.sirenActive ?? false,
           canonicalPayloadHash,
           rawPayload,
         },
@@ -190,10 +190,14 @@ function toRawPayload(input: TelemetryDto): Prisma.InputJsonObject {
       rainfallMmHour: input.readings.rainfallMmHour,
       batteryVoltage: input.readings.batteryVoltage,
     },
-    deviceAssessment: {
-      riskLevel: input.deviceAssessment.riskLevel,
-      sirenActive: input.deviceAssessment.sirenActive,
-    },
+    ...(input.deviceAssessment === undefined
+      ? {}
+      : {
+          deviceAssessment: {
+            riskLevel: input.deviceAssessment.riskLevel,
+            sirenActive: input.deviceAssessment.sirenActive,
+          },
+        }),
   };
 }
 

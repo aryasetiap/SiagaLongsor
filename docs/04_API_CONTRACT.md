@@ -26,7 +26,7 @@
 > beserta alasan, snapshot, dan referensi profile bila ada. Required telemetry stale, offline,
 > invalid, atau unavailable selalu menghasilkan `UNKNOWN`, tidak pernah `SAFE`.
 >
-> R2 wajib memperbarui machine-readable OpenAPI **sebelum atau bersama** perubahan implementasi
+> R2 memperbarui machine-readable OpenAPI **sebelum atau bersama** perubahan implementasi
 > menurut workflow contract-first. R1 sengaja tidak mengubah `specs/openapi.yaml` atau mendefinisikan
 > schema OpenAPI lengkap.
 
