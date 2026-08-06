@@ -5,20 +5,27 @@ Monorepo website dan backend Sistem Deteksi Dini Tanah Longsor untuk implementas
 
 ## Status implementasi
 
-**Phase 00 selesai. Phase 01 selesai. Phase 02 masih berada pada tahap coordination dan
-contract planning; implementasi Phase 02 belum dimulai.**
+**R1-R10 final refactor dan acceptance selesai.** SiagaLongsor saat ini adalah
+implementasi riset dengan satu deployment fisik ESP32 dan empat halaman produk:
+Overview, Perangkat, Profil Risiko, dan Audit Log.
 
-- Next.js menyediakan login, bootstrap session, dan protected application shell.
-- NestJS API menyediakan health check, authentication, dan authorization guard.
-- Schema Prisma aktif berada di `apps/api/prisma/schema.prisma`.
-- PostgreSQL dan Redis development berada di `compose.yaml`.
-- Authentication memakai access JWT singkat dan rotating refresh token dalam cookie `httpOnly`.
-- RBAC backend mendukung `PROJECT_OWNER` dan `SCHOOL_ADMIN` dalam organization scope.
-- Ingestion, risk engine, alert, SSE, dan dashboard operasional belum diimplementasikan.
+- Frontend: Next.js; backend: NestJS.
+- Persistence: PostgreSQL melalui Prisma; Redis tetap digunakan untuk kebutuhan runtime yang dipertahankan.
+- ESP32 mengirim telemetry HTTP yang terautentikasi dan idempotent.
+- Risk `SAFE`/`WATCH`/`DANGER`/`UNKNOWN` ditentukan secara deterministik dan server-authoritative.
+- Sensor hazard yang hilang, stale, offline, atau unavailable menghasilkan `UNKNOWN`, bukan `SAFE`.
+- Integrasi fisik ESP32 telah divalidasi melalui R9 dan final smoke R10.
+- Keputusan software/research release: **READY WITH DOCUMENTED LIMITATIONS**.
 
-Backend Engineer dan Frontend Engineer akan bekerja paralel setelah contract checkpoint terkait
-disepakati dan digabung. Panduan kontribusi ringkas tersedia di `CONTRIBUTING.md`; ownership,
-contract-first workflow, dan checkpoint integrasi dijelaskan di `docs/12_TEAM_WORKFLOW.md`.
+Kalibrasi soil, referensi mounting IMU, dan kalibrasi unit rain tetap merupakan
+limitasi lapangan yang terdokumentasi; status tersebut bukan klaim kalibrasi
+ilmiah penuh. Lihat `docs/20_SCOPE_RESET_SINGLE_DEVICE.md`,
+`docs/23_R9_FINAL_ACCEPTANCE_REPORT.md`,
+`docs/24_R10_FINAL_ACCEPTANCE_CONTRACT.md`, dan
+`docs/27_R10_FINAL_ACCEPTANCE_REPORT.md`.
+
+Panduan kontribusi tersedia di `CONTRIBUTING.md`; ownership dan contract-first
+workflow dijelaskan di `docs/12_TEAM_WORKFLOW.md`.
 
 ## Menjalankan foundation
 
@@ -75,14 +82,13 @@ bersamaan bila port host perlu disesuaikan.
 
 ## Keputusan produk yang sudah dikunci
 
-- Jumlah alat awal: **1 perangkat**, tetapi arsitektur wajib mendukung penambahan banyak perangkat dan banyak lokasi.
-- Konektivitas lapangan: **Wi-Fi sebagai jalur utama dan modem seluler sebagai cadangan**.
-- Operator aktif MVP:
-  - **Project Owner**: tim pemilik/pengembang proyek.
-  - **School Admin**: admin sekolah.
-- Peringatan lokal pada perangkat harus tetap bekerja walaupun internet atau server bermasalah.
-- Dashboard tidak boleh menampilkan perangkat offline atau data kedaluwarsa sebagai `SAFE`.
-- Kendali sirene dari internet **tidak termasuk MVP**.
+- Deployment rilis saat ini: **satu perangkat ESP32 fisik**; model internal tetap
+  menyimpan konteks Organization/Site/MonitoringPoint untuk provisioning berikutnya.
+- Konektivitas fisik yang divalidasi pada R9: Wi-Fi dan sinkronisasi NTP.
+- Operator aktif: **PROJECT_OWNER** dan **SCHOOL_ADMIN**.
+- Risk server tetap authoritative; perangkat tidak menentukan status rilis.
+- Data offline, delayed, stale, invalid, atau unavailable tidak boleh menjadi `SAFE`.
+- Remote siren dan prediksi AI tidak termasuk scope final.
 
 ## Urutan membaca
 

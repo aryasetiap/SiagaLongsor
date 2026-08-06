@@ -24,6 +24,16 @@ export default defineConfig([
       globals: globals.node,
     },
   },
+  {
+    files: ['performance/r10/**/*.js'],
+    languageOptions: {
+      globals: {
+        __ENV: 'readonly',
+        __VU: 'readonly',
+        __ITER: 'readonly',
+      },
+    },
+  },
   ...nextVitals.map((config) => ({
     ...config,
     files: webSourceFiles,

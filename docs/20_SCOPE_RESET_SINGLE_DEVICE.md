@@ -63,14 +63,14 @@ Each refactor step must be reversible through a documented compatibility path, r
 | Refactor | Scope                                                 | Status                                 |
 | -------- | ----------------------------------------------------- | -------------------------------------- |
 | R1       | Scope Freeze                                          | Completed by this documentation change |
-| R2       | Minimal Backend and target OpenAPI                    | Completed                             |
-| R3       | Minimal Frontend                                      | Completed                             |
-| R4       | Telemetry Simulator / integration contract validation | Completed                             |
-| R5       | Remove obsolete product features                      | Completed                             |
-| R6       | Infrastructure cleanup                                | Completed                             |
-| R7       | Database/schema cleanup                               | Completed                             |
-| R8       | Regression + acceptance                               | Completed                             |
-| R9       | ESP32 firmware/integration                            | Completed                             |
-| R10      | Final performance/UAT/release readiness               | Active                                |
+| R2       | Minimal Backend and target OpenAPI                    | Completed                              |
+| R3       | Minimal Frontend                                      | Completed                              |
+| R4       | Telemetry Simulator / integration contract validation | Completed                              |
+| R5       | Remove obsolete product features                      | Completed                              |
+| R6       | Infrastructure cleanup                                | Completed                              |
+| R7       | Database/schema cleanup                               | Completed                              |
+| R8       | Regression + acceptance                               | Completed                              |
+| R9       | ESP32 firmware/integration                            | Completed                              |
+| R10      | Final performance/UAT/release readiness               | Completed                              |
 
 No R2+ work is implied or completed by R1.
