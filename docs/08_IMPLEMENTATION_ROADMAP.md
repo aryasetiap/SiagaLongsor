@@ -4,7 +4,7 @@
 > as historical implementation evidence only; they no longer define the final product. The old
 > Phase 07 production-readiness sequence is paused/superseded for final release purposes. See
 > [`docs/20_SCOPE_RESET_SINGLE_DEVICE.md`](20_SCOPE_RESET_SINGLE_DEVICE.md) for the authoritative
-> one-device, four-page scope. R1-R9 are now completed; R10 remains pending.
+> one-device, four-page scope. R1-R9 are now completed; R10 is active.
 
 ## Revised refactor roadmap
 
@@ -19,7 +19,7 @@
 | R7  | Database/schema cleanup                               | completed |
 | R8  | Regression + acceptance                               | completed |
 | R9  | ESP32 firmware/integration                            | completed |
-| R10 | Final performance/UAT/release readiness               | pending   |
+| R10 | Final performance/UAT/release readiness               | active    |
 
 ## Historical pre-scope-reset roadmap
 
