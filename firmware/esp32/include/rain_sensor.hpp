@@ -4,12 +4,25 @@
 
 namespace firmware {
 
+enum class RainSampleState : uint8_t {
+  NOT_YET_MEASURED,
+  VALID_ZERO,
+  VALID_NONZERO,
+  UNAVAILABLE,
+};
+
+struct RainReading {
+  RainSampleState state = RainSampleState::NOT_YET_MEASURED;
+  float rainfallMmHour = NAN;
+  uint32_t tips = 0;
+  uint32_t intervalMs = 0;
+};
+
 class RainSensor {
  public:
   void begin(uint8_t pin, float mmPerTip);
-  float sample(uint32_t intervalMs);
-  uint32_t tipCount() const { return tips_; }
-  void resetForSelfTest() { tips_ = 0; }
+  bool update(uint32_t nowMs, uint32_t windowMs);
+  const RainReading& reading() const { return reading_; }
 
  private:
   static void IRAM_ATTR interruptThunk();
@@ -20,6 +33,8 @@ class RainSensor {
   uint8_t pin_ = 27;
   float mmPerTip_ = 0.70F;
   bool initialized_ = false;
+  uint32_t windowStartedAtMs_ = 0;
+  RainReading reading_;
 };
 
 }  // namespace firmware
