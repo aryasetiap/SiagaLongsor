@@ -60,6 +60,11 @@ void loop() {
   const uint32_t now = millis();
   if (static_cast<int32_t>(now - nextSensorAt) >= 0) {
     nextSensorAt = now + firmware::SENSOR_INTERVAL_MS;
+    firmware::TiltReading rawTilt{};
+    const bool rawTiltReadable = mpuAvailable && mpu.readRawOrientation(rawTilt);
+    if (!mpu.calibrated() && rawTiltReadable) {
+      Serial.printf("tilt raw reference candidate x=%.2f y=%.2f\n", rawTilt.xDeg, rawTilt.yDeg);
+    }
     if (!clockService.synchronized()) {
       Serial.println("clock unavailable; sensor acquisition continues, telemetry deferred");
     } else {

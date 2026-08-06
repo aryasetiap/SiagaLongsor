@@ -11,6 +11,7 @@ class Mpu6050 {
  public:
   explicit Mpu6050(TwoWire& wire) : wire_(wire) {}
   bool begin(uint8_t address = 0x68);
+  bool readRawOrientation(TiltReading& reading);
   bool read(TiltReading& reading);
   void setReference(const TiltReference& reference) { reference_ = reference; }
   bool calibrated() const { return reference_.calibrated; }

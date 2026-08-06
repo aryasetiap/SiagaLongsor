@@ -29,6 +29,13 @@ pio device monitor -b 115200
 
 The target is `esp32doit-devkit-v1` with the Arduino framework.
 
+During physical bring-up, the GY-521 responded at I2C address `0x68` but
+reported `WHO_AM_I=0x70`. The firmware therefore reports `0x70` as a
+different/compatible IMU identity and does not claim confirmed MPU-6050
+silicon. `WHO_AM_I=0x68` is reported as the expected MPU-6050-compatible
+identity; other values are explicitly unknown. The limited accelerometer
+register path may still be tried for compatible devices.
+
 ## Local secrets
 
 Copy `include/secrets.example.h` to `include/secrets.h` and fill it locally:
@@ -57,7 +64,7 @@ sensors and telemetry continue normally.
 
 ## Sensor behavior
 
-### MPU6050
+### MPU6050 / compatible IMU
 
 The driver probes address `0x68`, wakes the device, and reads the accelerometer.
 Static tilt is derived from the gravity vector:
@@ -70,9 +77,32 @@ magnitude = sqrt(x² + y²)
 
 Angles are in degrees. A mounting reference is supplied through the
 `TILT_REFERENCE_*` configuration values; no perfectly level mounting is
-assumed. Until that reference is marked calibrated, tilt values are null so
+assumed. Until that reference is marked calibrated, raw orientation is used
+only for serial calibration diagnostics and telemetry tilt values remain null so
 calibration uncertainty cannot be projected as a false SAFE state. A failed
 read also produces null tilt values and never zero.
+
+#### Physical reference calibration
+
+1. Mount the ESP32/IMU in its intended neutral physical orientation.
+2. Keep the device still.
+3. Collect multiple `tilt raw reference candidate x=... y=...` samples.
+4. Confirm the values are stable.
+5. Choose representative X/Y reference values.
+6. Set them locally in the ignored `include/secrets.h`:
+
+   ```cpp
+   #define TILT_REFERENCE_X_DEG <measured-x-reference>
+   #define TILT_REFERENCE_Y_DEG <measured-y-reference>
+   #define TILT_REFERENCE_CALIBRATED true
+   ```
+
+7. Rebuild and reflash.
+8. Verify neutral calibrated tilt is approximately near zero.
+9. Manually tilt the module and confirm magnitude responds.
+
+No acceptance tolerance is invented in R9-C; define it only after physical
+measurements and review.
 
 ### Soil moisture
 
