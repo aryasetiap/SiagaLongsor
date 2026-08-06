@@ -130,6 +130,19 @@ Configure the device locally with `API_BASE_URL`, `HARDWARE_ID`, and
 the approved clock/network configuration. Do not choose sensor models, pins,
 or conversion formulas until the R9-B hardware inventory is approved.
 
+For the locked R9-B1 hardware, the wiring is:
+
+| Function                     | Pin    |
+| ---------------------------- | ------ |
+| Shared I2C SDA (MPU6050/LCD) | GPIO21 |
+| Shared I2C SCL (MPU6050/LCD) | GPIO22 |
+| Soil analog output (ADC1)    | GPIO34 |
+| Rain pulse input             | GPIO27 |
+
+Use 3.3 V logic. The LCD backpack address/controller remains unconfirmed;
+the firmware scans I2C and continues without an LCD. There is no battery
+measurement circuit, cellular modem, RTC, SD card, buzzer, or siren in R9-B1.
+
 ## 8. Send first telemetry
 
 Send a payload matching
