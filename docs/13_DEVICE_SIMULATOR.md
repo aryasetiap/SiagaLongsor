@@ -109,6 +109,10 @@ Jalankan salah satu nama berikut melalui `--scenario <nama>`:
 - `idempotency-conflict`: memverifikasi `409 IDEMPOTENCY_CONFLICT`.
 - `late`: mengirim data terkini lalu data satu jam lebih lama; keduanya harus diterima.
 - `missing-tilt`: mengirim telemetri dengan `tiltMagnitudeDeg: null` untuk memverifikasi status server `UNKNOWN`.
+- `presentation`: stream sintetis untuk environment demo terisolasi. Memerlukan enam environment
+  `SIMULATOR_PRESENTATION_<SENSOR>_{WATCH,DANGER}` yang disalin dari Profil Risiko aktif dan
+  memakai firmware `presentation-simulator-1.0.0`. Lihat `PRESENTATION_DEMO.md`; jangan gunakan
+  credential atau database perangkat fisik.
 
 Contoh:
 

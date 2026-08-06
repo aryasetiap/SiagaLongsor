@@ -66,6 +66,18 @@ describe('device telemetry simulator', () => {
     ).toThrow(SimulatorError);
   });
 
+  it('requires active-profile values for the presentation scenario', () => {
+    expect(() =>
+      parseSimulatorConfig({ ...testEnvironment, SIMULATOR_SCENARIO: 'presentation' }, []),
+    ).toThrowError(expect.objectContaining({ code: 'CONFIG_REQUIRED' }));
+    const config = parseSimulatorConfig(presentationEnvironment(), []);
+    expect(config).toMatchObject({
+      scenario: 'presentation',
+      count: 0,
+      presentationProfile: { tiltMagnitudeDeg: { watch: 3, danger: 8 } },
+    });
+  });
+
   it('requires credentials from environment and never accepts a secret CLI option', () => {
     expect(() => parseSimulatorConfig({}, [])).toThrowError(
       expect.objectContaining({ code: 'CONFIG_REQUIRED' }),
@@ -147,6 +159,32 @@ describe('device telemetry simulator', () => {
     const payloads = capture.payloads();
     expect(payloads.map((payload) => payload.sequence)).toEqual([1, 2, 3]);
     expect(new Set(payloads.map((payload) => payload.messageId)).size).toBe(3);
+  });
+
+  it('presentation stream uses API payloads, marks its firmware, and includes a required null gap', async () => {
+    const responses = Array.from({ length: 14 }, (_, index) =>
+      successResponse(201, false, `tel-${index}`),
+    );
+    const capture = createFetchCapture(responses);
+    await runSimulator(
+      config({
+        scenario: 'presentation',
+        count: 1,
+        intervalMs: 1000,
+        presentationProfile: presentationProfile(),
+      }),
+      dependencies(
+        capture.fetch,
+        Array.from({ length: 20 }, (_, index) => `id-${index}`),
+      ),
+    );
+    const payloads = capture.payloads();
+    expect(payloads).toHaveLength(14);
+    expect(new Set(payloads.map((payload) => payload.messageId)).size).toBe(14);
+    expect(
+      payloads.every((payload) => payload.firmwareVersion === 'presentation-simulator-1.0.0'),
+    ).toBe(true);
+    expect(payloads.some((payload) => payload.readings.tiltMagnitudeDeg === null)).toBe(true);
   });
 
   it('duplicate scenario sends the identical payload and validates 201 then 200', async () => {
@@ -303,6 +341,7 @@ function config(overrides: Partial<SimulatorConfig> = {}): SimulatorConfig {
       rainfallMmHour: 12.4,
       batteryVoltage: 12.7,
     },
+    presentationProfile: null,
     ...overrides,
   };
 }
@@ -343,7 +382,29 @@ interface TelemetryPayloadForTest {
   readonly bootId: string;
   readonly sequence: number;
   readonly timestamp: string;
-  readonly readings: Record<string, number>;
+  readonly firmwareVersion: string;
+  readonly readings: Record<string, number | null>;
+}
+
+function presentationEnvironment() {
+  return {
+    ...testEnvironment,
+    SIMULATOR_SCENARIO: 'presentation',
+    SIMULATOR_PRESENTATION_TILT_MAGNITUDE_DEG_WATCH: '3',
+    SIMULATOR_PRESENTATION_TILT_MAGNITUDE_DEG_DANGER: '8',
+    SIMULATOR_PRESENTATION_SOIL_MOISTURE_PCT_WATCH: '65',
+    SIMULATOR_PRESENTATION_SOIL_MOISTURE_PCT_DANGER: '85',
+    SIMULATOR_PRESENTATION_RAINFALL_MM_HOUR_WATCH: '20',
+    SIMULATOR_PRESENTATION_RAINFALL_MM_HOUR_DANGER: '50',
+  };
+}
+
+function presentationProfile() {
+  return {
+    tiltMagnitudeDeg: { watch: 3, danger: 8 },
+    soilMoisturePct: { watch: 65, danger: 85 },
+    rainfallMmHour: { watch: 20, danger: 50 },
+  };
 }
 
 function successResponse(status: number, duplicate: boolean, telemetryId: string): Response {

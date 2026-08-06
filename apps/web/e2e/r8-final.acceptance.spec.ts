@@ -15,9 +15,14 @@ test('PROJECT_OWNER dapat membuka empat halaman produk single-device', async ({ 
   ).toHaveCount(0);
 
   await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
-  await expect(page.locator('#overview-range')).toHaveValue('24');
-  await expect(page.getByRole('option', { name: '72 jam' })).toHaveCount(1);
-  await expect(page.getByRole('option', { name: '7 hari' })).toHaveCount(1);
+  await expect(page.locator('#overview-range')).toHaveValue('1440');
+  const range = page.locator('#overview-range');
+  await expect(range.locator('option[value="5"]')).toHaveText('5 menit');
+  await expect(range.locator('option[value="15"]')).toHaveText('15 menit');
+  await expect(range.locator('option[value="60"]')).toHaveText('1 jam');
+  await expect(range.locator('option[value="360"]')).toHaveText('6 jam');
+  await expect(range.locator('option[value="4320"]')).toHaveText('72 jam');
+  await expect(range.locator('option[value="10080"]')).toHaveText('7 hari');
 
   await page.goto('/devices');
   await expect(page.getByRole('heading', { name: 'Perangkat', exact: true })).toBeVisible();
