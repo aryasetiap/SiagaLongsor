@@ -1,9 +1,9 @@
 # SiagaLongsor ESP32 R9-B1
 
-This PlatformIO project targets the locked ESP32 DEVKIT V1 hardware. It is the
-first physical firmware core; R9-C is still required for bench and field
-acceptance. The firmware does sensor acquisition and delivery only. Risk status
-remains server-authoritative.
+This PlatformIO project targets the locked ESP32 DEVKIT V1 hardware. R9-C
+physical integration is complete; final sensor calibration evidence remains
+deferred where noted below. The firmware does sensor acquisition and delivery
+only. Risk status remains server-authoritative.
 
 ## Hardware and pins
 
