@@ -4,21 +4,21 @@
 > as historical implementation evidence only; they no longer define the final product. The old
 > Phase 07 production-readiness sequence is paused/superseded for final release purposes. See
 > [`docs/20_SCOPE_RESET_SINGLE_DEVICE.md`](20_SCOPE_RESET_SINGLE_DEVICE.md) for the authoritative
-> one-device, four-page scope. R1 is completed by the documentation freeze; R2+ remain pending.
+> one-device, four-page scope. R1-R9 are now completed; R10 remains pending.
 
 ## Revised refactor roadmap
 
 | ID  | Workstream                                            | Status    |
 | --- | ----------------------------------------------------- | --------- |
 | R1  | Scope Freeze                                          | completed |
-| R2  | Minimal Backend                                       | pending   |
-| R3  | Minimal Frontend                                      | pending   |
-| R4  | Telemetry Simulator / integration contract validation | pending   |
-| R5  | Remove obsolete product features                      | pending   |
-| R6  | Infrastructure cleanup                                | pending   |
-| R7  | Database/schema cleanup                               | pending   |
-| R8  | Regression + acceptance                               | pending   |
-| R9  | ESP32 firmware/integration                            | pending   |
+| R2  | Minimal Backend                                       | completed |
+| R3  | Minimal Frontend                                      | completed |
+| R4  | Telemetry Simulator / integration contract validation | completed |
+| R5  | Remove obsolete product features                      | completed |
+| R6  | Infrastructure cleanup                                | completed |
+| R7  | Database/schema cleanup                               | completed |
+| R8  | Regression + acceptance                               | completed |
+| R9  | ESP32 firmware/integration                            | completed |
 | R10 | Final performance/UAT/release readiness               | pending   |
 
 ## Historical pre-scope-reset roadmap
