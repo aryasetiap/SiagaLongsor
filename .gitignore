@@ -49,6 +49,7 @@ out/
 !**/.env.sample
 
 secrets/
+firmware/esp32/include/secrets.h
 .secret/
 *.pem
 *.key
