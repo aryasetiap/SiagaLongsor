@@ -348,12 +348,12 @@ describe('Telemetry ingestion API', () => {
   it('rejects missing, malformed, unknown, and incorrect device credentials uniformly', async () => {
     const payload = validPayload();
     const unknownHardware = `UNKNOWN_${testRunId}`.toUpperCase();
-    const responses = await Promise.all([
-      ingest(payload, { authorization: null }),
-      ingest(payload, { authorization: 'Bearer invalid' }),
-      ingest(payload, { authorization: `Device ${unknownHardware}.${secret}` }),
-      ingest(payload, { authorization: `Device ${hardwareId}.${'x'.repeat(43)}` }),
-    ]);
+    const responses = [
+      await ingest(payload, { authorization: null }),
+      await ingest(payload, { authorization: 'Bearer invalid' }),
+      await ingest(payload, { authorization: `Device ${unknownHardware}.${secret}` }),
+      await ingest(payload, { authorization: `Device ${hardwareId}.${'x'.repeat(43)}` }),
+    ];
 
     expect(responses.map((item) => item.status)).toEqual([401, 401, 401, 401]);
     expect(responses.every((item) => item.body.error.code === 'DEVICE_CREDENTIAL_INVALID')).toBe(
