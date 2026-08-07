@@ -53,24 +53,30 @@ export function chartOption({
           yAxis: thresholds.watch,
           name: `WATCH ${thresholds.watch} ${unit}`,
           lineStyle: { color: '#b45309', type: 'dashed' },
-          label: { position: 'insideStartTop', color: '#92400e' },
+          label: { position: 'insideStartTop', color: '#92400e', fontSize: 10, fontWeight: 700 },
         },
         {
           yAxis: thresholds.danger,
           name: `DANGER ${thresholds.danger} ${unit}`,
           lineStyle: { color: '#b91c1c', type: 'dashed' },
-          label: { position: 'insideStartBottom', color: '#991b1b' },
+          label: { position: 'insideStartBottom', color: '#991b1b', fontSize: 10, fontWeight: 700 },
         },
       ]
     : [];
   return {
     animation: !reducedMotion,
     animationDuration: 280,
-    grid: { left: 42, right: 12, top: 16, bottom: 28, containLabel: false },
+    grid: { left: 42, right: 12, top: 18, bottom: 28, containLabel: false },
     tooltip: {
       trigger: 'axis',
       confine: true,
       axisPointer: { type: 'line' },
+      backgroundColor: '#17211f',
+      borderWidth: 0,
+      borderRadius: 12,
+      padding: [9, 11],
+      textStyle: { color: '#f8fbfa', fontSize: 12 },
+      extraCssText: 'box-shadow: 0 12px 28px rgba(15, 23, 42, .22);',
       formatter: (items: readonly { value: [number, number | null] }[]) => {
         const item = items[0];
         return item === undefined
@@ -94,7 +100,8 @@ export function chartOption({
       type: 'value',
       scale: true,
       axisLabel: { fontSize: 10, color: '#64748b', formatter: (value: number) => format(value) },
-      splitLine: { lineStyle: { color: '#e2e8f0' } },
+      splitNumber: 3,
+      splitLine: { lineStyle: { color: '#e9efed', type: 'dashed' } },
       axisLine: { show: false },
       axisTick: { show: false },
     },
@@ -110,8 +117,8 @@ export function chartOption({
         lineStyle: { color, width: 2.5 },
         areaStyle: {
           color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: `${color}33` },
-            { offset: 1, color: `${color}03` },
+            { offset: 0, color: `${color}29` },
+            { offset: 1, color: `${color}04` },
           ]),
         },
         markLine: lines.length ? { silent: true, symbol: 'none', data: lines } : undefined,
@@ -179,8 +186,8 @@ export function InteractiveChart({
     chart.current?.setOption(option, { notMerge: true, lazyUpdate: true });
   }, [option]);
   return (
-    <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_8px_20px_rgb(15_23_42_/_0.06)]">
-      <header className="flex items-start justify-between gap-2">
+    <article className="chart-card min-w-0 bg-white">
+      <header className="chart-card-header">
         <div>
           <h2 id={id} className="font-bold text-slate-950">
             {title}
@@ -189,14 +196,14 @@ export function InteractiveChart({
             {stats.current === null ? '—' : `${format(stats.current)} ${unit}`}
           </p>
         </div>
-        <dl className="flex gap-3 text-right text-[11px] text-slate-500">
+        <dl className="chart-card-stats">
           <Metric label="Min" value={stats.min} unit={unit} />
           <Metric label="Avg" value={stats.average} unit={unit} />
           <Metric label="Maks" value={stats.max} unit={unit} />
         </dl>
       </header>
       {stats.current === null ? (
-        <div className="grid h-48 place-items-center text-sm text-slate-500">
+        <div className="grid h-52 place-items-center text-sm text-slate-500">
           Belum ada pembacaan sensor.
         </div>
       ) : (
@@ -205,7 +212,7 @@ export function InteractiveChart({
           role="img"
           aria-labelledby={id}
           aria-label={`${title}, pembacaan terkini ${stats.current} ${unit}`}
-          className="mt-2 h-48 w-full min-w-0"
+          className="mt-3 h-52 w-full min-w-0"
         />
       )}
     </article>

@@ -128,7 +128,7 @@ export function LoginForm({ message, onLogin, onSuccess }: LoginFormProps) {
       <button
         type="submit"
         disabled={submitting}
-        className="flex min-h-12 w-full items-center justify-center gap-3 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-[0_8px_24px_rgba(37,99,235,.22)] transition hover:bg-blue-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600 disabled:cursor-not-allowed disabled:opacity-65"
+        className="flex min-h-12 w-full items-center justify-center gap-3 rounded-2xl bg-[#17211f] px-5 py-3 text-sm font-bold text-white shadow-[0_8px_24px_rgba(18,31,29,.18)] transition hover:bg-[#263632] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-65"
       >
         {submitting && (
           <span
