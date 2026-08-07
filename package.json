@@ -20,7 +20,13 @@
     "prisma:generate": "corepack pnpm --filter @siagalongsor/api prisma:generate",
     "prisma:validate": "corepack pnpm --filter @siagalongsor/api prisma:validate",
     "prisma:migrate:deploy": "corepack pnpm --filter @siagalongsor/api prisma:migrate:deploy",
-    "prisma:seed": "corepack pnpm --filter @siagalongsor/api prisma:seed"
+    "prisma:seed": "corepack pnpm --filter @siagalongsor/api prisma:seed",
+    "presentation:setup": "node scripts/presentation/runner.mjs setup",
+    "presentation:start": "node scripts/presentation/runner.mjs start",
+    "presentation:stop": "node scripts/presentation/runner.mjs stop",
+    "presentation:status": "node scripts/presentation/runner.mjs status",
+    "presentation:reset": "node scripts/presentation/runner.mjs reset",
+    "presentation:open": "node scripts/presentation/runner.mjs open"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "12.1.0",

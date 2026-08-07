@@ -43,6 +43,7 @@ out/
 .env.*
 !.env.example
 !**/.env.example
+!.env.presentation.example
 !.env.template
 !**/.env.template
 !.env.sample
