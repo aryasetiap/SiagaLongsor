@@ -9,22 +9,18 @@ import {
 } from '@nestjs/common';
 
 import { APP_CONFIG, type AppConfig } from '../config/app-config.js';
-import { RedisService } from '../redis/redis.service.js';
+const maximumTrackedSubjects = 20_000;
 
-const FIXED_WINDOW_SCRIPT = `
-local count = redis.call('INCR', KEYS[1])
-if count == 1 then
-  redis.call('PEXPIRE', KEYS[1], ARGV[1])
-end
-return count
-`;
+interface FixedWindow {
+  count: number;
+  expiresAt: number;
+}
 
 @Injectable()
 export class TelemetryRateLimitService {
-  constructor(
-    private readonly redis: RedisService,
-    @Inject(APP_CONFIG) private readonly config: AppConfig,
-  ) {}
+  private readonly windows = new Map<string, FixedWindow>();
+
+  constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {}
 
   async consumeIp(ipAddress: string): Promise<void> {
     await this.consume(`ip:${digest(ipAddress)}`, this.config.telemetry.rateLimitMax * 5);
@@ -35,28 +31,36 @@ export class TelemetryRateLimitService {
   }
 
   private async consume(subject: string, limit: number): Promise<void> {
-    let count: number;
-    try {
-      const result = await this.redis.client.eval(
-        FIXED_WINDOW_SCRIPT,
-        1,
-        `siagalongsor:telemetry-rate:${this.config.telemetry.rateLimitTtlMs}:${limit}:${subject}`,
-        this.config.telemetry.rateLimitTtlMs,
-      );
-      count = Number(result);
-      if (!Number.isInteger(count)) throw new Error('Invalid Redis rate-limit result');
-    } catch {
+    const now = Date.now();
+    const key = `${this.config.telemetry.rateLimitTtlMs}:${limit}:${subject}`;
+    const current = this.windows.get(key);
+    const window =
+      current === undefined || current.expiresAt <= now
+        ? { count: 1, expiresAt: now + this.config.telemetry.rateLimitTtlMs }
+        : { count: current.count + 1, expiresAt: current.expiresAt };
+    this.windows.set(key, window);
+
+    if (this.windows.size > maximumTrackedSubjects) {
+      this.pruneExpired(now);
+    }
+    if (this.windows.size > maximumTrackedSubjects) {
       throw new InternalServerErrorException({
-        code: 'DEPENDENCY_UNAVAILABLE',
+        code: 'RATE_LIMIT_CAPACITY_EXCEEDED',
         message: 'Layanan ingestion sementara tidak tersedia.',
       });
     }
 
-    if (count > limit) {
+    if (window.count > limit) {
       throw new HttpException(
         { code: 'RATE_LIMITED', message: 'Batas permintaan telemetry terlampaui.' },
         HttpStatus.TOO_MANY_REQUESTS,
       );
+    }
+  }
+
+  private pruneExpired(now: number): void {
+    for (const [key, window] of this.windows) {
+      if (window.expiresAt <= now) this.windows.delete(key);
     }
   }
 }

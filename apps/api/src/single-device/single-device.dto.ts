@@ -35,6 +35,25 @@ export class ThresholdDto {
   danger!: number;
 }
 
+export class RainfallDurationDto {
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @Min(0)
+  moderateDailyMinMm!: number;
+
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @Min(0)
+  moderateDailyMaxMm!: number;
+
+  @IsInt()
+  @Min(1)
+  @Max(30)
+  consecutiveDays!: number;
+
+  @IsNumber({ allowNaN: false, allowInfinity: false })
+  @Min(0)
+  continuationRainfallMmHourGt!: number;
+}
+
 export class SingleRiskProfileDto {
   @IsDefined()
   @ValidateNested()
@@ -50,6 +69,11 @@ export class SingleRiskProfileDto {
   @ValidateNested()
   @Type(() => ThresholdDto)
   rainfallMmHour!: ThresholdDto;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RainfallDurationDto)
+  rainfallDuration?: RainfallDurationDto;
 
   @IsOptional()
   @IsEnum(CalibrationStatus)

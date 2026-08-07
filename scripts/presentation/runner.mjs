@@ -70,7 +70,7 @@ async function start() {
   const config = await presentationConfig();
   await ensurePrerequisites();
   await ensurePortsAvailable();
-  await compose(['up', '-d', 'postgres', 'redis'], composeEnvironment(config));
+  await compose(['up', '-d', 'postgres'], composeEnvironment(config));
   await waitForComposeHealth();
   const environment = presentationEnvironment(config);
   await buildIfNeeded('api', environment);
@@ -112,9 +112,8 @@ async function stop() {
 
 async function status() {
   const state = await readJson(processStatePath, {});
-  const [postgres, redis, api, web, simulator] = await Promise.all([
+  const [postgres, api, web, simulator] = await Promise.all([
     composeServiceRunning('postgres'),
-    composeServiceRunning('redis'),
     health(),
     reachable(webUrl),
     processRunning(state.simulator, 'simulator'),
@@ -123,7 +122,6 @@ async function status() {
   console.log(
     `PostgreSQL                     | ${postgres ? 'RUNNING' : 'STOPPED'} | localhost:55433`,
   );
-  console.log(`Redis                          | ${redis ? 'RUNNING' : 'STOPPED'} | localhost:6380`);
   console.log(`API :3002                      | ${api ? 'HEALTHY' : 'STOPPED'} | ${apiUrl}`);
   console.log(`Web :3003                      | ${web ? 'HEALTHY' : 'STOPPED'} | ${webUrl}`);
   console.log(
@@ -190,7 +188,6 @@ function presentationEnvironment(config) {
     API_PORT: '3002',
     WEB_URL: webUrl,
     DATABASE_URL: `postgresql://siagalongsor:${encodeURIComponent(config.PRESENTATION_POSTGRES_PASSWORD)}@localhost:55433/siagalongsor_presentation`,
-    REDIS_URL: 'redis://localhost:6380',
     AUTH_ACCESS_TOKEN_SECRET: config.PRESENTATION_AUTH_SECRET,
     SEED_ORGANIZATION_NAME: 'SiagaLongsor Presentation',
     SEED_ORGANIZATION_SLUG: 'siagalongsor-presentation',
@@ -212,7 +209,6 @@ function composeEnvironment(config) {
     POSTGRES_PASSWORD: config.PRESENTATION_POSTGRES_PASSWORD,
     POSTGRES_DB: 'siagalongsor_presentation',
     POSTGRES_PORT: '55433',
-    REDIS_PORT: '6380',
   };
 }
 
@@ -235,10 +231,7 @@ async function ensurePortsAvailable() {
       throw new Error(`Port ${port} sedang dipakai oleh proses non-presentation.`);
     }
   }
-  for (const [port, service] of [
-    [55433, 'postgres'],
-    [6380, 'redis'],
-  ]) {
+  for (const [port, service] of [[55433, 'postgres']]) {
     if (!(await portAvailable(port)) && !(await composeServiceRunning(service))) {
       throw new Error(`Port ${port} sedang dipakai oleh layanan non-presentation.`);
     }
@@ -253,14 +246,17 @@ async function portAvailable(port) {
 }
 async function waitForComposeHealth() {
   for (let attempt = 0; attempt < 30; attempt += 1) {
-    if ((await composeServiceRunning('postgres')) && (await composeServiceRunning('redis'))) return;
+    if (await composeServiceRunning('postgres')) return;
     await delay(1000);
   }
-  throw new Error('PostgreSQL atau Redis presentation tidak sehat.');
+  throw new Error('PostgreSQL presentation tidak sehat.');
 }
 async function buildIfNeeded(component, environment) {
-  const directory =
-    component === 'api' ? join(root, 'apps', 'api', 'dist') : join(root, 'apps', 'web', '.next');
+  if (component === 'api') {
+    console.log('Presentation API build: rebuilding from current source');
+    await runCorepack(['pnpm', '--filter', '@siagalongsor/api', 'build'], environment);
+    return;
+  }
   if (component === 'web') {
     const sourceFingerprint = await presentationSourceFingerprint();
     const sentinel = await readJson(presentationBuildSentinelPath, null);
@@ -277,12 +273,6 @@ async function buildIfNeeded(component, environment) {
       version: presentationBuildSentinelVersion,
     });
     return;
-  }
-  try {
-    await stat(directory);
-    return;
-  } catch {
-    await runCorepack(['pnpm', '--filter', '@siagalongsor/api', 'build'], environment);
   }
 }
 
@@ -459,12 +449,7 @@ async function health() {
   try {
     const response = await fetch(`${apiUrl}/health`);
     const body = await response.json();
-    return (
-      response.status === 200 &&
-      body.status === 'ok' &&
-      body.database === 'up' &&
-      body.redis === 'up'
-    );
+    return response.status === 200 && body.status === 'ok' && body.database === 'up';
   } catch {
     return false;
   }

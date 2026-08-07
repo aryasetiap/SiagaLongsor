@@ -122,7 +122,6 @@ Target awal:
 
 - API health endpoint.
 - Database connectivity.
-- Redis connectivity.
 - Queue backlog.
 - Telemetry count per device.
 - Last telemetry age.
@@ -159,7 +158,7 @@ Target awal:
 ## 9. Production checklist
 
 - HTTPS aktif.
-- Database/Redis tidak publik.
+- Database tidak publik.
 - Secret production berbeda dari development.
 - CORS ketat.
 - CSP frontend.

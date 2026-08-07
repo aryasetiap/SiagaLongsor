@@ -53,6 +53,12 @@ export interface Profile {
   readonly tiltMagnitudeDeg: Threshold;
   readonly soilMoisturePct: Threshold;
   readonly rainfallMmHour: Threshold;
+  readonly rainfallDuration: {
+    readonly moderateDailyMinMm: number;
+    readonly moderateDailyMaxMm: number;
+    readonly consecutiveDays: number;
+    readonly continuationRainfallMmHourGt: number;
+  };
 }
 export interface ProfileResponse {
   readonly data: Profile;
@@ -87,6 +93,8 @@ const riskReasons: Readonly<Record<string, string>> = {
   DANGER_TILT: 'Kemiringan mencapai ambang bahaya',
   DANGER_SOIL_MOISTURE: 'Kelembapan tanah mencapai ambang bahaya',
   DANGER_RAINFALL: 'Curah hujan mencapai ambang bahaya',
+  DANGER_PROLONGED_RAINFALL:
+    'Hujan berlanjut setelah beberapa hari berturut-turut dengan curah hujan sedang',
   DANGER_RAIN_MOISTURE: 'Kombinasi hujan dan kelembapan terdeteksi',
   WATCH_TILT: 'Kemiringan mencapai ambang waspada',
   WATCH_SOIL_MOISTURE: 'Kelembapan tanah mencapai ambang waspada',

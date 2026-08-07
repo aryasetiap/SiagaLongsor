@@ -15,7 +15,7 @@ Arya Setia Pratama (`@aryasetiap`) menjadi pemilik utama:
 
 - `apps/api/**` dan `apps/api/prisma/**`;
 - NestJS controller, service, guard, dan domain logic;
-- PostgreSQL, Redis, migration, seed, dan migration note;
+- PostgreSQL, migration, seed, dan migration note;
 - authentication dan security API;
 - device ingestion dan simulator;
 - `specs/openapi.yaml` sebagai implementor utama;
@@ -151,7 +151,7 @@ Jangan menerima seluruh versi `ours` atau `theirs` sebagai penyelesaian akhir ta
 
 ## 7. Environment
 
-- Root `.env` hanya untuk API, PostgreSQL, Redis, authentication, dan seed.
+- Root `.env` hanya untuk API, PostgreSQL, authentication, dan seed.
 - `apps/web/.env.local` hanya untuk public frontend configuration.
 - Local environment tidak dibagikan melalui Git; hanya template `.env.example` yang dilacak.
 - Secret development dibagikan melalui kanal aman.
@@ -169,7 +169,7 @@ BE-only:
 
 - frozen-lockfile install dan Prisma generate;
 - format, lint, typecheck, dan unit test;
-- API integration test dengan PostgreSQL dan Redis CI;
+- API integration test dengan PostgreSQL CI;
 - API dan web production build;
 - Prisma validation dan migration deploy;
 - seed dua kali;

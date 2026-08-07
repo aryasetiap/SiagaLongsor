@@ -179,46 +179,50 @@ model Telemetry {
 }
 
 model RiskProfile {
-  id                           String                        @id @default(cuid())
-  organizationId               String
-  siteId                       String
-  version                      Int
-  isActive                     Boolean                       @default(true)
-  calibrationStatus            CalibrationStatus
-  notes                        String?
-  safeTiltMagnitudeDegLt       Decimal                       @db.Decimal(8, 4)
-  safeSoilMoisturePctLt        Decimal                       @db.Decimal(7, 4)
-  safeRainfallMmHourLt         Decimal                       @db.Decimal(65, 20)
-  dangerTiltMagnitudeDegGt     Decimal                       @db.Decimal(8, 4)
-  dangerRainfallMmHourGt       Decimal                       @db.Decimal(65, 20)
-  dangerSoilMoisturePctGt      Decimal                       @db.Decimal(7, 4)
-  technicalTiltXDegMin         Decimal                       @db.Decimal(8, 4)
-  technicalTiltXDegMax         Decimal?                      @db.Decimal(8, 4)
-  technicalTiltYDegMin         Decimal                       @db.Decimal(8, 4)
-  technicalTiltYDegMax         Decimal?                      @db.Decimal(8, 4)
-  technicalTiltMagnitudeMin    Decimal                       @db.Decimal(8, 4)
-  technicalTiltMagnitudeMax    Decimal?                      @db.Decimal(8, 4)
-  technicalSoilMoistureMin     Decimal                       @db.Decimal(7, 4)
-  technicalSoilMoistureMax     Decimal?                      @db.Decimal(7, 4)
-  technicalRainfallMin         Decimal                       @db.Decimal(65, 20)
-  technicalRainfallMax         Decimal?                      @db.Decimal(65, 20)
-  technicalBatteryVoltageMin   Decimal                       @db.Decimal(8, 4)
-  technicalBatteryVoltageMax   Decimal?                      @db.Decimal(8, 4)
-  technicalSignalRssiMin       Decimal                       @db.Decimal(7, 2)
-  technicalSignalRssiMax       Decimal?                      @db.Decimal(7, 2)
-  onlineWithinMinutes          Int
-  offlineAfterMinutes          Int
-  watchConsecutiveSamples      Int
-  dangerConsecutiveSamples     Int
-  downgradeStableMinutes       Int
-  mismatchConsecutiveSamples   Int
-  activatedAt                  DateTime                      @default(now()) @db.Timestamptz(3)
-  deactivatedAt                DateTime?                     @db.Timestamptz(3)
-  organization                 Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
-  site                         Site                          @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
-  riskAssessments              RiskAssessment[]
-  currentMonitoringPointStates CurrentMonitoringPointState[]
-  createdAt                    DateTime                      @default(now()) @db.Timestamptz(3)
+  id                              String                        @id @default(cuid())
+  organizationId                  String
+  siteId                          String
+  version                         Int
+  isActive                        Boolean                       @default(true)
+  calibrationStatus               CalibrationStatus
+  notes                           String?
+  safeTiltMagnitudeDegLt          Decimal                       @db.Decimal(8, 4)
+  safeSoilMoisturePctLt           Decimal                       @db.Decimal(7, 4)
+  safeRainfallMmHourLt            Decimal                       @db.Decimal(65, 20)
+  dangerTiltMagnitudeDegGt        Decimal                       @db.Decimal(8, 4)
+  dangerRainfallMmHourGt          Decimal                       @db.Decimal(65, 20)
+  dangerSoilMoisturePctGt         Decimal                       @db.Decimal(7, 4)
+  moderateRainfallDailyMinMm      Decimal                       @default(30) @db.Decimal(10, 4)
+  moderateRainfallDailyMaxMm      Decimal                       @default(50) @db.Decimal(10, 4)
+  moderateRainfallConsecutiveDays Int                           @default(3)
+  rainfallContinuationMmHourGt    Decimal                       @default(0) @db.Decimal(65, 20)
+  technicalTiltXDegMin            Decimal                       @db.Decimal(8, 4)
+  technicalTiltXDegMax            Decimal?                      @db.Decimal(8, 4)
+  technicalTiltYDegMin            Decimal                       @db.Decimal(8, 4)
+  technicalTiltYDegMax            Decimal?                      @db.Decimal(8, 4)
+  technicalTiltMagnitudeMin       Decimal                       @db.Decimal(8, 4)
+  technicalTiltMagnitudeMax       Decimal?                      @db.Decimal(8, 4)
+  technicalSoilMoistureMin        Decimal                       @db.Decimal(7, 4)
+  technicalSoilMoistureMax        Decimal?                      @db.Decimal(7, 4)
+  technicalRainfallMin            Decimal                       @db.Decimal(65, 20)
+  technicalRainfallMax            Decimal?                      @db.Decimal(65, 20)
+  technicalBatteryVoltageMin      Decimal                       @db.Decimal(8, 4)
+  technicalBatteryVoltageMax      Decimal?                      @db.Decimal(8, 4)
+  technicalSignalRssiMin          Decimal                       @db.Decimal(7, 2)
+  technicalSignalRssiMax          Decimal?                      @db.Decimal(7, 2)
+  onlineWithinMinutes             Int
+  offlineAfterMinutes             Int
+  watchConsecutiveSamples         Int
+  dangerConsecutiveSamples        Int
+  downgradeStableMinutes          Int
+  mismatchConsecutiveSamples      Int
+  activatedAt                     DateTime                      @default(now()) @db.Timestamptz(3)
+  deactivatedAt                   DateTime?                     @db.Timestamptz(3)
+  organization                    Organization                  @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  site                            Site                          @relation(fields: [siteId, organizationId], references: [id, organizationId], onDelete: Restrict)
+  riskAssessments                 RiskAssessment[]
+  currentMonitoringPointStates    CurrentMonitoringPointState[]
+  createdAt                       DateTime                      @default(now()) @db.Timestamptz(3)
 
   @@unique([siteId, version])
   @@unique([id, version])

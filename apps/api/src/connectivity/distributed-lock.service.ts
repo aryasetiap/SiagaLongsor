@@ -1,38 +1,37 @@
-import { randomUUID } from 'node:crypto';
-
 import { Injectable } from '@nestjs/common';
 
-import { RedisService } from '../redis/redis.service.js';
-
-const releaseScript = `
-if redis.call("GET", KEYS[1]) == ARGV[1] then
-  return redis.call("DEL", KEYS[1])
-end
-return 0
-`;
+interface LocalLock {
+  readonly token: symbol;
+  readonly timeout: NodeJS.Timeout;
+}
 
 @Injectable()
 export class DistributedLockService {
-  constructor(private readonly redis: RedisService) {}
+  private readonly locks = new Map<string, LocalLock>();
 
   async runWithLock<T>(
     key: string,
     ttlMilliseconds: number,
     work: () => Promise<T>,
   ): Promise<{ readonly acquired: false } | { readonly acquired: true; readonly value: T }> {
-    const token = randomUUID();
-    const acquired = await this.redis.client.set(key, token, 'PX', ttlMilliseconds, 'NX');
-    if (acquired !== 'OK') return { acquired: false };
+    if (this.locks.has(key)) return { acquired: false };
+    const token = Symbol(key);
+    const timeout = setTimeout(() => this.release(key, token), ttlMilliseconds);
+    timeout.unref();
+    this.locks.set(key, { token, timeout });
 
     try {
       return { acquired: true, value: await work() };
     } finally {
-      await this.release(key, token);
+      this.release(key, token);
     }
   }
 
-  async release(key: string, token: string): Promise<boolean> {
-    const result = await this.redis.client.eval(releaseScript, 1, key, token);
-    return result === 1;
+  release(key: string, token: symbol): boolean {
+    const lock = this.locks.get(key);
+    if (lock?.token !== token) return false;
+    clearTimeout(lock.timeout);
+    this.locks.delete(key);
+    return true;
   }
 }

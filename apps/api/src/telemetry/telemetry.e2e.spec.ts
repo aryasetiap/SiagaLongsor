@@ -19,7 +19,6 @@ import {
   FirmwareRiskLevel,
   NetworkType,
 } from '../generated/prisma/enums.js';
-import { RedisService } from '../redis/redis.service.js';
 
 describe('Telemetry ingestion API', () => {
   let app: INestApplication;
@@ -349,12 +348,12 @@ describe('Telemetry ingestion API', () => {
   it('rejects missing, malformed, unknown, and incorrect device credentials uniformly', async () => {
     const payload = validPayload();
     const unknownHardware = `UNKNOWN_${testRunId}`.toUpperCase();
-    const responses = await Promise.all([
-      ingest(payload, { authorization: null }),
-      ingest(payload, { authorization: 'Bearer invalid' }),
-      ingest(payload, { authorization: `Device ${unknownHardware}.${secret}` }),
-      ingest(payload, { authorization: `Device ${hardwareId}.${'x'.repeat(43)}` }),
-    ]);
+    const responses = [
+      await ingest(payload, { authorization: null }),
+      await ingest(payload, { authorization: 'Bearer invalid' }),
+      await ingest(payload, { authorization: `Device ${unknownHardware}.${secret}` }),
+      await ingest(payload, { authorization: `Device ${hardwareId}.${'x'.repeat(43)}` }),
+    ];
 
     expect(responses.map((item) => item.status)).toEqual([401, 401, 401, 401]);
     expect(responses.every((item) => item.body.error.code === 'DEVICE_CREDENTIAL_INVALID')).toBe(
@@ -540,8 +539,6 @@ describe('Telemetry ingestion API', () => {
     configureApp(rateApp);
     await rateApp.init();
     const rateHttp = request(rateApp.getHttpServer());
-    const rateRedis = rateApp.get(RedisService);
-    await clearRateLimitIpKeys(rateRedis);
 
     try {
       const makeRequest = (payload: ReturnType<typeof validPayload>) =>
@@ -557,7 +554,6 @@ describe('Telemetry ingestion API', () => {
       expect([first.status, second.status, third.status]).toEqual([201, 201, 429]);
       expect(third.body.error.code).toBe('RATE_LIMITED');
     } finally {
-      await clearRateLimitIpKeys(rateRedis);
       await rateApp.close();
       await prisma.currentMonitoringPointState.deleteMany({
         where: { monitoringPointId: ratePoint.id },
@@ -670,15 +666,9 @@ function provisionalProfileData() {
   };
 }
 
-async function clearRateLimitIpKeys(redis: RedisService): Promise<void> {
-  const keys = await redis.client.keys('siagalongsor:telemetry-rate:*:10:ip:*');
-  if (keys.length > 0) await redis.client.del(...keys);
-}
-
 function setTestEnvironment(): void {
   process.env.NODE_ENV = 'test';
   process.env.WEB_URL = 'http://localhost:3000';
-  process.env.REDIS_URL ??= 'redis://localhost:6379';
   process.env.AUTH_ACCESS_TOKEN_SECRET = 'integration-only-access-secret-at-least-32-chars';
   process.env.AUTH_JWT_ISSUER = 'siagalongsor-api-test';
   process.env.AUTH_JWT_AUDIENCE = 'siagalongsor-web-test';

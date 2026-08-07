@@ -6,7 +6,7 @@ secret out of shell history, logs, screenshots, and Git.
 
 ## 1. Prepare the backend
 
-1. Apply the current migrations and start PostgreSQL, Redis, and the API.
+1. Apply the current migrations and start PostgreSQL and the API.
 2. Set `API_BASE_URL` to the API origin, for example
    `https://api.example.invalid` (use `http://localhost:3001` only for local
    development).

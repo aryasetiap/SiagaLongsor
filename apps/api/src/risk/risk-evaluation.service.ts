@@ -9,6 +9,7 @@ import {
 } from '../generated/prisma/client.js';
 import { evaluateRisk } from './risk-engine.js';
 import type { RiskEngineProfile, RiskEngineState } from './risk-engine.types.js';
+import { summarizeRainfallDuration } from './rainfall-duration.js';
 
 @Injectable()
 export class RiskEvaluationService {
@@ -27,6 +28,10 @@ export class RiskEvaluationService {
     const previous = await transaction.currentMonitoringPointState.findUnique({
       where: { monitoringPointId: input.device.monitoringPointId },
     });
+    const rainfallHistory =
+      profile === null
+        ? undefined
+        : await loadRainfallHistory(transaction, input.device, input.telemetry, profile);
     const result = evaluateRisk({
       profile: profile === null ? null : toEngineProfile(profile),
       deviceId: input.device.id,
@@ -40,6 +45,7 @@ export class RiskEvaluationService {
         rainfallMmHour: input.telemetry.rainfallMmHour?.toNumber() ?? null,
         firmwareRisk: input.telemetry.firmwareRiskLevel,
       },
+      ...(rainfallHistory === undefined ? {} : { rainfallHistory }),
       previous: previous === null ? null : toEngineState(previous),
     });
 
@@ -125,6 +131,13 @@ export class RiskEvaluationService {
               soilMoisturePct: input.telemetry.soilMoisturePct?.toNumber() ?? null,
               rainfallMmHour: input.telemetry.rainfallMmHour?.toNumber() ?? null,
             },
+            rainfallDuration:
+              rainfallHistory === undefined
+                ? null
+                : {
+                    consecutiveModerateDays: rainfallHistory.consecutiveModerateDays,
+                    previousDailyTotalsMm: [...rainfallHistory.previousDailyTotalsMm],
+                  },
             occurredAt: input.evaluatedAt.toISOString(),
           },
         },
@@ -147,6 +160,12 @@ function toEngineProfile(profile: RiskProfile): RiskEngineProfile {
       rainfallMmHourGt: profile.dangerRainfallMmHourGt.toNumber(),
       soilMoisturePctGt: profile.dangerSoilMoisturePctGt.toNumber(),
     },
+    rainfallDuration: {
+      moderateDailyMinMm: profile.moderateRainfallDailyMinMm.toNumber(),
+      moderateDailyMaxMm: profile.moderateRainfallDailyMaxMm.toNumber(),
+      consecutiveDays: profile.moderateRainfallConsecutiveDays,
+      continuationRainfallMmHourGt: profile.rainfallContinuationMmHourGt.toNumber(),
+    },
     ranges: {
       tiltMagnitudeDeg: [
         profile.technicalTiltMagnitudeMin.toNumber(),
@@ -166,6 +185,45 @@ function toEngineProfile(profile: RiskProfile): RiskEngineProfile {
     downgradeStableMinutes: profile.downgradeStableMinutes,
     mismatchConsecutiveSamples: profile.mismatchConsecutiveSamples,
   };
+}
+
+async function loadRainfallHistory(
+  transaction: Prisma.TransactionClient,
+  device: Device,
+  telemetry: Telemetry,
+  profile: RiskProfile,
+) {
+  const site = await transaction.site.findUnique({
+    where: { id: device.siteId },
+    select: { timezone: true },
+  });
+  if (site === null) return undefined;
+
+  const historyWindowMilliseconds =
+    (profile.moderateRainfallConsecutiveDays + 2) * 24 * 60 * 60 * 1_000;
+  const samples = await transaction.telemetry.findMany({
+    where: {
+      deviceId: device.id,
+      deviceTimestamp: {
+        gte: new Date(telemetry.deviceTimestamp.getTime() - historyWindowMilliseconds),
+        lte: telemetry.deviceTimestamp,
+      },
+    },
+    orderBy: [{ deviceTimestamp: 'asc' }, { id: 'asc' }],
+    select: { deviceTimestamp: true, rainfallMmHour: true },
+  });
+
+  return summarizeRainfallDuration({
+    samples: samples.map((sample) => ({
+      timestamp: sample.deviceTimestamp,
+      rainfallMmHour: sample.rainfallMmHour?.toNumber() ?? null,
+    })),
+    currentAt: telemetry.deviceTimestamp,
+    timeZone: site.timezone,
+    moderateDailyMinMm: profile.moderateRainfallDailyMinMm.toNumber(),
+    moderateDailyMaxMm: profile.moderateRainfallDailyMaxMm.toNumber(),
+    requiredPreviousDays: profile.moderateRainfallConsecutiveDays,
+  });
 }
 
 function toEngineState(state: CurrentMonitoringPointState): RiskEngineState {

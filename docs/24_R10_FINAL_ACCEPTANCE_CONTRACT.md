@@ -25,7 +25,7 @@ R10-B may start only when:
 - R1–R9 are merged and the working tree is clean on the intended main commit.
 - Current migrations are applied successfully to the disposable acceptance
   database.
-- PostgreSQL and Redis are healthy.
+- PostgreSQL is healthy.
 - One enabled physical ESP32 deployment is available for the final smoke.
 - No production secrets are committed; local `secrets.h` remains ignored.
 - Tests use the current four-page, single-device scope rather than historical

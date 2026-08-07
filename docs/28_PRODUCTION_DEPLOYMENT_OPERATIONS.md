@@ -4,20 +4,18 @@ This is an operational deployment guide for the accepted SiagaLongsor software/r
 
 ## 1. Release scope
 
-The accepted product is one physical ESP32 deployment with four web pages: Overview, Perangkat, Profil Risiko, and Audit Log. It uses Next.js web, NestJS API, PostgreSQL/Prisma, Redis runtime dependency, authenticated HTTP telemetry, and server-authoritative risk.
+The accepted product is one physical ESP32 deployment with four web pages: Overview, Perangkat, Profil Risiko, and Audit Log. It uses Next.js web, NestJS API, PostgreSQL/Prisma, authenticated HTTP telemetry, and server-authoritative risk.
 
 ## 2. Required versions
 
 - Node.js `>=24 <25`
 - pnpm `>=10.34.5 <11`
 - PostgreSQL 16-compatible baseline
-- Redis 7-compatible baseline
 
 ## 3. Deployment topology
 
 ```text
 Browser -> TLS reverse proxy / HTTPS boundary -> Web + API -> PostgreSQL
-                                                    -> Redis
 ESP32   -> HTTPS API telemetry endpoint
 ```
 
@@ -33,7 +31,6 @@ API_PORT
 API_TRUST_PROXY_HOPS
 WEB_URL
 DATABASE_URL
-REDIS_URL
 AUTH_ACCESS_TOKEN_SECRET
 AUTH_JWT_ISSUER
 AUTH_JWT_AUDIENCE
@@ -81,7 +78,7 @@ The web development default is normally port 3000. API port is `API_PORT` (devel
 
 ## 8. TLS and trust proxy
 
-Terminate public browser/API traffic with TLS; do not expose PostgreSQL or Redis publicly. `API_TRUST_PROXY_HOPS` must equal the actual trusted proxy topology, and `WEB_URL` must match the trusted browser origin. Do not use broad trust-proxy settings.
+Terminate public browser/API traffic with TLS; do not expose PostgreSQL publicly. `API_TRUST_PROXY_HOPS` must equal the actual trusted proxy topology, and `WEB_URL` must match the trusted browser origin. Do not use broad trust-proxy settings.
 
 ## 9. Health verification
 
@@ -114,4 +111,3 @@ Soil percentage calibration and final IMU mounting/reference calibration are def
 ## 16. Shutdown and maintenance
 
 Use the deployment environment's controlled service shutdown procedure. Presentation commands are not production operation commands.
-

@@ -5,10 +5,10 @@ firmware, bukan server risk assessment dan bukan keputusan keselamatan server.
 
 ## Prasyarat
 
-1. PostgreSQL dan Redis berjalan:
+1. PostgreSQL berjalan:
 
    ```bash
-   docker compose up -d postgres redis
+   docker compose up -d postgres
    ```
 
 2. Migration sudah diterapkan dan API berjalan. Pada setup monorepo saat ini API langsung biasanya

@@ -7,7 +7,7 @@ di `AGENTS.md`; penjelasan workflow yang lebih rinci berada di `docs/12_TEAM_WOR
 ## Ownership
 
 - **Backend Engineer — Arya Setia Pratama (`@aryasetiap`)**: `apps/api/**`,
-  `apps/api/prisma/**`, `docs/migrations/**`, NestJS, Prisma/PostgreSQL, Redis, migration,
+  `apps/api/prisma/**`, `docs/migrations/**`, NestJS, Prisma/PostgreSQL, migration,
   OpenAPI implementation, backend security, dan API integration test.
 - **Frontend Engineer — `@habibzzzzzz`**: `apps/web/**`, Next.js, frontend API integration,
   UI/UX, accessibility, component test, browser/E2E test, dan frontend public environment.
