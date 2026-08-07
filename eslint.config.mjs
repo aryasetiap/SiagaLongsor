@@ -25,6 +25,12 @@ export default defineConfig([
     },
   },
   {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: globals.node,
+    },
+  },
+  {
     files: ['performance/r10/**/*.js'],
     languageOptions: {
       globals: {
