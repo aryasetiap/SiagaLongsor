@@ -39,11 +39,21 @@ function ErrorBanner({ message }: { readonly message: string | null }) {
 
 export function OverviewPanel({ client }: { readonly client: RequestClient }) {
   const presentationMode = readPublicWebConfig().presentationMode;
-  const [minutes, setMinutes] = useState(24 * 60);
+  const [minutes, setMinutes] = useState(() => (presentationMode ? 5 : 24 * 60));
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [presentationView, setPresentationView] = useState(false);
+
+  useEffect(() => {
+    const exit = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPresentationView(false);
+    };
+    window.addEventListener('keydown', exit);
+    return () => window.removeEventListener('keydown', exit);
+  }, []);
 
   const load = useCallback(async () => {
     const to = new Date();
@@ -51,6 +61,11 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
     try {
       setLoading(true);
       setData(await getSingleDeviceOverview(client, from.toISOString(), to.toISOString()));
+      try {
+        setProfile((await getSingleDeviceRiskProfile(client)).data);
+      } catch {
+        setProfile(null);
+      }
       setError(null);
       setLastRefreshedAt(new Date());
     } catch (caught) {
@@ -76,13 +91,27 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
   ] as const;
 
   return (
-    <section className="space-y-5">
+    <section
+      className={`overview-dashboard space-y-4 ${presentationView ? 'presentation-view' : ''}`}
+    >
+      <div className="presentation-toolbar" aria-hidden={!presentationView}>
+        <strong>SiagaLongsor</strong>
+        <span>{presentationMode ? '● LIVE DEMO' : '● PEMANTAUAN'}</span>
+        <span>
+          {lastRefreshedAt === null
+            ? 'Belum diperbarui'
+            : `Diperbarui ${lastRefreshedAt.toLocaleTimeString('id-ID')}`}
+        </span>
+        <button type="button" onClick={() => setPresentationView(false)}>
+          Keluar
+        </button>
+      </div>
       {presentationMode && (
         <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-950">
           Mode Demonstrasi — data dapat berasal dari simulator untuk keperluan presentasi.
         </p>
       )}
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="overview-toolbar flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
         <label className="sr-only" htmlFor="overview-range">
           Rentang histori
         </label>
@@ -108,6 +137,13 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
         >
           {loading ? 'Memuat…' : 'Muat ulang'}
         </button>
+        <button
+          type="button"
+          onClick={() => setPresentationView(true)}
+          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-800"
+        >
+          Mode Presentasi
+        </button>
         <p className="ml-auto text-xs text-slate-500" aria-live="polite">
           {lastRefreshedAt === null
             ? 'Belum diperbarui'
@@ -119,12 +155,14 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
       {data !== null && (
         <>
           <div
-            className={`rounded-3xl border p-6 shadow-sm ${riskStatusClass(data.data.risk.status)}`}
+            className={`risk-status-panel rounded-2xl border p-4 shadow-sm ${riskStatusClass(data.data.risk.status)}`}
           >
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-semibold">Status risiko otoritatif</p>
-                <strong className="mt-1 block text-3xl">{riskLabel[data.data.risk.status]}</strong>
+                <p className="text-xs font-bold tracking-[.12em]">STATUS RISIKO OTORITATIF</p>
+                <strong className="mt-1 block text-3xl tracking-tight">
+                  {riskLabel[data.data.risk.status]}
+                </strong>
               </div>
               <span className="rounded-full border border-current px-3 py-1 text-xs font-black tracking-wider">
                 {data.data.risk.status}
@@ -143,32 +181,78 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
               </p>
             )}
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="overview-kpis grid gap-3 md:grid-cols-3">
             {readings.map(([label, key, unit]) => {
               const value = data.data.readings[key];
               return (
-                <div key={key} className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-sm text-slate-600">{label}</p>
-                  <strong className="mt-1 block text-lg text-slate-950">
-                    {value === null ? unavailable : `${value} ${unit}`}
-                  </strong>
-                </div>
+                <CurrentSensorCard
+                  key={key}
+                  title={label}
+                  unit={unit}
+                  value={value}
+                  values={data.data.series[key]}
+                />
               );
             })}
           </div>
-          <div className="space-y-4">
+          <p className="text-xs text-slate-500">
+            Celah grafik menunjukkan pembacaan sensor tidak tersedia.
+          </p>
+          <div className="overview-chart-grid grid gap-4">
             {readings.map(([label, key, unit]) => (
               <InteractiveChart
                 key={key}
                 title={label}
                 unit={unit}
                 values={data.data.series[key]}
+                thresholds={profile?.[key]}
               />
             ))}
           </div>
         </>
       )}
     </section>
+  );
+}
+
+function CurrentSensorCard({
+  title,
+  unit,
+  value,
+  values,
+}: {
+  readonly title: string;
+  readonly unit: string;
+  readonly value: number | null;
+  readonly values: readonly { readonly value: number | null }[];
+}) {
+  const valid = values.flatMap((item) => (item.value === null ? [] : [item.value]));
+  const previous = valid.length > 1 ? (valid.at(-2) ?? null) : null;
+  const delta = value === null || previous === null ? null : value - previous;
+  return (
+    <article
+      className={`kpi-card kpi-${title === 'Kemiringan' ? 'tilt' : title === 'Kelembapan tanah' ? 'soil' : 'rain'} rounded-2xl border border-slate-200 bg-white p-4 shadow-sm`}
+    >
+      <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{title}</p>
+      <p className="mt-2 text-2xl font-bold tabular-nums text-slate-950">
+        {value === null ? (
+          '—'
+        ) : (
+          <>
+            {value} <span className="text-base font-semibold text-slate-500">{unit}</span>
+          </>
+        )}
+      </p>
+      <p className="mt-2 text-xs font-semibold text-slate-500">
+        {delta === null ? (
+          'Belum cukup data'
+        ) : (
+          <span className={delta >= 0 ? 'text-sky-700' : 'text-emerald-700'}>
+            {delta >= 0 ? '↑' : '↓'} {Math.abs(delta).toLocaleString('id-ID')} {unit}
+          </span>
+        )}
+      </p>
+    </article>
   );
 }
 
@@ -206,31 +290,8 @@ export function DevicePanel({ client }: { readonly client: RequestClient }) {
     UNREADABLE: 'Tidak terbaca',
     UNKNOWN: 'Tidak diketahui',
   } as const;
-  const connection = {
-    ONLINE: 'Terhubung',
-    DELAYED: 'Terlambat',
-    OFFLINE: 'Terputus',
-    UNKNOWN: 'Tidak diketahui',
-  } as const;
   if (data === null) return <ErrorBanner message={error ?? 'Memuat data perangkat…'} />;
   const device = data.data;
-  const fields = {
-    Konektivitas: connection[device.connectivity],
-    Hardware: device.hardwareId,
-    'Nama perangkat': device.displayName,
-    Firmware: device.firmwareVersion,
-    'Terakhir terlihat': formatDate(device.lastSeenAt),
-    'Telemetri terakhir': formatDate(device.lastTelemetryAt),
-    Jaringan: device.network?.type ?? null,
-    'Sinyal RSSI':
-      device.network?.signalRssi === null || device.network === null
-        ? null
-        : `${device.network.signalRssi} dBm`,
-    Baterai: device.batteryVoltage === null ? null : `${device.batteryVoltage} V`,
-    Tilt: health[device.sensors.tilt],
-    'Kelembapan tanah': health[device.sensors.soilMoisture],
-    'Curah hujan': health[device.sensors.rainfall],
-  };
   return (
     <section className="space-y-4">
       <button
@@ -246,15 +307,89 @@ export function DevicePanel({ client }: { readonly client: RequestClient }) {
           Perangkat belum dikonfigurasi.
         </p>
       )}
-      <div className="grid gap-3 md:grid-cols-2">
-        {Object.entries(fields).map(([label, value]) => (
-          <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-sm text-slate-600">{label}</p>
-            <strong className="mt-1 block text-slate-950">{value ?? unavailable}</strong>
+      <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p className="text-xs font-bold tracking-[.12em] text-slate-500">STATUS PERANGKAT</p>
+        <div className="mt-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-950">
+              {device.displayName ?? unavailable}
+            </h2>
+            <p className="mt-1 font-mono text-sm text-slate-500">
+              {device.hardwareId ?? unavailable}
+            </p>
           </div>
-        ))}
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-black ${device.connectivity === 'ONLINE' ? 'bg-emerald-100 text-emerald-800' : device.connectivity === 'OFFLINE' ? 'bg-red-100 text-red-800' : 'bg-slate-100 text-slate-700'}`}
+          >
+            {device.connectivity}
+          </span>
+        </div>
+        <p className="mt-4 text-sm text-slate-600">
+          Firmware:{' '}
+          <span className="font-mono text-slate-900">{device.firmwareVersion ?? unavailable}</span>
+        </p>
+      </article>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <article className="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 className="font-bold text-slate-950">Konektivitas</h2>
+          <dl className="mt-4 grid grid-cols-2 gap-4 text-sm">
+            <DeviceField label="Terakhir terlihat" value={formatDate(device.lastSeenAt)} />
+            <DeviceField label="Telemetri terakhir" value={formatDate(device.lastTelemetryAt)} />
+            <DeviceField label="Jaringan" value={device.network?.type ?? unavailable} />
+            <DeviceField
+              label="Sinyal RSSI"
+              value={
+                device.network?.signalRssi === null || device.network === null
+                  ? unavailable
+                  : `${device.network.signalRssi} dBm`
+              }
+            />
+          </dl>
+        </article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-5">
+          <h2 className="font-bold text-slate-950">Daya</h2>
+          <p className="mt-4 text-2xl font-bold tabular-nums text-slate-950">
+            {device.batteryVoltage === null ? '—' : `${device.batteryVoltage} V`}
+          </p>
+          <p className="mt-2 text-sm text-slate-500">
+            {device.batteryVoltage === null
+              ? 'Pengukuran baterai belum tersedia'
+              : 'Diagnostik perangkat'}
+          </p>
+        </article>
       </div>
+      <section>
+        <h2 className="mb-3 font-bold text-slate-950">Kesehatan sensor</h2>
+        <div className="grid gap-3 md:grid-cols-3">
+          <SensorHealthCard title="Kemiringan" status={health[device.sensors.tilt]} />
+          <SensorHealthCard title="Kelembapan Tanah" status={health[device.sensors.soilMoisture]} />
+          <SensorHealthCard title="Curah Hujan" status={health[device.sensors.rainfall]} />
+        </div>
+      </section>
     </section>
+  );
+}
+
+function DeviceField({ label, value }: { readonly label: string; readonly value: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-slate-500">{label}</dt>
+      <dd className="mt-1 font-semibold text-slate-900">{value}</dd>
+    </div>
+  );
+}
+function SensorHealthCard({ title, status }: { readonly title: string; readonly status: string }) {
+  const tone =
+    status === 'Terbaca'
+      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+      : status === 'Tidak terbaca'
+        ? 'border-red-200 bg-red-50 text-red-900'
+        : 'border-slate-200 bg-slate-50 text-slate-800';
+  return (
+    <article className={`rounded-2xl border p-4 ${tone}`}>
+      <p className="font-bold">{title}</p>
+      <p className="mt-2 text-sm font-semibold">{status}</p>
+    </article>
   );
 }
 
@@ -402,27 +537,37 @@ export function AuditPanel({ client }: { readonly client: RequestClient }) {
     return () => window.clearTimeout(initialTimeoutId);
   }, [load]);
   return (
-    <section className="space-y-3">
+    <section className="space-y-4">
       <ErrorBanner message={error} />
       {data?.data.length === 0 && <p>Belum ada perubahan status risiko.</p>}
-      {data?.data.map((entry) => (
-        <article key={entry.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-          <strong className="text-slate-950">
-            {riskLabel[entry.previousStatus]} → {riskLabel[entry.currentStatus]}
-          </strong>
-          <p className="mt-1 text-sm">
-            {formatDate(entry.occurredAt)} · {entry.reasons.map(riskReasonLabel).join(', ')}
-          </p>
-          <p className="mt-1 text-sm text-slate-600">
-            Tilt {entry.sensorSnapshot.tiltMagnitudeDeg ?? unavailable}, tanah{' '}
-            {entry.sensorSnapshot.soilMoisturePct ?? unavailable}, hujan{' '}
-            {entry.sensorSnapshot.rainfallMmHour ?? unavailable}
-          </p>
-          <p className="mt-1 text-xs text-slate-500">
-            Profil risiko v{entry.riskProfile.version ?? unavailable}
-          </p>
-        </article>
-      ))}
+      <div className="border-l-2 border-slate-200 pl-5">
+        {data?.data.map((entry) => (
+          <article
+            key={entry.id}
+            className={`relative mb-4 rounded-2xl border bg-white p-5 shadow-sm ${auditTone(entry.currentStatus)}`}
+          >
+            <span
+              aria-hidden="true"
+              className="absolute -left-[1.85rem] top-6 size-3 rounded-full border-2 border-white bg-current"
+            />
+            <p className="text-xs font-semibold text-slate-500">{formatDate(entry.occurredAt)}</p>
+            <strong className="text-slate-950">
+              {riskLabel[entry.previousStatus]} → {riskLabel[entry.currentStatus]}
+            </strong>
+            <p className="mt-2 text-sm font-medium">
+              {formatDate(entry.occurredAt)} · {entry.reasons.map(riskReasonLabel).join(', ')}
+            </p>
+            <p className="mt-1 text-sm text-slate-600">
+              Tilt {entry.sensorSnapshot.tiltMagnitudeDeg ?? unavailable}, tanah{' '}
+              {entry.sensorSnapshot.soilMoisturePct ?? unavailable}, hujan{' '}
+              {entry.sensorSnapshot.rainfallMmHour ?? unavailable}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Profil risiko v{entry.riskProfile.version ?? unavailable}
+            </p>
+          </article>
+        ))}
+      </div>
       {data?.page.hasMore && data.page.nextCursor !== null && (
         <button
           type="button"
@@ -434,6 +579,15 @@ export function AuditPanel({ client }: { readonly client: RequestClient }) {
       )}
     </section>
   );
+}
+
+function auditTone(status: Overview['data']['risk']['status']): string {
+  return {
+    SAFE: 'border-emerald-200 text-emerald-700',
+    WATCH: 'border-amber-200 text-amber-700',
+    DANGER: 'border-red-200 text-red-700',
+    UNKNOWN: 'border-slate-300 text-slate-700',
+  }[status];
 }
 
 export function ProjectOwnerRequired() {

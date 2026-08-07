@@ -86,8 +86,8 @@ describe('single-device frontend contract', () => {
     expect(await screen.findByText('TIDAK DIKETAHUI')).toBeInTheDocument();
     expect(screen.getByText('UNKNOWN', { exact: true })).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText('Rentang histori'), '5');
-    await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
-    const path = request.mock.calls[1]?.[0] as string;
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(4));
+    const path = request.mock.calls[2]?.[0] as string;
     expect(path).toMatch(/^\/overview\?from=/);
   });
 
