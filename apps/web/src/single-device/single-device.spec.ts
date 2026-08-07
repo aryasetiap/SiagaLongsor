@@ -17,7 +17,7 @@ import {
   riskReasonLabel,
   type SeriesPoint,
 } from './single-device-contracts';
-import { AuditPanel, ProfilePanel } from './panels';
+import { AuditPanel, OverviewPanel, ProfilePanel } from './panels';
 
 interface RequestClient {
   request<T>(path: string, init?: RequestInit): Promise<T>;
@@ -74,6 +74,31 @@ describe('single-device frontend contract', () => {
       [10, 12],
       [14, 15],
     ]);
+  });
+
+  it('uses selected overview ranges and keeps UNKNOWN visibly distinct from SAFE', async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = 'http://localhost:3001/api/v1';
+    process.env.NEXT_PUBLIC_PRESENTATION_MODE = 'false';
+    const user = userEvent.setup();
+    const { client, request } = requestClient();
+    request.mockResolvedValue(overview('UNKNOWN'));
+    render(createElement(OverviewPanel, { client }));
+    expect(await screen.findByText('TIDAK DIKETAHUI')).toBeInTheDocument();
+    expect(screen.getByText('UNKNOWN', { exact: true })).toBeInTheDocument();
+    await user.selectOptions(screen.getByLabelText('Rentang histori'), '5');
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+    const path = request.mock.calls[1]?.[0] as string;
+    expect(path).toMatch(/^\/overview\?from=/);
+  });
+
+  it('shows the synthetic-data banner only in explicit presentation mode', async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = 'http://localhost:3001/api/v1';
+    process.env.NEXT_PUBLIC_PRESENTATION_MODE = 'true';
+    const { client, request } = requestClient();
+    request.mockResolvedValue(overview('SAFE'));
+    render(createElement(OverviewPanel, { client }));
+    expect(screen.getByText(/Mode Demonstrasi/)).toBeInTheDocument();
+    await screen.findByText('AMAN');
   });
 
   it('exposes only the four R3 primary navigation destinations', () => {
@@ -154,5 +179,18 @@ function audit(id: string) {
     riskProfile: { id: 'profile-3', version: 3 },
     telemetryId: 'telemetry-1',
     occurredAt: '2026-01-01T00:00:00.000Z',
+  };
+}
+
+function overview(status: 'SAFE' | 'UNKNOWN') {
+  return {
+    data: {
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      configured: true,
+      risk: { status, reasons: [], observedAt: null, freshness: 'ONLINE' },
+      readings: { tiltMagnitudeDeg: 1, soilMoisturePct: 2, rainfallMmHour: 3 },
+      series: { tiltMagnitudeDeg: [], soilMoisturePct: [], rainfallMmHour: [] },
+      range: { from: '2026-01-01T00:00:00.000Z', to: '2026-01-01T01:00:00.000Z' },
+    },
   };
 }

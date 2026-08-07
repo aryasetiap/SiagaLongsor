@@ -3,6 +3,7 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react';
 
 import type { ApiClient } from '../auth/api-client';
+import { readPublicWebConfig } from '../config/public-env';
 import {
   getSingleDeviceDiagnostics,
   getSingleDeviceOverview,
@@ -11,7 +12,6 @@ import {
   updateSingleDeviceRiskProfile,
 } from './single-device-api';
 import {
-  chartSegments,
   riskLabel,
   riskReasonLabel,
   type AuditResponse,
@@ -20,6 +20,7 @@ import {
   type Profile,
   type Threshold,
 } from './single-device-contracts';
+import { InteractiveChart } from './interactive-chart';
 
 const unavailable = 'Data tidak tersedia';
 type RequestClient = Pick<ApiClient, 'request'>;
@@ -37,29 +38,36 @@ function ErrorBanner({ message }: { readonly message: string | null }) {
 }
 
 export function OverviewPanel({ client }: { readonly client: RequestClient }) {
-  const [hours, setHours] = useState(24);
+  const presentationMode = readPublicWebConfig().presentationMode;
+  const [minutes, setMinutes] = useState(24 * 60);
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
 
   const load = useCallback(async () => {
     const to = new Date();
-    const from = new Date(to.getTime() - hours * 60 * 60 * 1000);
+    const from = new Date(to.getTime() - minutes * 60 * 1000);
     try {
+      setLoading(true);
       setData(await getSingleDeviceOverview(client, from.toISOString(), to.toISOString()));
       setError(null);
+      setLastRefreshedAt(new Date());
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Data tidak dapat dimuat');
+    } finally {
+      setLoading(false);
     }
-  }, [client, hours]);
+  }, [client, minutes]);
 
   useEffect(() => {
     const initialTimeoutId = window.setTimeout(() => void load(), 0);
-    const intervalId = window.setInterval(() => void load(), 30_000);
+    const intervalId = window.setInterval(() => void load(), presentationMode ? 5_000 : 30_000);
     return () => {
       window.clearTimeout(initialTimeoutId);
       window.clearInterval(intervalId);
     };
-  }, [load]);
+  }, [load, presentationMode]);
 
   const readings = [
     ['Kemiringan', 'tiltMagnitudeDeg', '°'],
@@ -69,34 +77,59 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
 
   return (
     <section className="space-y-5">
-      <div className="flex flex-wrap gap-2">
+      {presentationMode && (
+        <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-950">
+          Mode Demonstrasi — data dapat berasal dari simulator untuk keperluan presentasi.
+        </p>
+      )}
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <label className="sr-only" htmlFor="overview-range">
           Rentang histori
         </label>
         <select
           id="overview-range"
-          value={hours}
-          onChange={(event) => setHours(Number(event.target.value))}
+          value={minutes}
+          onChange={(event) => setMinutes(Number(event.target.value))}
           className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
         >
-          <option value={24}>24 jam</option>
-          <option value={72}>72 jam</option>
-          <option value={168}>7 hari</option>
+          <option value={5}>5 menit</option>
+          <option value={15}>15 menit</option>
+          <option value={60}>1 jam</option>
+          <option value={360}>6 jam</option>
+          <option value={1440}>24 jam</option>
+          <option value={4320}>72 jam</option>
+          <option value={10080}>7 hari</option>
         </select>
         <button
           type="button"
           onClick={() => void load()}
+          disabled={loading}
           className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-white"
         >
-          Muat ulang
+          {loading ? 'Memuat…' : 'Muat ulang'}
         </button>
+        <p className="ml-auto text-xs text-slate-500" aria-live="polite">
+          {lastRefreshedAt === null
+            ? 'Belum diperbarui'
+            : `Diperbarui ${lastRefreshedAt.toLocaleTimeString('id-ID')}`}{' '}
+          · Otomatis setiap {presentationMode ? '5 detik' : '30 detik'}
+        </p>
       </div>
       <ErrorBanner message={error} />
       {data !== null && (
         <>
-          <div className="rounded-2xl border border-slate-200 bg-white p-5">
-            <p className="text-sm font-semibold text-slate-600">Status risiko</p>
-            <strong className="text-2xl text-slate-950">{riskLabel[data.data.risk.status]}</strong>
+          <div
+            className={`rounded-3xl border p-6 shadow-sm ${riskStatusClass(data.data.risk.status)}`}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-semibold">Status risiko otoritatif</p>
+                <strong className="mt-1 block text-3xl">{riskLabel[data.data.risk.status]}</strong>
+              </div>
+              <span className="rounded-full border border-current px-3 py-1 text-xs font-black tracking-wider">
+                {data.data.risk.status}
+              </span>
+            </div>
             <p className="mt-2 text-sm text-slate-700">
               {data.data.risk.reasons.map(riskReasonLabel).join(', ') ||
                 'Tidak ada alasan tersedia'}
@@ -123,9 +156,14 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
               );
             })}
           </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            {readings.map(([label, key]) => (
-              <Chart key={key} title={label} values={data.data.series[key]} />
+          <div className="space-y-4">
+            {readings.map(([label, key, unit]) => (
+              <InteractiveChart
+                key={key}
+                title={label}
+                unit={unit}
+                values={data.data.series[key]}
+              />
             ))}
           </div>
         </>
@@ -134,44 +172,13 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
   );
 }
 
-function Chart({
-  title,
-  values,
-}: {
-  readonly title: string;
-  readonly values: Overview['data']['series']['tiltMagnitudeDeg'];
-}) {
-  const segments = chartSegments(values);
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4">
-      <h2 className="font-bold text-slate-950">{title}</h2>
-      {values.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-600">Belum ada histori.</p>
-      ) : (
-        <svg
-          viewBox="0 0 200 80"
-          className="mt-3 h-28 w-full text-blue-700"
-          aria-label={`Grafik ${title}`}
-        >
-          {segments.map((segment, segmentIndex) => (
-            <polyline
-              key={segmentIndex}
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              points={segment
-                .map(
-                  (value, pointIndex) =>
-                    `${(pointIndex / Math.max(segment.length - 1, 1)) * 190 + 5},${75 - Math.min(70, value)}`,
-                )
-                .join(' ')}
-            />
-          ))}
-        </svg>
-      )}
-      <p className="mt-2 text-xs text-slate-500">Celah data ditampilkan tanpa garis penghubung.</p>
-    </div>
-  );
+function riskStatusClass(status: Overview['data']['risk']['status']): string {
+  return {
+    SAFE: 'border-emerald-200 bg-emerald-50 text-emerald-950',
+    WATCH: 'border-amber-200 bg-amber-50 text-amber-950',
+    DANGER: 'border-red-300 bg-red-50 text-red-950',
+    UNKNOWN: 'border-slate-400 bg-slate-100 text-slate-950',
+  }[status];
 }
 
 export function DevicePanel({ client }: { readonly client: RequestClient }) {

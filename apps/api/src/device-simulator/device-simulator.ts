@@ -7,6 +7,7 @@ export const SIMULATOR_SCENARIOS = [
   'idempotency-conflict',
   'late',
   'missing-tilt',
+  'presentation',
 ] as const;
 
 export type SimulatorScenario = (typeof SIMULATOR_SCENARIOS)[number];
@@ -20,6 +21,13 @@ export interface SimulatorConfig {
   readonly intervalMs: number;
   readonly sequenceStart: number;
   readonly readings: SimulatorReadings;
+  readonly presentationProfile?: PresentationProfile | null;
+}
+
+export interface PresentationProfile {
+  readonly tiltMagnitudeDeg: { readonly watch: number; readonly danger: number };
+  readonly soilMoisturePct: { readonly watch: number; readonly danger: number };
+  readonly rainfallMmHour: { readonly watch: number; readonly danger: number };
 }
 
 export interface SimulatorReadings {
@@ -136,7 +144,11 @@ export function parseSimulatorConfig(
     hardwareId,
     deviceSecret,
     scenario,
-    count: parseInteger(options.count ?? environment.SIMULATOR_COUNT ?? '10', 'count', 1),
+    count: parseInteger(
+      options.count ?? environment.SIMULATOR_COUNT ?? (scenario === 'presentation' ? '0' : '10'),
+      'count',
+      scenario === 'presentation' ? 0 : 1,
+    ),
     intervalMs: parseInteger(
       options.interval ?? environment.SIMULATOR_INTERVAL_MS ?? '5000',
       'interval',
@@ -177,6 +189,7 @@ export function parseSimulatorConfig(
         12.7,
       ),
     },
+    presentationProfile: scenario === 'presentation' ? parsePresentationProfile(environment) : null,
   };
 }
 
@@ -267,6 +280,9 @@ export async function runSimulator(
         signal,
       );
       return;
+    case 'presentation':
+      await runPresentation(config, state, runtime, signal);
+      return;
   }
 }
 
@@ -331,6 +347,73 @@ async function runNormal(
     await sendAndValidate(config, runtime, payload, { status: 201, duplicate: false }, signal);
     if (index < config.count - 1) await runtime.wait(config.intervalMs, signal);
   }
+}
+
+async function runPresentation(
+  config: SimulatorConfig,
+  state: SimulatorState,
+  runtime: SimulatorDependencies,
+  signal: AbortSignal,
+): Promise<void> {
+  if (config.presentationProfile == null) {
+    throw new SimulatorError('CONFIG_INVALID', 'Profil aktif presentasi wajib dikonfigurasi.');
+  }
+  if (config.intervalMs < 1_000) {
+    throw new SimulatorError('CONFIG_INVALID', 'interval presentasi minimal 1000 ms.');
+  }
+  let cycle = 0;
+  while (config.count === 0 || cycle < config.count) {
+    for (const readings of presentationReadings(config.presentationProfile)) {
+      assertNotCancelled(signal);
+      const payload = {
+        ...generateTelemetryPayload(state, runtime.now(), runtime.randomId, readings),
+        firmwareVersion: 'presentation-simulator-1.0.0',
+      };
+      await sendAndValidate(config, runtime, payload, { status: 201, duplicate: false }, signal);
+      await runtime.wait(config.intervalMs, signal);
+    }
+    cycle += 1;
+  }
+}
+
+function presentationReadings(profile: PresentationProfile): readonly SimulatorReadings[] {
+  const safe = readingsAt(profile, 0.5);
+  const watch = readingsAt(profile, 1.1);
+  const danger = readingsAt(profile, 1.2, true);
+  const unavailable = { ...danger, tiltMagnitudeDeg: null };
+  return [
+    safe,
+    safe,
+    safe,
+    watch,
+    watch,
+    watch,
+    danger,
+    danger,
+    danger,
+    unavailable,
+    unavailable,
+    safe,
+    safe,
+    safe,
+  ];
+}
+
+function readingsAt(
+  profile: PresentationProfile,
+  factor: number,
+  aboveDanger = false,
+): SimulatorReadings {
+  const value = (threshold: { readonly watch: number; readonly danger: number }) =>
+    aboveDanger
+      ? threshold.danger + Math.max((threshold.danger - threshold.watch) * 0.1, 0.01)
+      : threshold.watch + (threshold.danger - threshold.watch) * (factor - 1);
+  return {
+    tiltMagnitudeDeg: value(profile.tiltMagnitudeDeg),
+    soilMoisturePct: value(profile.soilMoisturePct),
+    rainfallMmHour: value(profile.rainfallMmHour),
+    batteryVoltage: 12.7,
+  };
 }
 
 async function runDuplicate(
@@ -617,6 +700,44 @@ function parseReading(
   return parsed;
 }
 
+function parsePresentationProfile(environment: NodeJS.ProcessEnv): PresentationProfile {
+  return {
+    tiltMagnitudeDeg: parsePresentationThreshold(environment, 'TILT_MAGNITUDE_DEG'),
+    soilMoisturePct: parsePresentationThreshold(environment, 'SOIL_MOISTURE_PCT'),
+    rainfallMmHour: parsePresentationThreshold(environment, 'RAINFALL_MM_HOUR'),
+  };
+}
+
+function parsePresentationThreshold(
+  environment: NodeJS.ProcessEnv,
+  sensor: string,
+): { readonly watch: number; readonly danger: number } {
+  const watch = parseReading(
+    required(
+      environment[`SIMULATOR_PRESENTATION_${sensor}_WATCH`],
+      `SIMULATOR_PRESENTATION_${sensor}_WATCH`,
+    ),
+    `SIMULATOR_PRESENTATION_${sensor}_WATCH`,
+    0,
+    undefined,
+    0,
+  );
+  const danger = parseReading(
+    required(
+      environment[`SIMULATOR_PRESENTATION_${sensor}_DANGER`],
+      `SIMULATOR_PRESENTATION_${sensor}_DANGER`,
+    ),
+    `SIMULATOR_PRESENTATION_${sensor}_DANGER`,
+    0,
+    undefined,
+    0,
+  );
+  if (watch === null || danger === null || watch >= danger) {
+    throw new SimulatorError('CONFIG_INVALID', `Threshold presentasi ${sensor} tidak valid.`);
+  }
+  return { watch, danger };
+}
+
 function required(value: string | undefined, name: string): string {
   if (value === undefined || value.length === 0) {
     throw new SimulatorError('CONFIG_REQUIRED', `${name} wajib diisi melalui environment.`);
@@ -696,7 +817,7 @@ function helpText(): string {
     '',
     'Options non-rahasia:',
     `  --scenario <${SIMULATOR_SCENARIOS.join('|')}>`,
-    '  --count <integer>',
+    '  --count <integer; 0 berarti terus-menerus untuk presentation>',
     '  --interval <milliseconds>',
     '  --sequence-start <integer>',
     '  --help',

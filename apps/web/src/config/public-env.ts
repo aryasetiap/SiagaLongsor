@@ -1,5 +1,6 @@
 export interface PublicWebConfig {
   readonly apiBaseUrl: string;
+  readonly presentationMode: boolean;
 }
 
 export class PublicWebConfigError extends Error {
@@ -33,6 +34,7 @@ export function readPublicWebConfig(): PublicWebConfig {
 
   return {
     apiBaseUrl: parsedUrl.href.replace(/\/$/, ''),
+    presentationMode: process.env.NEXT_PUBLIC_PRESENTATION_MODE === 'true',
   };
 }
 
