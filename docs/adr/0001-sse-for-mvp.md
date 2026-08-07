@@ -1,5 +1,7 @@
 # ADR-0001: Server-Sent Events untuk Realtime MVP
 
+> Superseded for the final single-device runtime by ADR 0006.
+
 - Status: Accepted
 - Tanggal: 2026-07-29
 - Diperjelas: 2026-08-01 (kontrak Phase 05)

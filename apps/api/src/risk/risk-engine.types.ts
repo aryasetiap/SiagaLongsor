@@ -7,6 +7,7 @@ export type RiskReason =
   | 'DANGER_TILT'
   | 'DANGER_RAIN_MOISTURE'
   | 'DANGER_RAINFALL'
+  | 'DANGER_PROLONGED_RAINFALL'
   | 'DANGER_SOIL_MOISTURE'
   | 'REQUIRED_SENSOR_MISSING'
   | 'REQUIRED_SENSOR_INVALID'
@@ -31,6 +32,12 @@ export interface RiskEngineProfile {
     readonly tiltMagnitudeDegGt: number;
     readonly rainfallMmHourGt: number;
     readonly soilMoisturePctGt: number;
+  };
+  readonly rainfallDuration: {
+    readonly moderateDailyMinMm: number;
+    readonly moderateDailyMaxMm: number;
+    readonly consecutiveDays: number;
+    readonly continuationRainfallMmHourGt: number;
   };
   readonly ranges: {
     readonly tiltMagnitudeDeg: readonly [number, number | null];
@@ -69,6 +76,10 @@ export interface EvaluateRiskInput {
     readonly soilMoisturePct: number | null;
     readonly rainfallMmHour: number | null;
     readonly firmwareRisk: ServerRisk;
+  };
+  readonly rainfallHistory?: {
+    readonly consecutiveModerateDays: number;
+    readonly previousDailyTotalsMm: readonly number[];
   };
   readonly previous: RiskEngineState | null;
 }

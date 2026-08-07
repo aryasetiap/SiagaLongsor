@@ -34,7 +34,7 @@ Reset asks you to type `siagalongsor-presentation` before it removes volumes. It
 
 ## What the runner does
 
-`presentation:start` starts PostgreSQL on `55433` and Redis on `6380` under the isolated Compose project, applies migrations and the idempotent seed, then starts API `3002` and web `3003`. It logs in with the isolated Demo Owner, safely reuses or creates the one synthetic device `PRESENTATION-DEMO-001`, and stores its one-time credential only in ignored runtime state.
+`presentation:start` starts PostgreSQL on `55433` under the isolated Compose project, applies migrations and the idempotent seed, then starts API `3002` and web `3003`. It logs in with the isolated Demo Owner, safely reuses or creates the one synthetic device `PRESENTATION-DEMO-001`, and stores its one-time credential only in ignored runtime state. The simulator sends dummy telemetry through the normal authenticated HTTP ingestion endpoint.
 
 It reads the active risk profile from the API on every start and passes its actual six WATCH/DANGER values to the `presentation` simulator. No threshold is hard-coded, changed, or exported. The simulator sends one stream every five seconds using firmware `presentation-simulator-1.0.0`.
 

@@ -13,7 +13,7 @@ Phase 02–06 work remains historical implementation and acceptance evidence. It
 | Multi-device, multi-organization, multi-site operations            | One deployed physical ESP32 device                                                  |
 | Two-role workflow and management UX                                | Administrator authentication as supporting capability                               |
 | Alerts lifecycle, map, SOP, reports, settings                      | Four focused monitoring pages                                                       |
-| SSE/Redis/BullMQ/object storage as product-supporting expectations | Persistence and safety retained; infrastructure cleanup follows dependency analysis |
+| SSE/Redis/BullMQ/object storage as product-supporting expectations | HTTP + PostgreSQL single-instance runtime; legacy infrastructure removed after analysis |
 
 ## Four product pages
 
@@ -34,7 +34,7 @@ Authentication, API health check, authenticated device credential, telemetry ing
 - SSE as a product requirement and object-storage-backed product features.
 - ESP32 firmware implementation during the initial refactor; remote siren; AI hazard prediction.
 
-Existing modules, schemas, and infrastructure are not removed in R1. Redis/BullMQ, SSE, object storage, organization/site/monitoring-point and alert/report schemas are candidates for later removal only after dependency analysis; no document may claim they are already safe to delete.
+R1 initially deferred infrastructure deletion. ADR 0006 records the later approved removal of Redis/BullMQ/SSE/object-storage runtime dependencies. Organization/site/monitoring-point and other legacy schemas remain until a separate dependency analysis and refactor.
 
 ## Safety invariants and sensor responsibilities
 
@@ -42,6 +42,9 @@ Existing modules, schemas, and infrastructure are not removed in R1. Redis/BullM
 - The server owns deterministic hazard evaluation. Firmware-reported risk is comparison/audit input only.
 - Risk evaluation order is invalid/stale/offline/unavailable → `UNKNOWN`; hazard condition → `DANGER`; all safe conditions → `SAFE`; other valid conditions → `WATCH`.
 - Hazard sensors provide readings used by the configured risk profile and their persisted history feeds Overview charts.
+- Persisted rainfall rates are also integrated into local daily totals. The versioned duration rule
+  escalates to `DANGER` when rain continues after the configured number of consecutive moderate-rain
+  days; see ADR 0007. Existing tilt rules remain independent.
 - Each expected sensor also has a device-health responsibility: it is reported readable, unreadable, or unknown on Perangkat.
 - Battery, firmware, and general device-health readings remain diagnostic, not landslide hazard criteria, unless approved later.
 - No scientific/geotechnical threshold value may be fabricated. Existing values are provisional/legacy until calibrated and approved.

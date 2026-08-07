@@ -518,7 +518,6 @@ describe('MonitoringPoint API', () => {
 function setTestEnvironment(): void {
   process.env.NODE_ENV = 'test';
   process.env.WEB_URL = 'http://localhost:3000';
-  process.env.REDIS_URL ??= 'redis://localhost:6379';
   process.env.AUTH_ACCESS_TOKEN_SECRET = 'integration-only-access-secret-at-least-32-chars';
   process.env.AUTH_JWT_ISSUER = 'siagalongsor-api-test';
   process.env.AUTH_JWT_AUDIENCE = 'siagalongsor-web-test';

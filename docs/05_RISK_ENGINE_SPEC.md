@@ -1,5 +1,8 @@
 # Risk Engine and Alert Specification
 
+> Historical Phase 03 specification. The final single-device runtime follows
+> `docs/20_SCOPE_RESET_SINGLE_DEVICE.md`; the prolonged-rainfall revision is defined by ADR 0007.
+
 ## 1. Tujuan dan batas keselamatan
 
 Risk engine Phase 03 mengubah telemetry tervalidasi menjadi `RiskAssessment` server-side yang

@@ -186,6 +186,12 @@ describe('R2 single-device facade', () => {
       tiltMagnitudeDeg: { watch: expect.any(Number), danger: expect.any(Number) },
       soilMoisturePct: { watch: expect.any(Number), danger: expect.any(Number) },
       rainfallMmHour: { watch: expect.any(Number), danger: expect.any(Number) },
+      rainfallDuration: {
+        moderateDailyMinMm: 30,
+        moderateDailyMaxMm: 50,
+        consecutiveDays: 3,
+        continuationRainfallMmHourGt: 0,
+      },
     });
     const body = before.body.data as ProfileBody;
     const auditBefore = await prisma.auditLog.count({
@@ -220,6 +226,16 @@ describe('R2 single-device facade', () => {
           soilMoisturePct: { watch: 0, danger: 101 },
         }),
       ),
+      put(
+        profileRequest(cleared.body.data.profile as ProfileBody, {
+          rainfallDuration: {
+            moderateDailyMinMm: 50,
+            moderateDailyMaxMm: 30,
+            consecutiveDays: 3,
+            continuationRainfallMmHourGt: 0,
+          },
+        }),
+      ),
     ]);
     expect(
       invalids.every(
@@ -233,6 +249,64 @@ describe('R2 single-device facade', () => {
     ]);
     expect([first.status, second.status]).toEqual([200, 200]);
     expect(await prisma.riskProfile.count({ where: { siteId, isActive: true } })).toBe(1);
+  });
+
+  it('raises DANGER when rain continues after three consecutive moderate-rain days', async () => {
+    const now = new Date();
+    await ingest(
+      { tiltMagnitudeDeg: 1, soilMoisturePct: 10, rainfallMmHour: 0, batteryVoltage: 3 },
+      now.toISOString(),
+    );
+    const device = await prisma.device.findUniqueOrThrow({ where: { hardwareId } });
+    const rows = [3, 2, 1].flatMap((daysAgo) => {
+      const date = jakartaCalendarDate(now, daysAgo);
+      return Array.from({ length: 61 }, (_, minute) => ({
+        deviceId: device.id,
+        monitoringPointId: pointId,
+        messageId: `rain-${daysAgo}-${minute}-${run.slice(0, 8)}`,
+        bootId: `rain-history-${run.slice(0, 8)}`,
+        sequence: BigInt(daysAgo * 100 + minute),
+        deviceTimestamp: new Date(
+          `${date}T${minute === 60 ? '01:00' : `00:${String(minute).padStart(2, '0')}`}:00+07:00`,
+        ),
+        firmwareVersion: 'r2-history',
+        tiltMagnitudeDeg: 1,
+        soilMoisturePct: 10,
+        rainfallMmHour: minute === 60 ? 0 : 40,
+        batteryVoltage: 3,
+        firmwareRiskLevel: FirmwareRiskLevel.UNKNOWN,
+        firmwareSirenActive: false,
+        canonicalPayloadHash: 'a'.repeat(64),
+        rawPayload: {},
+      }));
+    });
+    await prisma.telemetry.createMany({ data: rows });
+
+    const response = await ingest(
+      { tiltMagnitudeDeg: 1, soilMoisturePct: 10, rainfallMmHour: 0.1, batteryVoltage: 3 },
+      new Date(now.getTime() + 1_000).toISOString(),
+    );
+
+    expect(response.status).toBe(201);
+    const overview = await get('/overview');
+    expect(overview.body.data.risk).toMatchObject({
+      status: 'DANGER',
+      reasons: expect.arrayContaining(['DANGER_PROLONGED_RAINFALL']),
+    });
+    const transition = await prisma.auditLog.findFirstOrThrow({
+      where: { organizationId, eventType: 'RISK_STATUS_CHANGED' },
+      orderBy: { createdAt: 'desc' },
+    });
+    expect(transition.metadata).toMatchObject({
+      rainfallDuration: {
+        consecutiveModerateDays: 3,
+        previousDailyTotalsMm: [
+          expect.closeTo(40, 5),
+          expect.closeTo(40, 5),
+          expect.closeTo(40, 5),
+        ],
+      },
+    });
   });
 
   it('validates overview range, audit cursor, duplicate transitions, late data, battery, and stale projection', async () => {
@@ -405,6 +479,12 @@ type ProfileBody = {
   tiltMagnitudeDeg: { watch: number; danger: number };
   soilMoisturePct: { watch: number; danger: number };
   rainfallMmHour: { watch: number; danger: number };
+  rainfallDuration: {
+    moderateDailyMinMm: number;
+    moderateDailyMaxMm: number;
+    consecutiveDays: number;
+    continuationRainfallMmHourGt: number;
+  };
 };
 function profileRequest(
   profile: ProfileBody,
@@ -414,16 +494,24 @@ function profileRequest(
     tiltMagnitudeDeg: overrides.tiltMagnitudeDeg ?? profile.tiltMagnitudeDeg,
     soilMoisturePct: overrides.soilMoisturePct ?? profile.soilMoisturePct,
     rainfallMmHour: overrides.rainfallMmHour ?? profile.rainfallMmHour,
+    rainfallDuration: overrides.rainfallDuration ?? profile.rainfallDuration,
     calibrationStatus: profile.calibrationStatus,
     ...(Object.prototype.hasOwnProperty.call(overrides, 'notes')
       ? { notes: overrides.notes }
       : { notes: profile.notes }),
   };
 }
+function jakartaCalendarDate(date: Date, daysAgo: number): string {
+  const jakarta = new Date(date.getTime() + 7 * 60 * 60 * 1_000);
+  return new Date(
+    Date.UTC(jakarta.getUTCFullYear(), jakarta.getUTCMonth(), jakarta.getUTCDate() - daysAgo),
+  )
+    .toISOString()
+    .slice(0, 10);
+}
 function env() {
   process.env.NODE_ENV = 'test';
   process.env.WEB_URL = 'http://localhost:3000';
-  process.env.REDIS_URL ??= 'redis://localhost:6379';
   process.env.AUTH_ACCESS_TOKEN_SECRET = 'integration-only-access-secret-at-least-32-chars';
   process.env.AUTH_JWT_ISSUER = 'siagalongsor-api-test';
   process.env.AUTH_JWT_AUDIENCE = 'siagalongsor-web-test';

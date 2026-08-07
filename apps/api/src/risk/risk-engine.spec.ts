@@ -21,6 +21,12 @@ const profile: RiskEngineProfile = {
     rainfallMmHourGt: 50,
     soilMoisturePctGt: 85,
   },
+  rainfallDuration: {
+    moderateDailyMinMm: 30,
+    moderateDailyMaxMm: 50,
+    consecutiveDays: 3,
+    continuationRainfallMmHourGt: 0,
+  },
   ranges: {
     tiltMagnitudeDeg: [0, 180],
     soilMoisturePct: [0, 100],
@@ -184,6 +190,52 @@ describe('evaluateRisk - R2 direct boundary semantics', () => {
     expect(result.assessmentRisk).toBe('DANGER');
     expect(result.reasons).toContain('DANGER_RAINFALL');
   });
+
+  it('returns DANGER when rain continues after three consecutive moderate-rain days', () => {
+    const result = evaluateRisk(
+      input({
+        rainfallHistory: {
+          consecutiveModerateDays: 3,
+          previousDailyTotalsMm: [40, 35, 45],
+        },
+        telemetry: {
+          tiltMagnitudeDeg: 1,
+          soilMoisturePct: 40,
+          rainfallMmHour: 0.1,
+          firmwareRisk: 'DANGER',
+        },
+      }),
+    );
+
+    expect(result.assessmentRisk).toBe('DANGER');
+    expect(result.reasons).toContain('DANGER_PROLONGED_RAINFALL');
+  });
+
+  it.each([
+    ['the fourth day is dry', 3, 0],
+    ['only two previous days were moderate', 2, 0.1],
+  ] as const)(
+    'does not apply prolonged-rain danger when %s',
+    (_name, consecutiveModerateDays, rainfallMmHour) => {
+      const result = evaluateRisk(
+        input({
+          rainfallHistory: {
+            consecutiveModerateDays,
+            previousDailyTotalsMm: [40, 35, 45],
+          },
+          telemetry: {
+            tiltMagnitudeDeg: 1,
+            soilMoisturePct: 40,
+            rainfallMmHour,
+            firmwareRisk: 'SAFE',
+          },
+        }),
+      );
+
+      expect(result.assessmentRisk).not.toBe('DANGER');
+      expect(result.reasons).not.toContain('DANGER_PROLONGED_RAINFALL');
+    },
+  );
 
   it('collects independent DANGER reasons when multiple thresholds are reached', () => {
     const result = evaluateRisk(

@@ -446,11 +446,31 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
       tiltMagnitudeDeg: threshold(form, 'tilt'),
       soilMoisturePct: threshold(form, 'soil'),
       rainfallMmHour: threshold(form, 'rain'),
+      rainfallDuration: {
+        moderateDailyMinMm: Number(form.get('rain-duration-min')),
+        moderateDailyMaxMm: Number(form.get('rain-duration-max')),
+        consecutiveDays: Number(form.get('rain-duration-days')),
+        continuationRainfallMmHourGt: Number(form.get('rain-duration-continuation')),
+      },
       calibrationStatus: data.calibrationStatus,
       notes: String(form.get('notes') ?? '').trim() === '' ? null : String(form.get('notes')),
     };
     if (!validThresholds([body.tiltMagnitudeDeg, body.soilMoisturePct, body.rainfallMmHour])) {
       setMessage('WATCH harus lebih rendah dari DANGER dan keduanya harus berupa angka terbatas.');
+      return;
+    }
+    if (
+      !Number.isFinite(body.rainfallDuration.moderateDailyMinMm) ||
+      !Number.isFinite(body.rainfallDuration.moderateDailyMaxMm) ||
+      body.rainfallDuration.moderateDailyMinMm < 0 ||
+      body.rainfallDuration.moderateDailyMinMm >= body.rainfallDuration.moderateDailyMaxMm ||
+      !Number.isInteger(body.rainfallDuration.consecutiveDays) ||
+      body.rainfallDuration.consecutiveDays < 1 ||
+      body.rainfallDuration.consecutiveDays > 30 ||
+      !Number.isFinite(body.rainfallDuration.continuationRainfallMmHourGt) ||
+      body.rainfallDuration.continuationRainfallMmHourGt < 0
+    ) {
+      setMessage('Rule durasi hujan harus memiliki rentang dan jumlah hari yang valid.');
       return;
     }
     try {
@@ -522,6 +542,64 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
           </fieldset>
         ))}
       </div>
+      <fieldset className="threshold-card threshold-rain-duration">
+        <legend>Durasi curah hujan</legend>
+        <p>
+          Jika hujan harian berada dalam rentang ini selama beberapa hari, hujan berikutnya memicu
+          DANGER.
+        </p>
+        <label>
+          <span>Minimum hujan sedang</span>
+          <span className="threshold-input">
+            <input
+              name="rain-duration-min"
+              defaultValue={data.rainfallDuration.moderateDailyMinMm}
+              type="number"
+              step="any"
+            />
+            <span aria-hidden="true">mm/hari</span>
+          </span>
+        </label>
+        <label>
+          <span>Maksimum hujan sedang</span>
+          <span className="threshold-input">
+            <input
+              name="rain-duration-max"
+              defaultValue={data.rainfallDuration.moderateDailyMaxMm}
+              type="number"
+              step="any"
+            />
+            <span aria-hidden="true">mm/hari</span>
+          </span>
+        </label>
+        <label>
+          <span>Hari berturut-turut</span>
+          <span className="threshold-input">
+            <input
+              name="rain-duration-days"
+              defaultValue={data.rainfallDuration.consecutiveDays}
+              type="number"
+              min="1"
+              max="30"
+              step="1"
+            />
+            <span aria-hidden="true">hari</span>
+          </span>
+        </label>
+        <label>
+          <span>Hujan lanjutan</span>
+          <span className="threshold-input">
+            <input
+              name="rain-duration-continuation"
+              defaultValue={data.rainfallDuration.continuationRainfallMmHourGt}
+              type="number"
+              min="0"
+              step="any"
+            />
+            <span aria-hidden="true">mm/jam</span>
+          </span>
+        </label>
+      </fieldset>
       <label className="profile-notes">
         Catatan
         <textarea name="notes" defaultValue={data.notes ?? ''} />

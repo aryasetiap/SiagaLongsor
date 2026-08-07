@@ -15,7 +15,7 @@ The product has four pages: Overview, Perangkat, Profil Risiko, and Audit Log. L
 ## Architecture
 
 - Next.js 16, React 19, TypeScript, Tailwind CSS, and Apache ECharts
-- NestJS 11, Prisma 7, PostgreSQL 16 baseline, and Redis 7 baseline
+- NestJS 11, Prisma 7, and PostgreSQL 16 baseline
 - ESP32 with PlatformIO and Arduino framework
 - Authenticated HTTP telemetry with deterministic, server-authoritative risk
 
@@ -26,7 +26,7 @@ Missing, stale, offline, invalid, or unavailable required hazard data results in
 ## Quick development setup
 
 1. Copy `.env.example` to `.env` and `apps/web/.env.example` to `apps/web/.env.local`; use local secrets only.
-2. Run `corepack pnpm install` and `docker compose up -d postgres redis`.
+2. Run `corepack pnpm install` and `docker compose up -d postgres`.
 3. Run `corepack pnpm prisma:generate`, `corepack pnpm prisma:migrate:deploy`, and `corepack pnpm prisma:seed`.
 4. Start API with `corepack pnpm --filter @siagalongsor/api dev` and web with `corepack pnpm --filter @siagalongsor/web dev`.
 

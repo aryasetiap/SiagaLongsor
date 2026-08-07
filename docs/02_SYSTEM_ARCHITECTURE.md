@@ -1,5 +1,8 @@
 # System Architecture
 
+> Historical extensible architecture. The active single-device runtime no longer uses Redis,
+> BullMQ, SSE, reports, or object storage; see ADR 0006 and `20_SCOPE_RESET_SINGLE_DEVICE.md`.
+
 ## 1. Prinsip arsitektur
 
 - Local-first safety: perangkat dan sirene dapat bekerja tanpa cloud.

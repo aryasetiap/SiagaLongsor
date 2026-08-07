@@ -8,7 +8,6 @@ import { DevicesModule } from './devices/devices.module.js';
 import { HealthModule } from './health/health.module.js';
 import { MonitoringPointsModule } from './monitoring-points/monitoring-points.module.js';
 import { RateLimitModule } from './rate-limit/rate-limit.module.js';
-import { RedisModule } from './redis/redis.module.js';
 import { RiskModule } from './risk/risk.module.js';
 import { SitesModule } from './sites/sites.module.js';
 import { TelemetryModule } from './telemetry/telemetry.module.js';
@@ -19,7 +18,6 @@ import { SingleDeviceModule } from './single-device/single-device.module.js';
     AppConfigModule,
     DatabaseModule,
     DevicesModule,
-    RedisModule,
     RateLimitModule,
     AuthModule,
     AuthorizationModule,

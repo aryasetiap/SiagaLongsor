@@ -473,6 +473,12 @@ function mapProfile(p: RiskProfile) {
       watch: p.safeRainfallMmHourLt.toNumber(),
       danger: p.dangerRainfallMmHourGt.toNumber(),
     },
+    rainfallDuration: {
+      moderateDailyMinMm: p.moderateRainfallDailyMinMm.toNumber(),
+      moderateDailyMaxMm: p.moderateRainfallDailyMaxMm.toNumber(),
+      consecutiveDays: p.moderateRainfallConsecutiveDays,
+      continuationRainfallMmHourGt: p.rainfallContinuationMmHourGt.toNumber(),
+    },
   };
 }
 type HazardSensorKey = 'tiltMagnitudeDeg' | 'soilMoisturePct' | 'rainfallMmHour';
@@ -514,6 +520,25 @@ function validate(i: SingleRiskProfileDto, p: RiskProfile): void {
       });
     }
   }
+
+  const duration = i.rainfallDuration;
+  if (
+    duration !== undefined &&
+    (!Number.isFinite(duration.moderateDailyMinMm) ||
+      !Number.isFinite(duration.moderateDailyMaxMm) ||
+      duration.moderateDailyMinMm < 0 ||
+      duration.moderateDailyMinMm >= duration.moderateDailyMaxMm ||
+      !Number.isInteger(duration.consecutiveDays) ||
+      duration.consecutiveDays < 1 ||
+      duration.consecutiveDays > 30 ||
+      !Number.isFinite(duration.continuationRainfallMmHourGt) ||
+      duration.continuationRainfallMmHourGt < 0)
+  ) {
+    throw new BadRequestException({
+      code: 'VALIDATION_ERROR',
+      message: 'Konfigurasi durasi curah hujan tidak valid.',
+    });
+  }
 }
 function same(i: SingleRiskProfileDto, p: RiskProfile): boolean {
   const x = mapProfile(p);
@@ -524,6 +549,8 @@ function same(i: SingleRiskProfileDto, p: RiskProfile): boolean {
   ];
   return (
     keys.every((k) => i[k].watch === x[k].watch && i[k].danger === x[k].danger) &&
+    (i.rainfallDuration === undefined ||
+      JSON.stringify(i.rainfallDuration) === JSON.stringify(x.rainfallDuration)) &&
     (i.calibrationStatus ?? p.calibrationStatus) === p.calibrationStatus &&
     (i.notes === undefined ? p.notes : i.notes) === p.notes
   );
@@ -541,6 +568,14 @@ function clone(
     dangerSoilMoisturePctGt: i.soilMoisturePct.danger,
     safeRainfallMmHourLt: i.rainfallMmHour.watch,
     dangerRainfallMmHourGt: i.rainfallMmHour.danger,
+    moderateRainfallDailyMinMm:
+      i.rainfallDuration?.moderateDailyMinMm ?? p.moderateRainfallDailyMinMm,
+    moderateRainfallDailyMaxMm:
+      i.rainfallDuration?.moderateDailyMaxMm ?? p.moderateRainfallDailyMaxMm,
+    moderateRainfallConsecutiveDays:
+      i.rainfallDuration?.consecutiveDays ?? p.moderateRainfallConsecutiveDays,
+    rainfallContinuationMmHourGt:
+      i.rainfallDuration?.continuationRainfallMmHourGt ?? p.rainfallContinuationMmHourGt,
     technicalTiltXDegMin: p.technicalTiltXDegMin,
     technicalTiltXDegMax: p.technicalTiltXDegMax,
     technicalTiltYDegMin: p.technicalTiltYDegMin,

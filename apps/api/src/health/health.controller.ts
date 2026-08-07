@@ -9,16 +9,15 @@ export class HealthController {
 
   @Public()
   @Get()
-  async getHealth(): Promise<{ status: 'ok'; database: 'up'; redis: 'up' }> {
+  async getHealth(): Promise<{ status: 'ok'; database: 'up' }> {
     const dependencies = await this.healthService.check();
 
-    if (!dependencies.database || !dependencies.redis) {
+    if (!dependencies.database) {
       throw new ServiceUnavailableException({
         code: 'DEPENDENCY_UNAVAILABLE',
         message: 'Satu atau lebih dependency tidak tersedia.',
         details: {
           database: dependencies.database ? 'up' : 'down',
-          redis: dependencies.redis ? 'up' : 'down',
         },
       });
     }
@@ -26,7 +25,6 @@ export class HealthController {
     return {
       status: 'ok',
       database: 'up',
-      redis: 'up',
     };
   }
 }

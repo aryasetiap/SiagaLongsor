@@ -102,11 +102,11 @@ describe('authentication and authorization', () => {
     await app?.close();
   });
 
-  it('reports PostgreSQL and Redis health without authentication', async () => {
+  it('reports PostgreSQL health without authentication', async () => {
     const response = await send(http.get('/api/v1/health'));
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ status: 'ok', database: 'up', redis: 'up' });
+    expect(response.body).toEqual({ status: 'ok', database: 'up' });
   });
 
   it('logs in, stores only the refresh hash, and resolves the current principal', async () => {
@@ -464,7 +464,6 @@ describe('authentication and authorization', () => {
 function setTestEnvironment(loginRateLimitMax: number): void {
   process.env.NODE_ENV = 'test';
   process.env.WEB_URL = 'http://localhost:3000';
-  process.env.REDIS_URL ??= 'redis://localhost:6379';
   process.env.AUTH_ACCESS_TOKEN_SECRET = 'integration-only-access-secret-at-least-32-chars';
   process.env.AUTH_JWT_ISSUER = 'siagalongsor-api-test';
   process.env.AUTH_JWT_AUDIENCE = 'siagalongsor-web-test';

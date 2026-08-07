@@ -166,6 +166,12 @@ function profile(version: number, notes: string | null) {
     tiltMagnitudeDeg: { watch: 10, danger: 20 },
     soilMoisturePct: { watch: 30, danger: 40 },
     rainfallMmHour: { watch: 50, danger: 60 },
+    rainfallDuration: {
+      moderateDailyMinMm: 30,
+      moderateDailyMaxMm: 50,
+      consecutiveDays: 3,
+      continuationRainfallMmHourGt: 0,
+    },
   };
 }
 

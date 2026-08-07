@@ -6,7 +6,6 @@ const environmentSchema = z.object({
   API_TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(2).default(0),
   WEB_URL: z.url().default('http://localhost:3000'),
   DATABASE_URL: z.string().min(1),
-  REDIS_URL: z.url().default('redis://localhost:6379'),
   AUTH_ACCESS_TOKEN_SECRET: z.string().min(32),
   AUTH_JWT_ISSUER: z.string().min(1).default('siagalongsor-api'),
   AUTH_JWT_AUDIENCE: z.string().min(1).default('siagalongsor-web'),
@@ -31,7 +30,6 @@ export interface AppConfig {
   readonly trustProxyHops: number;
   readonly webUrl: string;
   readonly databaseUrl: string;
-  readonly redisUrl: string;
   readonly auth: {
     readonly accessTokenSecret: string;
     readonly issuer: string;
@@ -66,7 +64,6 @@ export function parseAppConfig(environment: NodeJS.ProcessEnv): AppConfig {
     trustProxyHops: value.API_TRUST_PROXY_HOPS,
     webUrl: value.WEB_URL,
     databaseUrl: value.DATABASE_URL,
-    redisUrl: value.REDIS_URL,
     auth: Object.freeze({
       accessTokenSecret: value.AUTH_ACCESS_TOKEN_SECRET,
       issuer: value.AUTH_JWT_ISSUER,

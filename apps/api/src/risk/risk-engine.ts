@@ -89,6 +89,13 @@ function classify(input: EvaluateRiskInput): {
   if (rainfallMmHour >= input.profile.danger.rainfallMmHourGt) {
     dangerReasons.push('DANGER_RAINFALL');
   }
+  if (
+    (input.rainfallHistory?.consecutiveModerateDays ?? 0) >=
+      input.profile.rainfallDuration.consecutiveDays &&
+    rainfallMmHour > input.profile.rainfallDuration.continuationRainfallMmHourGt
+  ) {
+    dangerReasons.push('DANGER_PROLONGED_RAINFALL');
+  }
   if (soilMoisturePct >= input.profile.danger.soilMoisturePctGt)
     dangerReasons.push('DANGER_SOIL_MOISTURE');
   if (dangerReasons.length > 0) return { risk: 'DANGER', reasons: dangerReasons };

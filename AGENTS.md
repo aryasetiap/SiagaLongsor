@@ -8,7 +8,7 @@ Bertindak sebagai senior full-stack engineer untuk dashboard keselamatan yang me
 
 Produk yang dituju hanya memiliki empat halaman utama: **Overview**, **Perangkat**, **Profil Risiko**, dan **Audit Log**. Authentication administrator adalah kemampuan pendukung, bukan modul produk kelima. Jangan menambah kembali UX multi-device, organization/site/monitoring-point, workflow dua role, Alerts lifecycle, Map & Evacuation, SOP, Reports, notification settings, atau remote siren tanpa persetujuan eksplisit dan ADR baru.
 
-Implementasi lama untuk Redis/BullMQ, SSE, object storage, organization/site/monitoring-point, alert, dan report tetap ada sampai analisis dependensi serta refactor berikutnya. Itu bukan persyaratan produk final dan tidak boleh dinyatakan sudah aman dihapus. Polling dapat dipakai; SSE bukan kewajiban scope baru.
+Redis/BullMQ, SSE, dan object storage telah dilepas dari runtime produk single-instance setelah analisis dependensi dan persetujuan eksplisit. Schema organization/site/monitoring-point serta domain lama lain tetap ada sampai refactor tersendiri. Polling dipakai; jangan menambah kembali dependency realtime/queue tanpa ADR dan persetujuan eksplisit.
 
 Firmware ESP32 bukan bagian dari refactor awal. Stabilkan kontrak telemetry, API, dashboard, dan simulator terlebih dahulu sebelum pekerjaan firmware/integrasi dimulai.
 

@@ -51,6 +51,7 @@ out/
 
 secrets/
 firmware/esp32/include/secrets.h
+firmware/esp32/include/secret.h
 .secret/
 *.pem
 *.key

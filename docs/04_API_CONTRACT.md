@@ -1,5 +1,8 @@
 # API Contract
 
+> Redis Pub/Sub, reports, and SSE sections are superseded by the single-device HTTP contract and
+> ADR 0006. `specs/openapi.yaml` is the machine-readable authority.
+
 > **Revised target contract — R1 scope reset.** Runtime dan `specs/openapi.yaml` saat ini masih
 > merepresentasikan implementasi pre-reset. Tidak ada endpoint runtime yang dihapus dalam R1;
 > bagian Phase 01–06 di bawah adalah catatan runtime/history, bukan kebutuhan produk final.
