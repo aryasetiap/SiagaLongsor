@@ -1,7 +1,7 @@
 import { execFile, spawn } from 'node:child_process';
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
-import { mkdir, readFile, rm, stat, writeFile, open } from 'node:fs/promises';
+import { mkdir, open, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, resolve } from 'node:path';
@@ -11,7 +11,14 @@ const runtimeDir = join(root, 'tmp', 'presentation');
 const configPath = join(root, '.env.presentation.local');
 const processStatePath = join(runtimeDir, 'processes.json');
 const secretStatePath = join(runtimeDir, 'device-credential.json');
-const buildStatePath = join(runtimeDir, 'builds.json');
+const presentationBuildSentinelPath = join(
+  root,
+  'apps',
+  'web',
+  '.next',
+  'siagalongsor-presentation-build.json',
+);
+const presentationBuildSentinelVersion = 1;
 const composeProject = 'siagalongsor-presentation';
 const apiUrl = 'http://localhost:3002/api/v1';
 const webUrl = 'http://localhost:3003';
@@ -254,19 +261,70 @@ async function waitForComposeHealth() {
 async function buildIfNeeded(component, environment) {
   const directory =
     component === 'api' ? join(root, 'apps', 'api', 'dist') : join(root, 'apps', 'web', '.next');
-  const builds = await readJson(buildStatePath, {});
-  const expectedWebBuild = `${apiUrl}|presentation`;
+  if (component === 'web') {
+    const sourceFingerprint = await presentationSourceFingerprint();
+    const sentinel = await readJson(presentationBuildSentinelPath, null);
+    if (isValidPresentationBuild(sentinel, sourceFingerprint)) {
+      console.log('Presentation web build: reusing valid build');
+      return;
+    }
+    console.log('Presentation web build: rebuilding (build output is not presentation-compatible)');
+    await runCorepack(['pnpm', '--filter', '@siagalongsor/web', 'build'], environment);
+    await writeJson(presentationBuildSentinelPath, {
+      apiBaseUrl: apiUrl,
+      presentationMode: true,
+      sourceFingerprint,
+      version: presentationBuildSentinelVersion,
+    });
+    return;
+  }
   try {
     await stat(directory);
-    if (component !== 'web' || builds.web === expectedWebBuild) return;
+    return;
   } catch {
-    // Missing build output is handled by the build below.
+    await runCorepack(['pnpm', '--filter', '@siagalongsor/api', 'build'], environment);
   }
-  await runCorepack(['pnpm', '--filter', `@siagalongsor/${component}`, 'build'], environment);
-  if (component === 'web') {
-    await mkdir(runtimeDir, { recursive: true });
-    await writeJson(buildStatePath, { ...builds, web: expectedWebBuild });
+}
+
+function isValidPresentationBuild(sentinel, sourceFingerprint) {
+  return (
+    sentinel !== null &&
+    typeof sentinel === 'object' &&
+    sentinel.version === presentationBuildSentinelVersion &&
+    sentinel.apiBaseUrl === apiUrl &&
+    sentinel.presentationMode === true &&
+    sentinel.sourceFingerprint === sourceFingerprint
+  );
+}
+
+async function presentationSourceFingerprint() {
+  const files = [
+    ...(await filesBelow(join(root, 'apps', 'web', 'src'))),
+    join(root, 'apps', 'web', 'package.json'),
+    join(root, 'apps', 'web', 'next.config.ts'),
+    join(root, 'pnpm-lock.yaml'),
+  ];
+  const hash = createHash('sha256');
+  for (const file of files.sort()) {
+    try {
+      hash.update(file.slice(root.length).replaceAll('\\', '/'));
+      hash.update(await readFile(file));
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+    }
   }
+  return hash.digest('hex');
+}
+
+async function filesBelow(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const result = [];
+  for (const entry of entries) {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) result.push(...(await filesBelow(path)));
+    else if (entry.isFile()) result.push(path);
+  }
+  return result;
 }
 async function startComponent(component, environment) {
   const state = await readJson(processStatePath, {});

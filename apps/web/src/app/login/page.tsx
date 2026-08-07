@@ -25,14 +25,14 @@ export default function LoginPage() {
   return (
     <main className="login-canvas min-h-screen px-4 py-5 sm:px-8 sm:py-8">
       <div className="mx-auto grid min-h-[calc(100vh-2.5rem)] max-w-6xl overflow-hidden rounded-[28px] border border-white/80 bg-white shadow-[0_30px_80px_rgba(15,23,42,.12)] sm:min-h-[calc(100vh-4rem)] lg:grid-cols-[1.05fr_.95fr]">
-        <section className="relative hidden overflow-hidden bg-slate-950 p-12 text-white lg:flex lg:flex-col lg:justify-between">
-          <div className="absolute -right-24 -top-24 size-80 rounded-full bg-blue-500/20 blur-3xl" />
+        <section className="relative hidden overflow-hidden bg-[#17211f] p-12 text-white lg:flex lg:flex-col lg:justify-between">
+          <div className="absolute -right-24 -top-24 size-80 rounded-full bg-emerald-400/15 blur-3xl" />
           <div className="absolute -bottom-20 -left-20 size-72 rounded-full bg-cyan-400/10 blur-3xl" />
           <div className="relative">
             <BrandMark inverted />
           </div>
           <div className="relative max-w-lg">
-            <p className="mb-5 inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-blue-100">
+            <p className="mb-5 inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-emerald-100">
               Monitoring yang dapat ditelusuri
             </p>
             <h1 className="text-4xl font-bold leading-tight tracking-[-0.035em]">
@@ -60,7 +60,7 @@ export default function LoginPage() {
             <div className="mb-9 lg:hidden">
               <BrandMark />
             </div>
-            <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-600">
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
               Portal pengguna
             </p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">

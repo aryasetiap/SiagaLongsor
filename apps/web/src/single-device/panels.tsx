@@ -24,6 +24,15 @@ import { InteractiveChart } from './interactive-chart';
 
 const unavailable = 'Data tidak tersedia';
 type RequestClient = Pick<ApiClient, 'request'>;
+const overviewRanges = [
+  [5, '5m', '5 menit'],
+  [15, '15m', '15 menit'],
+  [60, '1j', '1 jam'],
+  [360, '6j', '6 jam'],
+  [1440, '24j', '24 jam'],
+  [4320, '72j', '72 jam'],
+  [10080, '7h', '7 hari'],
+] as const;
 
 function formatDate(value: string | null): string {
   return value === null ? unavailable : new Date(value).toLocaleString('id-ID');
@@ -39,11 +48,21 @@ function ErrorBanner({ message }: { readonly message: string | null }) {
 
 export function OverviewPanel({ client }: { readonly client: RequestClient }) {
   const presentationMode = readPublicWebConfig().presentationMode;
-  const [minutes, setMinutes] = useState(24 * 60);
+  const [minutes, setMinutes] = useState(() => (presentationMode ? 5 : 24 * 60));
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [presentationView, setPresentationView] = useState(false);
+
+  useEffect(() => {
+    const exit = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setPresentationView(false);
+    };
+    window.addEventListener('keydown', exit);
+    return () => window.removeEventListener('keydown', exit);
+  }, []);
 
   const load = useCallback(async () => {
     const to = new Date();
@@ -51,6 +70,11 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
     try {
       setLoading(true);
       setData(await getSingleDeviceOverview(client, from.toISOString(), to.toISOString()));
+      try {
+        setProfile((await getSingleDeviceRiskProfile(client)).data);
+      } catch {
+        setProfile(null);
+      }
       setError(null);
       setLastRefreshedAt(new Date());
     } catch (caught) {
@@ -76,13 +100,43 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
   ] as const;
 
   return (
-    <section className="space-y-5">
-      {presentationMode && (
-        <p className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-950">
-          Mode Demonstrasi — data dapat berasal dari simulator untuk keperluan presentasi.
-        </p>
-      )}
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section
+      className={`overview-dashboard space-y-4 ${presentationView ? 'presentation-view' : ''}`}
+    >
+      <div className="presentation-toolbar" aria-hidden={!presentationView}>
+        <strong>SiagaLongsor</strong>
+        <span>{presentationMode ? '● LIVE DEMO' : '● PEMANTAUAN'}</span>
+        <span>
+          {lastRefreshedAt === null
+            ? 'Belum diperbarui'
+            : `Diperbarui ${lastRefreshedAt.toLocaleTimeString('id-ID')}`}
+        </span>
+        <button type="button" onClick={() => setPresentationView(false)}>
+          Keluar
+        </button>
+      </div>
+      <div className="overview-toolbar">
+        {presentationMode && (
+          <p className="demo-notice">
+            <span className="sr-only">Mode Demonstrasi. </span>
+            <span className="demo-notice-label">● LIVE DEMO</span>
+            <span>Data dapat berasal dari simulator</span>
+          </p>
+        )}
+        <div className="range-pills" role="group" aria-label="Pilihan rentang waktu">
+          {overviewRanges.map(([value, shortLabel, label]) => (
+            <button
+              key={value}
+              type="button"
+              className={minutes === value ? 'active' : ''}
+              aria-pressed={minutes === value}
+              aria-label={label}
+              onClick={() => setMinutes(value)}
+            >
+              {shortLabel}
+            </button>
+          ))}
+        </div>
         <label className="sr-only" htmlFor="overview-range">
           Rentang histori
         </label>
@@ -92,13 +146,11 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
           onChange={(event) => setMinutes(Number(event.target.value))}
           className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
         >
-          <option value={5}>5 menit</option>
-          <option value={15}>15 menit</option>
-          <option value={60}>1 jam</option>
-          <option value={360}>6 jam</option>
-          <option value={1440}>24 jam</option>
-          <option value={4320}>72 jam</option>
-          <option value={10080}>7 hari</option>
+          {overviewRanges.map(([value, , label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
         </select>
         <button
           type="button"
@@ -107,6 +159,13 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
           className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-white"
         >
           {loading ? 'Memuat…' : 'Muat ulang'}
+        </button>
+        <button
+          type="button"
+          onClick={() => setPresentationView(true)}
+          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-800"
+        >
+          Mode Presentasi
         </button>
         <p className="ml-auto text-xs text-slate-500" aria-live="polite">
           {lastRefreshedAt === null
@@ -118,51 +177,62 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
       <ErrorBanner message={error} />
       {data !== null && (
         <>
-          <div
-            className={`rounded-3xl border p-6 shadow-sm ${riskStatusClass(data.data.risk.status)}`}
-          >
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-semibold">Status risiko otoritatif</p>
-                <strong className="mt-1 block text-3xl">{riskLabel[data.data.risk.status]}</strong>
-              </div>
-              <span className="rounded-full border border-current px-3 py-1 text-xs font-black tracking-wider">
-                {data.data.risk.status}
-              </span>
-            </div>
-            <p className="mt-2 text-sm text-slate-700">
-              {data.data.risk.reasons.map(riskReasonLabel).join(', ') ||
-                'Tidak ada alasan tersedia'}
-            </p>
-            <p className="mt-2 text-sm text-slate-600">
-              Observasi: {formatDate(data.data.risk.observedAt)} · {data.data.risk.freshness}
-            </p>
-            {!data.data.configured && (
-              <p className="mt-2 text-sm font-semibold text-amber-700">
-                Perangkat belum dikonfigurasi.
-              </p>
-            )}
-          </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            {readings.map(([label, key, unit]) => {
-              const value = data.data.readings[key];
-              return (
-                <div key={key} className="rounded-2xl border border-slate-200 bg-white p-4">
-                  <p className="text-sm text-slate-600">{label}</p>
-                  <strong className="mt-1 block text-lg text-slate-950">
-                    {value === null ? unavailable : `${value} ${unit}`}
-                  </strong>
+          <div className="overview-bento">
+            <div
+              className={`risk-status-panel risk-hero risk-${data.data.risk.status.toLowerCase()}`}
+            >
+              <div className="risk-hero-top">
+                <div>
+                  <p className="risk-hero-eyebrow">STATUS RISIKO OTORITATIF</p>
+                  <strong className="risk-hero-label">{riskLabel[data.data.risk.status]}</strong>
                 </div>
-              );
-            })}
+                <span className="risk-status-code">
+                  <span aria-hidden="true" className="risk-status-dot" />
+                  {data.data.risk.status}
+                </span>
+              </div>
+              <p className="risk-hero-reason">
+                {data.data.risk.reasons.map(riskReasonLabel).join(', ') ||
+                  'Tidak ada alasan tersedia'}
+              </p>
+              <div className="risk-hero-meta">
+                <span>
+                  <span className="risk-online-dot" aria-hidden="true" /> {data.data.risk.freshness}
+                </span>
+                <span>Observasi {formatDate(data.data.risk.observedAt)}</span>
+                {!data.data.configured && <span>Perangkat belum dikonfigurasi</span>}
+              </div>
+            </div>
+            <div className="overview-kpis grid gap-3 md:grid-cols-3">
+              {readings.map(([label, key, unit]) => {
+                const value = data.data.readings[key];
+                return (
+                  <CurrentSensorCard
+                    key={key}
+                    title={label}
+                    unit={unit}
+                    value={value}
+                    values={data.data.series[key]}
+                  />
+                );
+              })}
+            </div>
           </div>
-          <div className="space-y-4">
+          <div className="history-heading">
+            <div>
+              <h2>Riwayat Sensor</h2>
+              <p>Perubahan pembacaan pada rentang waktu yang dipilih.</p>
+            </div>
+            <p className="history-gap-hint">Celah grafik menunjukkan data sensor tidak tersedia.</p>
+          </div>
+          <div className="overview-chart-grid grid gap-4">
             {readings.map(([label, key, unit]) => (
               <InteractiveChart
                 key={key}
                 title={label}
                 unit={unit}
                 values={data.data.series[key]}
+                thresholds={profile?.[key]}
               />
             ))}
           </div>
@@ -172,13 +242,65 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
   );
 }
 
-function riskStatusClass(status: Overview['data']['risk']['status']): string {
-  return {
-    SAFE: 'border-emerald-200 bg-emerald-50 text-emerald-950',
-    WATCH: 'border-amber-200 bg-amber-50 text-amber-950',
-    DANGER: 'border-red-300 bg-red-50 text-red-950',
-    UNKNOWN: 'border-slate-400 bg-slate-100 text-slate-950',
-  }[status];
+function CurrentSensorCard({
+  title,
+  unit,
+  value,
+  values,
+}: {
+  readonly title: string;
+  readonly unit: string;
+  readonly value: number | null;
+  readonly values: readonly { readonly value: number | null }[];
+}) {
+  const valid = values.flatMap((item) => (item.value === null ? [] : [item.value]));
+  const previous = valid.length > 1 ? (valid.at(-2) ?? null) : null;
+  const delta = value === null || previous === null ? null : value - previous;
+  return (
+    <article
+      className={`kpi-card kpi-${title === 'Kemiringan' ? 'tilt' : title === 'Kelembapan tanah' ? 'soil' : 'rain'}`}
+    >
+      <div className="kpi-card-heading">
+        <span className="kpi-icon" aria-hidden="true">
+          <SensorIcon title={title} />
+        </span>
+        <p>{title}</p>
+      </div>
+      <p className="kpi-value">
+        {value === null ? (
+          '—'
+        ) : (
+          <>
+            {value} <span className="text-base font-semibold text-slate-500">{unit}</span>
+          </>
+        )}
+      </p>
+      <p className="kpi-delta">
+        {delta === null ? (
+          'Belum cukup data'
+        ) : (
+          <span className={delta === 0 ? 'neutral' : delta > 0 ? 'positive' : 'negative'}>
+            {delta === 0 ? '→' : delta > 0 ? '↑' : '↓'} {Math.abs(delta).toLocaleString('id-ID')}{' '}
+            {unit}
+          </span>
+        )}
+      </p>
+    </article>
+  );
+}
+
+function SensorIcon({ title }: { readonly title: string }) {
+  const path =
+    title === 'Kemiringan'
+      ? 'M5 17 10 7l4 8 5-4M5 19h14'
+      : title === 'Kelembapan tanah'
+        ? 'M12 3s5 5.2 5 9a5 5 0 0 1-10 0c0-3.8 5-9 5-9Zm-2 10c.4 1.1 1.1 1.8 2.4 2.1'
+        : 'M4 15a5 5 0 0 1 1-9 6 6 0 0 1 11 2 4 4 0 1 1 1 7H4Zm5 3 1-2m4 2 1-2';
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <path d={path} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
 }
 
 export function DevicePanel({ client }: { readonly client: RequestClient }) {
@@ -206,55 +328,96 @@ export function DevicePanel({ client }: { readonly client: RequestClient }) {
     UNREADABLE: 'Tidak terbaca',
     UNKNOWN: 'Tidak diketahui',
   } as const;
-  const connection = {
-    ONLINE: 'Terhubung',
-    DELAYED: 'Terlambat',
-    OFFLINE: 'Terputus',
-    UNKNOWN: 'Tidak diketahui',
-  } as const;
   if (data === null) return <ErrorBanner message={error ?? 'Memuat data perangkat…'} />;
   const device = data.data;
-  const fields = {
-    Konektivitas: connection[device.connectivity],
-    Hardware: device.hardwareId,
-    'Nama perangkat': device.displayName,
-    Firmware: device.firmwareVersion,
-    'Terakhir terlihat': formatDate(device.lastSeenAt),
-    'Telemetri terakhir': formatDate(device.lastTelemetryAt),
-    Jaringan: device.network?.type ?? null,
-    'Sinyal RSSI':
-      device.network?.signalRssi === null || device.network === null
-        ? null
-        : `${device.network.signalRssi} dBm`,
-    Baterai: device.batteryVoltage === null ? null : `${device.batteryVoltage} V`,
-    Tilt: health[device.sensors.tilt],
-    'Kelembapan tanah': health[device.sensors.soilMoisture],
-    'Curah hujan': health[device.sensors.rainfall],
-  };
   return (
-    <section className="space-y-4">
-      <button
-        type="button"
-        onClick={() => void load()}
-        className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-white"
-      >
-        Muat ulang
-      </button>
-      <ErrorBanner message={error} />
-      {!device.configured && (
-        <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-          Perangkat belum dikonfigurasi.
-        </p>
-      )}
-      <div className="grid gap-3 md:grid-cols-2">
-        {Object.entries(fields).map(([label, value]) => (
-          <div key={label} className="rounded-2xl border border-slate-200 bg-white p-4">
-            <p className="text-sm text-slate-600">{label}</p>
-            <strong className="mt-1 block text-slate-950">{value ?? unavailable}</strong>
-          </div>
-        ))}
+    <section className="device-dashboard">
+      <div className="panel-action-row">
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="dashboard-button dashboard-button-dark"
+        >
+          Muat ulang
+        </button>
       </div>
+      <ErrorBanner message={error} />
+      {!device.configured && <p className="device-config-notice">Perangkat belum dikonfigurasi.</p>}
+      <article className="device-hero">
+        <p className="device-hero-eyebrow">STATUS PERANGKAT</p>
+        <div className="device-hero-top">
+          <div>
+            <h2>{device.displayName ?? unavailable}</h2>
+            <p className="device-hardware-id">{device.hardwareId ?? unavailable}</p>
+          </div>
+          <span className={`device-status-pill connectivity-${device.connectivity.toLowerCase()}`}>
+            <span aria-hidden="true" />
+            {device.connectivity}
+          </span>
+        </div>
+        <p className="device-firmware">
+          Firmware <span>{device.firmwareVersion ?? unavailable}</span>
+        </p>
+      </article>
+      <div className="device-diagnostics-grid">
+        <article className="diagnostic-card diagnostic-connectivity">
+          <h2>Konektivitas</h2>
+          <dl className="device-field-grid">
+            <DeviceField label="Terakhir terlihat" value={formatDate(device.lastSeenAt)} />
+            <DeviceField label="Telemetri terakhir" value={formatDate(device.lastTelemetryAt)} />
+            <DeviceField label="Jaringan" value={device.network?.type ?? unavailable} />
+            <DeviceField
+              label="Sinyal RSSI"
+              value={
+                device.network?.signalRssi === null || device.network === null
+                  ? unavailable
+                  : `${device.network.signalRssi} dBm`
+              }
+            />
+          </dl>
+        </article>
+        <article className="diagnostic-card diagnostic-power">
+          <h2>Daya</h2>
+          <p className="device-power-value">
+            {device.batteryVoltage === null ? '—' : `${device.batteryVoltage} V`}
+          </p>
+          <p className="device-power-detail">
+            {device.batteryVoltage === null
+              ? 'Pengukuran baterai belum tersedia'
+              : 'Diagnostik perangkat'}
+          </p>
+        </article>
+      </div>
+      <section className="sensor-health-section">
+        <div className="section-heading">
+          <h2>Kesehatan sensor</h2>
+          <p>Status keterbacaan pembacaan sensor terakhir.</p>
+        </div>
+        <div className="sensor-health-grid">
+          <SensorHealthCard title="Kemiringan" status={health[device.sensors.tilt]} />
+          <SensorHealthCard title="Kelembapan Tanah" status={health[device.sensors.soilMoisture]} />
+          <SensorHealthCard title="Curah Hujan" status={health[device.sensors.rainfall]} />
+        </div>
+      </section>
     </section>
+  );
+}
+
+function DeviceField({ label, value }: { readonly label: string; readonly value: string }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}
+function SensorHealthCard({ title, status }: { readonly title: string; readonly status: string }) {
+  const category = title === 'Kemiringan' ? 'tilt' : title === 'Kelembapan Tanah' ? 'soil' : 'rain';
+  return (
+    <article className={`sensor-health-card sensor-health-${category}`}>
+      <p>{title}</p>
+      <strong>{status}</strong>
+    </article>
   );
 }
 
@@ -305,56 +468,71 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
 
   if (data === null) return <ErrorBanner message={error ?? 'Memuat profil risiko…'} />;
   const fields = [
-    ['Kemiringan', 'tilt', data.tiltMagnitudeDeg],
-    ['Kelembapan tanah', 'soil', data.soilMoisturePct],
-    ['Curah hujan', 'rain', data.rainfallMmHour],
+    ['Kemiringan', 'tilt', '°', data.tiltMagnitudeDeg],
+    ['Kelembapan tanah', 'soil', '%', data.soilMoisturePct],
+    ['Curah hujan', 'rain', 'mm/jam', data.rainfallMmHour],
   ] as const;
   return (
-    <form
-      onSubmit={(event) => void submit(event)}
-      className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5"
-    >
-      <p className="text-sm text-slate-700">
-        Versi {data.version} · {data.calibrationStatus} · {formatDate(data.activatedAt)}
-      </p>
-      {fields.map(([label, key, thresholds]) => (
-        <fieldset key={key} className="grid gap-2">
-          <legend className="font-semibold text-slate-900">{label}</legend>
-          <label className="text-sm">
-            WATCH{' '}
-            <input
-              aria-label={`${label} WATCH`}
-              name={`${key}-watch`}
-              defaultValue={thresholds.watch}
-              type="number"
-              step="any"
-              className="ml-2 rounded border p-2"
-            />
-          </label>
-          <label className="text-sm">
-            DANGER{' '}
-            <input
-              aria-label={`${label} DANGER`}
-              name={`${key}-danger`}
-              defaultValue={thresholds.danger}
-              type="number"
-              step="any"
-              className="ml-2 rounded border p-2"
-            />
-          </label>
-        </fieldset>
-      ))}
-      <label className="grid gap-1 text-sm">
+    <form onSubmit={(event) => void submit(event)} className="profile-form">
+      <section className="profile-summary">
+        <div>
+          <p>Profil aktif</p>
+          <strong>Versi {data.version}</strong>
+        </div>
+        <div>
+          <p>Status kalibrasi</p>
+          <strong className="profile-calibration-status">{data.calibrationStatus}</strong>
+        </div>
+        <div>
+          <p>Diaktifkan</p>
+          <strong>{formatDate(data.activatedAt)}</strong>
+        </div>
+      </section>
+      <div className="threshold-card-grid">
+        {fields.map(([label, key, unit, thresholds]) => (
+          <fieldset key={key} className={`threshold-card threshold-${key}`}>
+            <legend>{label}</legend>
+            <p>Ambang evaluasi sensor.</p>
+            <label>
+              <span>WATCH</span>
+              <span className="threshold-input">
+                <input
+                  aria-label={`${label} WATCH`}
+                  name={`${key}-watch`}
+                  defaultValue={thresholds.watch}
+                  type="number"
+                  step="any"
+                />
+                <span aria-hidden="true">{unit}</span>
+              </span>
+            </label>
+            <label>
+              <span>DANGER</span>
+              <span className="threshold-input">
+                <input
+                  aria-label={`${label} DANGER`}
+                  name={`${key}-danger`}
+                  defaultValue={thresholds.danger}
+                  type="number"
+                  step="any"
+                />
+                <span aria-hidden="true">{unit}</span>
+              </span>
+            </label>
+          </fieldset>
+        ))}
+      </div>
+      <label className="profile-notes">
         Catatan
-        <textarea name="notes" defaultValue={data.notes ?? ''} className="rounded border p-2" />
+        <textarea name="notes" defaultValue={data.notes ?? ''} />
       </label>
-      <p className="text-sm text-slate-600">
+      <p className="profile-calibration-note">
         Threshold harus mengikuti keputusan kalibrasi lapangan yang tervalidasi.
       </p>
-      <button className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-white">
-        Simpan
-      </button>
-      {message !== null && <p role="status">{message}</p>}
+      <div className="profile-form-footer">
+        <button className="dashboard-button dashboard-button-dark">Simpan</button>
+        {message !== null && <p role="status">{message}</p>}
+      </div>
       <ErrorBanner message={error} />
     </form>
   );
@@ -402,38 +580,53 @@ export function AuditPanel({ client }: { readonly client: RequestClient }) {
     return () => window.clearTimeout(initialTimeoutId);
   }, [load]);
   return (
-    <section className="space-y-3">
+    <section className="audit-feed">
       <ErrorBanner message={error} />
-      {data?.data.length === 0 && <p>Belum ada perubahan status risiko.</p>}
-      {data?.data.map((entry) => (
-        <article key={entry.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-          <strong className="text-slate-950">
-            {riskLabel[entry.previousStatus]} → {riskLabel[entry.currentStatus]}
-          </strong>
-          <p className="mt-1 text-sm">
-            {formatDate(entry.occurredAt)} · {entry.reasons.map(riskReasonLabel).join(', ')}
-          </p>
-          <p className="mt-1 text-sm text-slate-600">
-            Tilt {entry.sensorSnapshot.tiltMagnitudeDeg ?? unavailable}, tanah{' '}
-            {entry.sensorSnapshot.soilMoisturePct ?? unavailable}, hujan{' '}
-            {entry.sensorSnapshot.rainfallMmHour ?? unavailable}
-          </p>
-          <p className="mt-1 text-xs text-slate-500">
-            Profil risiko v{entry.riskProfile.version ?? unavailable}
-          </p>
-        </article>
-      ))}
+      {data?.data.length === 0 && <p className="audit-empty">Belum ada perubahan status risiko.</p>}
+      <div className="audit-timeline">
+        {data?.data.map((entry) => (
+          <article
+            key={entry.id}
+            className={`audit-timeline-item ${auditTone(entry.currentStatus)}`}
+          >
+            <span aria-hidden="true" className="audit-timeline-dot" />
+            <p className="audit-timestamp">{formatDate(entry.occurredAt)}</p>
+            <strong className="audit-transition">
+              {riskLabel[entry.previousStatus]} → {riskLabel[entry.currentStatus]}
+            </strong>
+            <span className="audit-status-code">{entry.currentStatus}</span>
+            <p className="audit-reasons">{entry.reasons.map(riskReasonLabel).join(', ')}</p>
+            <p className="audit-snapshot">
+              Tilt {entry.sensorSnapshot.tiltMagnitudeDeg ?? unavailable}, tanah{' '}
+              {entry.sensorSnapshot.soilMoisturePct ?? unavailable}, hujan{' '}
+              {entry.sensorSnapshot.rainfallMmHour ?? unavailable}
+            </p>
+            <p className="audit-profile">
+              Profil risiko v{entry.riskProfile.version ?? unavailable}
+            </p>
+          </article>
+        ))}
+      </div>
       {data?.page.hasMore && data.page.nextCursor !== null && (
         <button
           type="button"
           onClick={() => void load(data.page.nextCursor ?? undefined)}
-          className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-white"
+          className="dashboard-button dashboard-button-dark"
         >
           Muat berikutnya
         </button>
       )}
     </section>
   );
+}
+
+function auditTone(status: Overview['data']['risk']['status']): string {
+  return {
+    SAFE: 'audit-safe',
+    WATCH: 'audit-watch',
+    DANGER: 'audit-danger',
+    UNKNOWN: 'audit-unknown',
+  }[status];
 }
 
 export function ProjectOwnerRequired() {
