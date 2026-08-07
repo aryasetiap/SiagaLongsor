@@ -1,5 +1,7 @@
 # Security and Operations
 
+> Historical security planning record. For current deployment operation and the accepted research-release limitations, use [Production Deployment and Operations](28_PRODUCTION_DEPLOYMENT_OPERATIONS.md) and [R10 Final Acceptance](27_R10_FINAL_ACCEPTANCE_REPORT.md). Items concerning Alerts, Map/SOP, queues, backup targets, or multi-instance operation are not claims of current final-product capability.
+
 ## 1. Threat model ringkas
 
 Aset utama:

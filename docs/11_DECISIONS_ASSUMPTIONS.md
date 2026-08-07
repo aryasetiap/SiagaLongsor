@@ -1,5 +1,7 @@
 # Decisions, Assumptions, and Open Questions
 
+> Historical planning record. The current authoritative product scope is [single-device scope reset](20_SCOPE_RESET_SINGLE_DEVICE.md) and R9/R10 acceptance evidence. Entries about cellular fallback, SSE, Maps, Alerts, Reports, and multi-device expansion are retained for traceability, not as current release requirements.
+
 ## 1. Keputusan yang dikunci
 
 | ID    | Keputusan                                                                                                                                 | Status   |

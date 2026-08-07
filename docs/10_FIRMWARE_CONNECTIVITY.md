@@ -1,5 +1,7 @@
 # Firmware and Dual Connectivity Integration
 
+> Historical connectivity planning record. The accepted R9/R10 physical baseline is Wi-Fi/NTP; cellular fallback and persistent flash queue remain outside required final release scope. Use [R9 integration contract](21_R9_ESP32_INTEGRATION_CONTRACT.md), [provisioning checklist](22_R9_PROVISIONING_AND_FIELD_CHECKLIST.md), and the firmware README for current guidance.
+
 ## 1. Target konektivitas
 
 - Wi-Fi: primary.
