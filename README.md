@@ -10,7 +10,9 @@ SiagaLongsor is a single-device software/research implementation for landslide-c
 
 ## Product
 
-The product has four pages: Overview, Perangkat, Profil Risiko, and Audit Log. Login supports access to those pages; it is not a fifth product module.
+The product has four pages: Overview, Perangkat, Profil Risiko, and Audit Log. Overview is a public
+read-only monitoring page. Login protects the three administrator pages; it is not a fifth product
+module.
 
 ## Architecture
 

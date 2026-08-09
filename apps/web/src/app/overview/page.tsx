@@ -1,27 +1,17 @@
 'use client';
 
 import { getDefaultApiClient } from '../../auth/default-api-client';
-import { ProtectedRoute } from '../../auth/protected-route';
-import { ApplicationShell } from '../../components/application-shell';
-import { OverviewPanel, ProjectOwnerRequired } from '../../single-device/panels';
+import { PublicDashboardShell } from '../../components/public-dashboard-shell';
+import { OverviewPanel } from '../../single-device/panels';
 
 export default function OverviewPage() {
   return (
-    <ProtectedRoute>
-      {(principal) => (
-        <ApplicationShell
-          principal={principal}
-          title="Overview"
-          subtitle="Ringkasan kondisi perangkat, sensor, dan tingkat risiko terkini."
-        >
-          {principal.memberships.some((membership) => membership.role === 'PROJECT_OWNER') ? (
-            <SingleDeviceOverview />
-          ) : (
-            <ProjectOwnerRequired />
-          )}
-        </ApplicationShell>
-      )}
-    </ProtectedRoute>
+    <PublicDashboardShell
+      title="Overview"
+      subtitle="Ringkasan publik kondisi sensor dan tingkat risiko terkini."
+    >
+      <SingleDeviceOverview />
+    </PublicDashboardShell>
   );
 }
 

@@ -2,12 +2,14 @@ import { SignedCursorService } from '../common/cursor/signed-cursor.service.js';
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 
 import type { AuthenticatedPrincipal } from '../authorization/authorization.types.js';
 import type { RequestWithContext } from '../common/http/request-context.js';
+import { APP_CONFIG, type AppConfig } from '../config/app-config.js';
 import { PrismaService } from '../database/prisma.service.js';
 import { Prisma, type AuditLog, type RiskProfile } from '../generated/prisma/client.js';
 import { DeviceLifecycleStatus } from '../generated/prisma/enums.js';
@@ -43,10 +45,11 @@ export class SingleDeviceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly cursors: SignedCursorService,
+    @Inject(APP_CONFIG) private readonly config: AppConfig,
   ) {}
 
-  async overview(principal: AuthenticatedPrincipal, query: OverviewQueryDto) {
-    const context = await this.resolve(principal, false);
+  async overview(query: OverviewQueryDto) {
+    const context = await this.resolvePublic(false);
     const now = new Date();
     const range = rangeOf(query, now);
     if (context === null)
@@ -62,6 +65,7 @@ export class SingleDeviceService {
           },
           readings: emptyReadings(),
           series: emptySeries(),
+          thresholds: null,
           range: {
             from: range.from.toISOString(),
             to: range.to.toISOString(),
@@ -123,6 +127,7 @@ export class SingleDeviceService {
           soilMoisturePct: rows.map((x) => point(x.deviceTimestamp, x.soilMoisturePct)),
           rainfallMmHour: rows.map((x) => point(x.deviceTimestamp, x.rainfallMmHour)),
         },
+        thresholds: publicThresholds(context.profile),
         range: { from: range.from.toISOString(), to: range.to.toISOString() },
       },
     };
@@ -391,37 +396,68 @@ export class SingleDeviceService {
       },
       include: contextDeviceInclude,
     });
-    if (devices.length > 1)
-      throw new ConflictException({
-        code: 'SINGLE_DEVICE_CONTEXT_AMBIGUOUS',
-        message: 'Lebih dari satu device deployment aktif ditemukan.',
-      });
-    if (devices.length === 0) {
-      if (required)
-        throw new NotFoundException({
-          code: 'SINGLE_DEVICE_CONTEXT_UNAVAILABLE',
-          message: 'Device deployment belum dikonfigurasi.',
-        });
-      return null;
-    }
-    const d = devices[0]!;
-    if (d.site.riskProfiles.length > 1) {
-      throw new ConflictException({
-        code: 'RISK_PROFILE_CONTEXT_AMBIGUOUS',
-        message: 'Lebih dari satu profil risiko aktif ditemukan.',
-      });
-    }
-    return {
-      ...d,
-      profile: d.site.riskProfiles[0] ?? null,
-    };
+    return singleDeviceContext(devices, required);
   }
+
+  private async resolvePublic(required: false): Promise<SingleDeviceContext | null>;
+  private async resolvePublic(required?: true): Promise<SingleDeviceContext>;
+  private async resolvePublic(required = true): Promise<SingleDeviceContext | null> {
+    const devices = await this.prisma.device.findMany({
+      where: {
+        ...(this.config.publicDashboard.hardwareId === null
+          ? {}
+          : { hardwareId: this.config.publicDashboard.hardwareId }),
+        lifecycleStatus: DeviceLifecycleStatus.ENABLED,
+        monitoringPoint: { isActive: true },
+      },
+      include: contextDeviceInclude,
+    });
+    return singleDeviceContext(devices, required);
+  }
+}
+function singleDeviceContext(
+  devices: readonly ContextDevice[],
+  required: boolean,
+): SingleDeviceContext | null {
+  if (devices.length > 1)
+    throw new ConflictException({
+      code: 'SINGLE_DEVICE_CONTEXT_AMBIGUOUS',
+      message: 'Lebih dari satu device deployment aktif ditemukan.',
+    });
+  if (devices.length === 0) {
+    if (required)
+      throw new NotFoundException({
+        code: 'SINGLE_DEVICE_CONTEXT_UNAVAILABLE',
+        message: 'Device deployment belum dikonfigurasi.',
+      });
+    return null;
+  }
+  const device = devices[0]!;
+  if (device.site.riskProfiles.length > 1) {
+    throw new ConflictException({
+      code: 'RISK_PROFILE_CONTEXT_AMBIGUOUS',
+      message: 'Lebih dari satu profil risiko aktif ditemukan.',
+    });
+  }
+  return {
+    ...device,
+    profile: device.site.riskProfiles[0] ?? null,
+  };
 }
 function emptyReadings() {
   return { tiltMagnitudeDeg: null, soilMoisturePct: null, rainfallMmHour: null };
 }
 function emptySeries() {
   return { tiltMagnitudeDeg: [], soilMoisturePct: [], rainfallMmHour: [] };
+}
+function publicThresholds(profile: RiskProfile | null) {
+  if (profile === null) return null;
+  const mapped = mapProfile(profile);
+  return {
+    tiltMagnitudeDeg: mapped.tiltMagnitudeDeg,
+    soilMoisturePct: mapped.soilMoisturePct,
+    rainfallMmHour: mapped.rainfallMmHour,
+  };
 }
 function point(timestamp: Date, value: Prisma.Decimal | null) {
   return { timestamp: timestamp.toISOString(), value: value?.toNumber() ?? null };

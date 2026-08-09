@@ -12,12 +12,22 @@ describe('parseAppConfig', () => {
     const config = parseAppConfig(requiredEnvironment);
 
     expect(config.port).toBe(3001);
+    expect(config.publicDashboard.hardwareId).toBeNull();
     expect(config.auth.accessTokenTtlSeconds).toBe(900);
     expect(config.auth.refreshTokenTtlSeconds).toBe(2_592_000);
     expect(config.auth.loginRateLimitMax).toBe(5);
     expect(config.telemetry.maxFutureSkewSeconds).toBe(300);
     expect(config.telemetry.rateLimitTtlMs).toBe(60_000);
     expect(config.telemetry.rateLimitMax).toBe(120);
+  });
+
+  it('accepts an explicit public dashboard device selector', () => {
+    const config = parseAppConfig({
+      ...requiredEnvironment,
+      PUBLIC_DEVICE_HARDWARE_ID: 'SIAGALONGSOR-001',
+    });
+
+    expect(config.publicDashboard.hardwareId).toBe('SIAGALONGSOR-001');
   });
 
   it('rejects an access-token secret shorter than 32 characters without echoing it', () => {

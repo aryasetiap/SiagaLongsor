@@ -8,23 +8,29 @@ Phase 02–06 work remains historical implementation and acceptance evidence. It
 
 ## Previous versus revised scope
 
-| Previous implementation direction                                  | Revised final product direction                                                     |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| Multi-device, multi-organization, multi-site operations            | One deployed physical ESP32 device                                                  |
-| Two-role workflow and management UX                                | Administrator authentication as supporting capability                               |
-| Alerts lifecycle, map, SOP, reports, settings                      | Four focused monitoring pages                                                       |
+| Previous implementation direction                                  | Revised final product direction                                                         |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| Multi-device, multi-organization, multi-site operations            | One deployed physical ESP32 device                                                      |
+| Two-role workflow and management UX                                | Administrator authentication as supporting capability                                   |
+| Alerts lifecycle, map, SOP, reports, settings                      | Four focused monitoring pages                                                           |
 | SSE/Redis/BullMQ/object storage as product-supporting expectations | HTTP + PostgreSQL single-instance runtime; legacy infrastructure removed after analysis |
 
 ## Four product pages
 
-1. **Overview** — latest relevant sensor readings, independent historical charts, authoritative hazard status, and last update/freshness. Missing data is not zero.
+1. **Overview** — public read-only latest sensor readings, independent historical charts,
+   authoritative hazard status, and last update/freshness. Missing data is not zero. The public
+   projection excludes device identity, full calibration configuration, and audit data; see ADR 0008.
 2. **Perangkat** — backend/device connectivity, last seen, per-sensor readable/unreadable/unknown condition, and authoritative firmware/hardware/battery diagnostics where available. This is not multi-device CRUD.
 3. **Profil Risiko** — administrator configuration of `WATCH` and `DANGER` thresholds for relevant hazard sensors, with validation, determinism, versioning, and auditability.
 4. **Audit Log** — hazard-status transitions with previous/current status, timestamp, reason, and sensor/profile context where available. Alert acknowledgement/resolve/false-alarm UI is not required.
 
 ## Supporting capabilities
 
-Authentication, API health check, authenticated device credential, telemetry ingestion, idempotency, PostgreSQL/Prisma persistence, history for charts, deterministic server-side risk evaluation, current device/risk state, and auditability remain required technical capabilities.
+Administrator authentication, API health check, authenticated device credential, telemetry
+ingestion, idempotency, PostgreSQL/Prisma persistence, history for charts, deterministic server-side
+risk evaluation, current device/risk state, and auditability remain required technical
+capabilities. Authentication protects Perangkat, Profil Risiko, and Audit Log but is not required
+for the read-only Overview.
 
 ## Explicitly out of scope
 

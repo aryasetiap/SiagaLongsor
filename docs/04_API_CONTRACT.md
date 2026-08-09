@@ -23,11 +23,14 @@
 > ```
 >
 > Target semantics: login/me untuk administrator; health untuk liveness API; telemetry memakai
-> credential perangkat dan idempotency; overview memberi current authoritative state dan history
+> credential perangkat dan idempotency; overview adalah projection publik read-only yang memberi current authoritative state dan history
 > sensor; device memberi konektivitas/last seen/health setiap sensor; risk profile memberi profile
 > threshold versioned dan PUT tervalidasi/auditable; audit log memprioritaskan transisi hazard
 > beserta alasan, snapshot, dan referensi profile bila ada. Required telemetry stale, offline,
 > invalid, atau unavailable selalu menghasilkan `UNKNOWN`, tidak pernah `SAFE`.
+> Overview hanya membuka status, freshness, pembacaan sensor bahaya, series, rentang, dan pasangan
+> threshold chart. Identitas device, detail kalibrasi, catatan profil, dan audit tetap memerlukan
+> autentikasi Project Owner.
 >
 > R2 memperbarui machine-readable OpenAPI **sebelum atau bersama** perubahan implementasi
 > menurut workflow contract-first. R1 sengaja tidak mengubah `specs/openapi.yaml` atau mendefinisikan

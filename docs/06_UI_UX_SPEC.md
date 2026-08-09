@@ -12,7 +12,12 @@ Sensor category surfaces are descriptive, not risk states: tilt is lavender/cool
 
 ## 3. Overview
 
-Overview presents a compact demonstration disclosure only in presentation mode, range controls, an authoritative dark risk hero, current sensor KPI cards, and ECharts time-series charts. The risk hero displays authoritative status, reason, freshness, observation context, and configured state without inventing metrics.
+Overview is a public read-only page and does not wait for or require an authenticated session. It
+presents a compact demonstration disclosure only in presentation mode, range controls, an
+authoritative dark risk hero, current sensor KPI cards, and ECharts time-series charts. The risk
+hero displays authoritative status, reason, freshness, observation context, and configured state
+without inventing metrics. Device diagnostics, risk-profile editing, and audit navigation remain
+available only in the authenticated administrator shell.
 
 Charts use actual timestamps, supplied active-profile WATCH/DANGER threshold lines, tooltip/crosshair interaction, and responsive ResizeObserver behavior. Missing readings remain null gaps: no interpolation, smoothing, line connection, or area fill crosses unavailable data. No fake search, notification, or monitoring metrics are displayed.
 

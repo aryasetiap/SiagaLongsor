@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApplicationShell } from '../components/application-shell';
+import { PublicDashboardShell } from '../components/public-dashboard-shell';
 import { AuthProvider, type AuthClient, useAuth } from './auth-context';
 import type { Principal, Role } from './auth-types';
 import { ProtectedRoute } from './protected-route';
@@ -54,6 +55,82 @@ describe('AuthProvider and protected content', () => {
     await vi.waitFor(() => expect(navigationMocks.replace).toHaveBeenCalledWith('/login'));
     expect(screen.queryByText('Rahasia protected')).not.toBeInTheDocument();
     expect(screen.queryByText(/Layanan autentikasi sedang tidak tersedia/)).not.toBeInTheDocument();
+  });
+
+  it('renders the public dashboard while session bootstrap is unresolved', () => {
+    const client = createClient({
+      bootstrapSession: () => new Promise<Principal | null>(() => {}),
+    });
+    render(
+      <AuthProvider client={client}>
+        <PublicDashboardShell title="Overview">
+          <p>Data pemantauan publik</p>
+        </PublicDashboardShell>
+      </AuthProvider>,
+    );
+
+    expect(screen.getByText('Data pemantauan publik')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Masuk administrator' })).toHaveAttribute(
+      'href',
+      '/login',
+    );
+    expect(navigationMocks.replace).not.toHaveBeenCalled();
+  });
+
+  it('shows the active school account and allows it to log out from the public dashboard', async () => {
+    const user = userEvent.setup();
+    const principal = createPrincipal('SCHOOL_ADMIN');
+    const logout = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AuthProvider
+        client={createClient({
+          bootstrapSession: vi.fn().mockResolvedValue(principal),
+          logout,
+        })}
+      >
+        <PublicDashboardShell title="Overview">
+          <p>Data pemantauan publik</p>
+        </PublicDashboardShell>
+      </AuthProvider>,
+    );
+
+    const accountMenu = await screen.findByLabelText('Menu akun Admin Sekolah');
+    expect(screen.queryByRole('link', { name: 'Masuk administrator' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Buka panel admin' })).not.toBeInTheDocument();
+
+    await user.click(accountMenu);
+    expect(
+      screen.getByText(/Akses administrasi perangkat hanya tersedia untuk Project Owner/),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Keluar' }));
+
+    expect(logout).toHaveBeenCalledOnce();
+    expect(navigationMocks.replace).toHaveBeenCalledWith('/login');
+  });
+
+  it('opens the complete administration shell directly for an authenticated project owner', async () => {
+    const principal = createPrincipal('PROJECT_OWNER');
+    render(
+      <AuthProvider
+        client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
+      >
+        <PublicDashboardShell title="Overview">
+          <p>Data pemantauan publik</p>
+        </PublicDashboardShell>
+      </AuthProvider>,
+    );
+
+    expect(await screen.findByRole('link', { name: /Overview/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByRole('link', { name: /Perangkat/ })).toHaveAttribute('href', '/devices');
+    expect(screen.getByRole('link', { name: /Profil Risiko/ })).toHaveAttribute(
+      'href',
+      '/settings/risk-profile',
+    );
+    expect(screen.queryByRole('link', { name: 'Masuk administrator' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Buka panel admin' })).not.toBeInTheDocument();
   });
 
   it('exposes an availability message when session bootstrap cannot reach the API', async () => {
