@@ -1,9 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import type { ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import { type ReactNode, useState } from 'react';
 
 import { useAuth } from '../auth/auth-context';
+import { ApplicationShell } from './application-shell';
 import { BrandMark } from './brand-mark';
 
 interface PublicDashboardShellProps {
@@ -13,9 +15,34 @@ interface PublicDashboardShellProps {
 }
 
 export function PublicDashboardShell({ children, title, subtitle }: PublicDashboardShellProps) {
+  const router = useRouter();
   const auth = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
+  const isAuthenticated = auth.status === 'authenticated' && auth.principal !== null;
   const hasAdminAccess =
     auth.principal?.memberships.some((membership) => membership.role === 'PROJECT_OWNER') ?? false;
+
+  async function logout(): Promise<void> {
+    setLoggingOut(true);
+    try {
+      await auth.logout();
+    } finally {
+      setLoggingOut(false);
+      router.replace('/login');
+    }
+  }
+
+  if (isAuthenticated && hasAdminAccess) {
+    return (
+      <ApplicationShell
+        principal={auth.principal}
+        title={title}
+        {...(subtitle === undefined ? {} : { subtitle })}
+      >
+        {children}
+      </ApplicationShell>
+    );
+  }
 
   return (
     <div className="app-shell min-h-screen md:p-4">
@@ -67,12 +94,53 @@ export function PublicDashboardShell({ children, title, subtitle }: PublicDashbo
               <p className="mt-1 text-sm text-slate-500">{subtitle ?? 'Dashboard publik'}</p>
             </div>
 
-            <Link
-              href={hasAdminAccess ? '/devices' : '/login'}
-              className="secondary-button bg-white"
-            >
-              {hasAdminAccess ? 'Buka panel admin' : 'Masuk administrator'}
-            </Link>
+            {isAuthenticated ? (
+              <div className="flex items-center gap-2">
+                <details className="group relative">
+                  <summary
+                    aria-label={`Menu akun ${auth.principal.name}`}
+                    className="flex cursor-pointer list-none items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
+                  >
+                    <span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-sm font-bold text-blue-700">
+                      {initials(auth.principal.name)}
+                    </span>
+                    <span className="hidden text-left sm:block">
+                      <span className="block max-w-44 truncate text-sm font-bold text-slate-900">
+                        {auth.principal.name}
+                      </span>
+                      <span className="block text-xs text-slate-500">Admin Sekolah</span>
+                    </span>
+                    <span aria-hidden="true" className="text-slate-400">
+                      ▾
+                    </span>
+                  </summary>
+                  <div className="absolute right-0 z-20 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
+                    <div className="border-b border-slate-100 px-2 pb-3">
+                      <p className="font-bold text-slate-950">{auth.principal.name}</p>
+                      <p className="mt-1 break-all text-xs text-slate-500">
+                        {auth.principal.email}
+                      </p>
+                    </div>
+                    <p className="my-2 rounded-xl bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
+                      Akun sekolah aktif. Akses administrasi perangkat hanya tersedia untuk Project
+                      Owner.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={loggingOut}
+                      onClick={() => void logout()}
+                      className="mt-2 w-full rounded-xl px-3 py-2.5 text-left text-sm font-bold text-red-700 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-red-600 disabled:opacity-60"
+                    >
+                      {loggingOut ? 'Mengakhiri sesi…' : 'Keluar'}
+                    </button>
+                  </div>
+                </details>
+              </div>
+            ) : (
+              <Link href="/login" className="secondary-button bg-white">
+                Masuk administrator
+              </Link>
+            )}
           </header>
 
           <main className="px-5 py-5 sm:px-8 sm:py-6">{children}</main>
@@ -80,4 +148,12 @@ export function PublicDashboardShell({ children, title, subtitle }: PublicDashbo
       </div>
     </div>
   );
+}
+
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('');
 }

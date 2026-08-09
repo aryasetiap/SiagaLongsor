@@ -77,6 +77,62 @@ describe('AuthProvider and protected content', () => {
     expect(navigationMocks.replace).not.toHaveBeenCalled();
   });
 
+  it('shows the active school account and allows it to log out from the public dashboard', async () => {
+    const user = userEvent.setup();
+    const principal = createPrincipal('SCHOOL_ADMIN');
+    const logout = vi.fn().mockResolvedValue(undefined);
+    render(
+      <AuthProvider
+        client={createClient({
+          bootstrapSession: vi.fn().mockResolvedValue(principal),
+          logout,
+        })}
+      >
+        <PublicDashboardShell title="Overview">
+          <p>Data pemantauan publik</p>
+        </PublicDashboardShell>
+      </AuthProvider>,
+    );
+
+    const accountMenu = await screen.findByLabelText('Menu akun Admin Sekolah');
+    expect(screen.queryByRole('link', { name: 'Masuk administrator' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Buka panel admin' })).not.toBeInTheDocument();
+
+    await user.click(accountMenu);
+    expect(
+      screen.getByText(/Akses administrasi perangkat hanya tersedia untuk Project Owner/),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Keluar' }));
+
+    expect(logout).toHaveBeenCalledOnce();
+    expect(navigationMocks.replace).toHaveBeenCalledWith('/login');
+  });
+
+  it('opens the complete administration shell directly for an authenticated project owner', async () => {
+    const principal = createPrincipal('PROJECT_OWNER');
+    render(
+      <AuthProvider
+        client={createClient({ bootstrapSession: vi.fn().mockResolvedValue(principal) })}
+      >
+        <PublicDashboardShell title="Overview">
+          <p>Data pemantauan publik</p>
+        </PublicDashboardShell>
+      </AuthProvider>,
+    );
+
+    expect(await screen.findByRole('link', { name: /Overview/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    );
+    expect(screen.getByRole('link', { name: /Perangkat/ })).toHaveAttribute('href', '/devices');
+    expect(screen.getByRole('link', { name: /Profil Risiko/ })).toHaveAttribute(
+      'href',
+      '/settings/risk-profile',
+    );
+    expect(screen.queryByRole('link', { name: 'Masuk administrator' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Buka panel admin' })).not.toBeInTheDocument();
+  });
+
   it('exposes an availability message when session bootstrap cannot reach the API', async () => {
     const client = createClient({
       bootstrapSession: vi.fn().mockRejectedValue(new Error('offline')),
