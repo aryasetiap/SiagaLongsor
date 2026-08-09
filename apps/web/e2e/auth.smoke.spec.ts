@@ -1,11 +1,13 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('smoke autentikasi SiagaLongsor', () => {
-  test('root mengarahkan pengguna tanpa sesi ke login', async ({ page }) => {
+  test('root membuka overview publik untuk pengguna tanpa sesi', async ({ page }) => {
     await page.goto('/');
 
-    await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByRole('heading', { name: 'Selamat datang kembali' })).toBeVisible();
+    await expect(page).toHaveURL(/\/overview$/);
+    await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
+    await expect(page.getByRole('navigation', { name: 'Navigasi publik' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Masuk administrator' })).toBeVisible();
   });
 
   test('form login tampil dan dapat digunakan dengan keyboard', async ({ page }) => {
@@ -24,8 +26,8 @@ test.describe('smoke autentikasi SiagaLongsor', () => {
     await expect(page).toHaveURL(/\/login$/);
   });
 
-  test('protected overview mengarahkan pengguna tanpa sesi ke login', async ({ page }) => {
-    await page.goto('/overview');
+  test('halaman administrator mengarahkan pengguna tanpa sesi ke login', async ({ page }) => {
+    await page.goto('/devices');
 
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole('button', { name: 'Masuk ke SiagaLongsor' })).toBeEnabled();
