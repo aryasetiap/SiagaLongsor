@@ -53,7 +53,6 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [presentationView, setPresentationView] = useState(false);
 
   useEffect(() => {
@@ -70,11 +69,6 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
     try {
       setLoading(true);
       setData(await getSingleDeviceOverview(client, from.toISOString(), to.toISOString()));
-      try {
-        setProfile((await getSingleDeviceRiskProfile(client)).data);
-      } catch {
-        setProfile(null);
-      }
       setError(null);
       setLastRefreshedAt(new Date());
     } catch (caught) {
@@ -232,7 +226,7 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
                 title={label}
                 unit={unit}
                 values={data.data.series[key]}
-                thresholds={profile?.[key]}
+                thresholds={data.data.thresholds?.[key]}
               />
             ))}
           </div>

@@ -31,6 +31,7 @@ API_PORT
 API_TRUST_PROXY_HOPS
 WEB_URL
 DATABASE_URL
+PUBLIC_DEVICE_HARDWARE_ID
 AUTH_ACCESS_TOKEN_SECRET
 AUTH_JWT_ISSUER
 AUTH_JWT_AUDIENCE
@@ -41,7 +42,12 @@ AUTH_LOGIN_RATE_LIMIT_TTL_MS
 AUTH_LOGIN_RATE_LIMIT_MAX
 ```
 
-Seed variables are bootstrap/development/operator-provisioning inputs, not a runtime authentication fallback. Frontend build inputs are `NEXT_PUBLIC_API_BASE_URL` and `NEXT_PUBLIC_PRESENTATION_MODE=false`. `NEXT_PUBLIC_*` values are embedded in the Next.js browser build; production must not use presentation mode.
+`PUBLIC_DEVICE_HARDWARE_ID` selects the one enabled deployment exposed by the public read-only
+Overview. Set it explicitly in production so legacy records cannot become the public source by
+accident. Seed variables are bootstrap/development/operator-provisioning inputs, not a runtime
+authentication fallback. Frontend build inputs are `NEXT_PUBLIC_API_BASE_URL` and
+`NEXT_PUBLIC_PRESENTATION_MODE=false`. `NEXT_PUBLIC_*` values are embedded in the Next.js browser
+build; production must not use presentation mode.
 
 ## 5. Pre-deployment checks
 
@@ -82,7 +88,9 @@ Terminate public browser/API traffic with TLS; do not expose PostgreSQL publicly
 
 ## 9. Health verification
 
-Verify `GET /api/v1/health`, then smoke test login, Overview, Perangkat, read-only Profil Risiko, Audit Log, and logout. Verify device telemetry only with authorized credentials.
+Verify `GET /api/v1/health`, then open Overview without a session. Confirm that Perangkat, Profil
+Risiko, and Audit Log still require a Project Owner login, then test logout. Verify device telemetry
+only with authorized credentials.
 
 ## 10. Physical provisioning
 

@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Put, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Put, Query, Req, UseGuards } from '@nestjs/common';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 
 import { CurrentPrincipal } from '../authorization/current-principal.decorator.js';
+import { Public } from '../authorization/public.decorator.js';
 import type { AuthenticatedPrincipal } from '../authorization/authorization.types.js';
 import { Roles } from '../authorization/roles.decorator.js';
 import type { RequestWithContext } from '../common/http/request-context.js';
@@ -12,11 +14,14 @@ import { SingleDeviceService } from './single-device.service.js';
 @Roles(Role.PROJECT_OWNER)
 export class SingleDeviceController {
   constructor(private readonly service: SingleDeviceService) {}
-  @Get('overview') overview(
-    @CurrentPrincipal() p: AuthenticatedPrincipal,
-    @Query() q: OverviewQueryDto,
-  ) {
-    return this.service.overview(p, q);
+
+  @Public()
+  @Roles()
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 120, ttl: 60_000 } })
+  @Get('overview')
+  overview(@Query() q: OverviewQueryDto) {
+    return this.service.overview(q);
   }
   @Get('device') device(@CurrentPrincipal() p: AuthenticatedPrincipal) {
     return this.service.device(p);

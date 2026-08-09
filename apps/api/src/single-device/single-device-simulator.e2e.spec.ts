@@ -28,6 +28,7 @@ describe('R4 simulator single-device HTTP acceptance', () => {
   const userId = `r4-owner-${run}`;
   const email = `r4-owner-${run}@example.invalid`;
   const password = `R4-password-${run}`;
+  const hardwareId = `R4_${run}`.toUpperCase();
   let app: INestApplication;
   let prisma: PrismaService;
   let token: string;
@@ -35,7 +36,7 @@ describe('R4 simulator single-device HTTP acceptance', () => {
   let baseUrl: string;
 
   beforeAll(async () => {
-    environment();
+    environment(hardwareId);
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = module.createNestApplication<NestExpressApplication>();
     configureApp(app as NestExpressApplication);
@@ -93,7 +94,6 @@ describe('R4 simulator single-device HTTP acceptance', () => {
       },
     });
     const issued = await app.get(DeviceCredentialService).issue();
-    const hardwareId = `R4_${run}`.toUpperCase();
     await prisma.device.create({
       data: {
         organizationId,
@@ -341,7 +341,7 @@ describe('R4 simulator single-device HTTP acceptance', () => {
   });
 });
 
-function environment(): void {
+function environment(publicDeviceHardwareId: string): void {
   process.env.NODE_ENV = 'test';
   process.env.WEB_URL = 'http://localhost:3000';
   process.env.AUTH_ACCESS_TOKEN_SECRET = 'r4-integration-access-secret-at-least-32-chars';
@@ -349,4 +349,5 @@ function environment(): void {
   process.env.AUTH_JWT_AUDIENCE = 'siagalongsor-web-test';
   process.env.AUTH_LOGIN_RATE_LIMIT_MAX = '100';
   process.env.TELEMETRY_RATE_LIMIT_MAX = '120';
+  process.env.PUBLIC_DEVICE_HARDWARE_ID = publicDeviceHardwareId;
 }

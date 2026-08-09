@@ -10,7 +10,7 @@ Jadi Docker saja belum cukup: Node.js 24 dan pnpm (melalui Corepack) juga diperl
 
 ## 1. Prasyarat
 
-1. Instal dan buka **Docker Desktop**. Pada Windows, pilih backend WSL 2 saat proses instalasi bila diminta. Tunggu sampai status Docker Desktop menunjukkan *Engine running*.
+1. Instal dan buka **Docker Desktop**. Pada Windows, pilih backend WSL 2 saat proses instalasi bila diminta. Tunggu sampai status Docker Desktop menunjukkan _Engine running_.
 2. Instal **Node.js 24.x** (bukan Node 20 atau versi lain). Proyek menetapkan rentang yang valid: `>=24.0.0 <25`.
 3. Buka PowerShell baru, lalu masuk ke folder proyek:
 
@@ -43,6 +43,8 @@ Buka `.env` dengan editor, lalu ganti semua nilai placeholder berikut dengan nil
 - `POSTGRES_PASSWORD`
 - bagian password pada `DATABASE_URL` — harus **sama persis** dengan `POSTGRES_PASSWORD`
 - `AUTH_ACCESS_TOKEN_SECRET` — minimal 32 karakter acak
+- `PUBLIC_DEVICE_HARDWARE_ID` — samakan dengan hardware ID perangkat yang boleh tampil pada
+  Overview publik
 - `SEED_PROJECT_OWNER_PASSWORD` — minimal 12 karakter
 - `SEED_SCHOOL_ADMIN_PASSWORD` — minimal 12 karakter dan berbeda dari password owner
 
@@ -99,11 +101,11 @@ Gunakan `Ctrl+C` untuk berhenti mengikuti log; container tetap berjalan.
 
 Port default yang dipakai:
 
-| Komponen | Port di komputer | Catatan |
-| --- | ---: | --- |
-| PostgreSQL | `55432` | Port internal container tetap `5432`. |
-| API | `3001` | Dijalankan oleh Node, bukan Docker. |
-| Web | `3000` | Dijalankan oleh Node, bukan Docker. |
+| Komponen   | Port di komputer | Catatan                               |
+| ---------- | ---------------: | ------------------------------------- |
+| PostgreSQL |          `55432` | Port internal container tetap `5432`. |
+| API        |           `3001` | Dijalankan oleh Node, bukan Docker.   |
+| Web        |           `3000` | Dijalankan oleh Node, bukan Docker.   |
 
 ## 5. Membuat struktur database dan data akun awal
 

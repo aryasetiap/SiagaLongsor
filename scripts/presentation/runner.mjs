@@ -187,6 +187,7 @@ function presentationEnvironment(config) {
     NODE_ENV: 'production',
     API_PORT: '3002',
     WEB_URL: webUrl,
+    PUBLIC_DEVICE_HARDWARE_ID: 'PRESENTATION-DEMO-001',
     DATABASE_URL: `postgresql://siagalongsor:${encodeURIComponent(config.PRESENTATION_POSTGRES_PASSWORD)}@localhost:55433/siagalongsor_presentation`,
     AUTH_ACCESS_TOKEN_SECRET: config.PRESENTATION_AUTH_SECRET,
     SEED_ORGANIZATION_NAME: 'SiagaLongsor Presentation',

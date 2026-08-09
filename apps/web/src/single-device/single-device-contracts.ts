@@ -24,6 +24,10 @@ export interface Overview {
       'tiltMagnitudeDeg' | 'soilMoisturePct' | 'rainfallMmHour',
       readonly SeriesPoint[]
     >;
+    readonly thresholds: Record<
+      'tiltMagnitudeDeg' | 'soilMoisturePct' | 'rainfallMmHour',
+      Threshold
+    > | null;
     readonly range: { readonly from: string; readonly to: string };
   };
 }

@@ -86,9 +86,12 @@ describe('single-device frontend contract', () => {
     expect(await screen.findByText('TIDAK DIKETAHUI')).toBeInTheDocument();
     expect(screen.getByText('UNKNOWN', { exact: true })).toBeInTheDocument();
     await user.selectOptions(screen.getByLabelText('Rentang histori'), '5');
-    await waitFor(() => expect(request).toHaveBeenCalledTimes(4));
-    const path = request.mock.calls[2]?.[0] as string;
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
+    const path = request.mock.calls[1]?.[0] as string;
     expect(path).toMatch(/^\/overview\?from=/);
+    expect(
+      request.mock.calls.every(([requestedPath]) => String(requestedPath).startsWith('/overview?')),
+    ).toBe(true);
   });
 
   it('shows the synthetic-data banner only in explicit presentation mode', async () => {
@@ -196,6 +199,11 @@ function overview(status: 'SAFE' | 'UNKNOWN') {
       risk: { status, reasons: [], observedAt: null, freshness: 'ONLINE' },
       readings: { tiltMagnitudeDeg: 1, soilMoisturePct: 2, rainfallMmHour: 3 },
       series: { tiltMagnitudeDeg: [], soilMoisturePct: [], rainfallMmHour: [] },
+      thresholds: {
+        tiltMagnitudeDeg: { watch: 3, danger: 8 },
+        soilMoisturePct: { watch: 50, danger: 80 },
+        rainfallMmHour: { watch: 10, danger: 30 },
+      },
       range: { from: '2026-01-01T00:00:00.000Z', to: '2026-01-01T01:00:00.000Z' },
     },
   };

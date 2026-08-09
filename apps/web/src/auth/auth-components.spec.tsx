@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ApplicationShell } from '../components/application-shell';
+import { PublicDashboardShell } from '../components/public-dashboard-shell';
 import { AuthProvider, type AuthClient, useAuth } from './auth-context';
 import type { Principal, Role } from './auth-types';
 import { ProtectedRoute } from './protected-route';
@@ -54,6 +55,26 @@ describe('AuthProvider and protected content', () => {
     await vi.waitFor(() => expect(navigationMocks.replace).toHaveBeenCalledWith('/login'));
     expect(screen.queryByText('Rahasia protected')).not.toBeInTheDocument();
     expect(screen.queryByText(/Layanan autentikasi sedang tidak tersedia/)).not.toBeInTheDocument();
+  });
+
+  it('renders the public dashboard while session bootstrap is unresolved', () => {
+    const client = createClient({
+      bootstrapSession: () => new Promise<Principal | null>(() => {}),
+    });
+    render(
+      <AuthProvider client={client}>
+        <PublicDashboardShell title="Overview">
+          <p>Data pemantauan publik</p>
+        </PublicDashboardShell>
+      </AuthProvider>,
+    );
+
+    expect(screen.getByText('Data pemantauan publik')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Masuk administrator' })).toHaveAttribute(
+      'href',
+      '/login',
+    );
+    expect(navigationMocks.replace).not.toHaveBeenCalled();
   });
 
   it('exposes an availability message when session bootstrap cannot reach the API', async () => {

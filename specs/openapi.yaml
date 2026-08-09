@@ -14,9 +14,12 @@ paths:
   /overview:
     get:
       tags: [SingleDevice]
-      summary: Read the single-device monitoring overview
-      security: [{ bearerAuth: [] }]
-      x-required-roles: [PROJECT_OWNER]
+      summary: Read the public single-device monitoring overview
+      description: >-
+        Public read-only projection containing risk, sensor readings, time series, and chart
+        thresholds. Device identity, calibration details, profile notes, and audit data are not
+        exposed by this operation.
+      security: []
       parameters:
         - name: from
           in: query
@@ -35,9 +38,8 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/SingleDeviceOverviewResponse' }
         '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 
   /device:
     get:
@@ -1022,14 +1024,28 @@ components:
     SingleDeviceOverviewData:
       type: object
       additionalProperties: false
-      required: [generatedAt, configured, risk, readings, series, range]
+      required: [generatedAt, configured, risk, readings, series, thresholds, range]
       properties:
         generatedAt: { type: string, format: date-time }
         configured: { type: boolean }
         risk: { $ref: '#/components/schemas/SingleDeviceOverviewRisk' }
         readings: { $ref: '#/components/schemas/SingleDeviceSensorReadings' }
         series: { $ref: '#/components/schemas/SingleDeviceSeries' }
+        thresholds:
+          description: Public threshold projection used to annotate charts; null until a profile is available.
+          oneOf:
+            - { $ref: '#/components/schemas/SingleDeviceOverviewThresholds' }
+            - { type: 'null' }
         range: { $ref: '#/components/schemas/SingleDeviceOverviewRange' }
+
+    SingleDeviceOverviewThresholds:
+      type: object
+      additionalProperties: false
+      required: [tiltMagnitudeDeg, soilMoisturePct, rainfallMmHour]
+      properties:
+        tiltMagnitudeDeg: { $ref: '#/components/schemas/SingleDeviceThreshold' }
+        soilMoisturePct: { $ref: '#/components/schemas/SingleDeviceThreshold' }
+        rainfallMmHour: { $ref: '#/components/schemas/SingleDeviceThreshold' }
 
     SingleDeviceOverviewResponse:
       type: object

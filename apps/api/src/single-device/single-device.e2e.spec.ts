@@ -30,7 +30,7 @@ describe('R2 single-device facade', () => {
   let sequence = 0;
 
   beforeAll(async () => {
-    env();
+    env(`R2_${run}`.toUpperCase());
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
     app = module.createNestApplication<NestExpressApplication>();
     configureApp(app as NestExpressApplication);
@@ -71,11 +71,16 @@ describe('R2 single-device facade', () => {
   });
 
   it('returns safe not-configured device and unavailable profile without a deployment', async () => {
-    const [device, profile, overview] = await Promise.all([
-      get('/device'),
-      get('/risk-profile'),
-      get('/overview'),
-    ]);
+    const [device, profile, overview, publicOverview, publicDevice, publicProfile, publicAudit] =
+      await Promise.all([
+        get('/device'),
+        get('/risk-profile'),
+        get('/overview'),
+        publicGet('/overview'),
+        publicGet('/device'),
+        publicGet('/risk-profile'),
+        publicGet('/audit-log'),
+      ]);
     expect(device.status).toBe(200);
     expect(device.body.data).toMatchObject({
       configured: false,
@@ -85,6 +90,15 @@ describe('R2 single-device facade', () => {
     expect(profile.status).toBe(404);
     expect(profile.body.error.code).toBe('SINGLE_DEVICE_CONTEXT_UNAVAILABLE');
     expect(overview.body.data.risk.status).toBe('UNKNOWN');
+    expect(publicOverview.status).toBe(200);
+    expect(publicOverview.body.data).toMatchObject({
+      configured: false,
+      thresholds: null,
+      risk: { status: 'UNKNOWN' },
+    });
+    expect([publicDevice.status, publicProfile.status, publicAudit.status]).toEqual([
+      401, 401, 401,
+    ]);
     expect(overview.body.data.range).toEqual(
       expect.objectContaining({ from: expect.any(String), to: expect.any(String) }),
     );
@@ -101,6 +115,16 @@ describe('R2 single-device facade', () => {
     });
     const safe = await get('/overview');
     expect(safe.body.data).toMatchObject({
+      configured: true,
+      risk: { status: 'SAFE' },
+      readings: { tiltMagnitudeDeg: 1, soilMoisturePct: 10, rainfallMmHour: 1 },
+      thresholds: {
+        tiltMagnitudeDeg: { watch: 3, danger: 8 },
+        soilMoisturePct: { watch: 50, danger: 80 },
+        rainfallMmHour: { watch: 10, danger: 30 },
+      },
+    });
+    expect((await publicGet('/overview')).body.data).toMatchObject({
       configured: true,
       risk: { status: 'SAFE' },
       readings: { tiltMagnitudeDeg: 1, soilMoisturePct: 10, rainfallMmHour: 1 },
@@ -448,6 +472,9 @@ describe('R2 single-device facade', () => {
   function get(path: string): Promise<Response> {
     return http.get(`/api/v1${path}`).set('Authorization', `Bearer ${token}`);
   }
+  function publicGet(path: string): Promise<Response> {
+    return http.get(`/api/v1${path}`);
+  }
   function ingest(
     readings: Record<string, number | null>,
     timestamp = new Date().toISOString(),
@@ -509,7 +536,7 @@ function jakartaCalendarDate(date: Date, daysAgo: number): string {
     .toISOString()
     .slice(0, 10);
 }
-function env() {
+function env(publicDeviceHardwareId: string) {
   process.env.NODE_ENV = 'test';
   process.env.WEB_URL = 'http://localhost:3000';
   process.env.AUTH_ACCESS_TOKEN_SECRET = 'integration-only-access-secret-at-least-32-chars';
@@ -520,4 +547,5 @@ function env() {
   process.env.TELEMETRY_MAX_FUTURE_SKEW_SECONDS = '300';
   process.env.TELEMETRY_RATE_LIMIT_MAX = '120';
   process.env.TELEMETRY_RATE_LIMIT_TTL_MS = '60000';
+  process.env.PUBLIC_DEVICE_HARDWARE_ID = publicDeviceHardwareId;
 }
