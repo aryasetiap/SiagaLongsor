@@ -9,13 +9,18 @@ only. Risk status remains server-authoritative.
 
 | Function           | Hardware                             | ESP32 pin          |
 | ------------------ | ------------------------------------ | ------------------ |
-| I2C SDA            | MPU6050 and optional LCD backpack    | GPIO21             |
-| I2C SCL            | MPU6050 and optional LCD backpack    | GPIO22             |
+| I2C SDA            | MPU6050                              | GPIO21             |
+| I2C SCL            | MPU6050                              | GPIO22             |
 | Soil analog output | Capacitive Soil Moisture Sensor V2.0 | GPIO34 / ADC1      |
 | Rain pulse         | PLA+ tipping bucket                  | GPIO27 / interrupt |
+| LCD RS             | LCD1602A pin RS                      | GPIO13             |
+| LCD Enable         | LCD1602A pin E                       | GPIO14             |
+| LCD data bit 4-7   | LCD1602A pins D4-D7                 | GPIO16-GPIO19      |
 
 All sensor logic uses 3.3 V. There is no battery measurement circuit,
 cellular modem, RTC, SD card, buzzer, or siren in this pass.
+
+See [`PINOUT.md`](PINOUT.md) for the complete sensor and LCD wiring table.
 
 ## Build and upload
 
@@ -53,14 +58,49 @@ printed by the firmware.
 
 ## First boot diagnostics
 
-Serial output reports boot ID, discovered I2C addresses, MPU6050 identity,
-soil raw ADC/calibration status, rain pulse configuration, Wi-Fi/RSSI, NTP
-state, queue depth, and HTTP delivery status. No password, secret, or
-Authorization header is printed.
+Serial output reports boot ID, MPU6050 identity, soil raw ADC/calibration
+status, rain pulse configuration, Wi-Fi/RSSI, NTP state, queue depth, and HTTP
+delivery status. No password, secret, or Authorization header is printed.
 
-The LCD is optional. Startup scans all I2C addresses and reports them; no
-backpack address or controller mapping is assumed. If no LCD is found, all
-sensors and telemetry continue normally.
+### LCD1602A 16-pin parallel display
+
+The supported display is the bare HD44780-compatible LCD1602A with pins
+`K, A, D7-D0, E, RW, RS, V0, VDD, VSS`. Firmware uses 4-bit mode, so D0-D3 are
+not connected:
+
+| LCD1602A pin | Connection |
+| ------------ | ---------- |
+| VSS          | GND |
+| VDD          | Supply voltage specified by the LCD module datasheet |
+| V0           | Wiper of a 10 kOhm contrast potentiometer; outer pins to VDD and GND |
+| RS           | ESP32 GPIO13 |
+| RW           | GND; firmware only writes to the LCD |
+| E            | ESP32 GPIO14 |
+| D0-D3        | Not connected |
+| D4           | ESP32 GPIO16 |
+| D5           | ESP32 GPIO17 |
+| D6           | ESP32 GPIO18 |
+| D7           | ESP32 GPIO19 |
+| A            | Backlight anode supply through the current limiting required by the module |
+| K            | GND/backlight cathode |
+
+ESP32 GPIO is not 5 V tolerant. Keep `RW` tied to GND so the LCD never drives
+its data pins toward the ESP32. If the LCD is powered at 5 V, confirm in its
+datasheet that a 3.3 V control signal is accepted as HIGH; otherwise place a
+one-way 3.3 V-to-5 V logic buffer on RS, E, and D4-D7. Some modules include a
+backlight resistor and some do not, so verify before connecting pin A.
+
+If the backlight turns on but text is absent or garbled, first adjust the
+contrast potentiometer and then verify RS, E, and the D4-D7 order.
+
+After startup, the two-row display alternates every five seconds between:
+
+- calibrated tilt and calibrated soil moisture;
+- rainfall rate and Wi-Fi RSSI/telemetry queue depth.
+
+Unavailable or uncalibrated sensor values are rendered as `--`, never as zero.
+The LCD does not show a local SAFE/WATCH/DANGER claim because the backend risk
+engine remains authoritative.
 
 ## Sensor behavior
 
@@ -203,8 +243,8 @@ sent.
 4. Manually tip the bucket several times and compare counted pulses with the
    vendor nominal 0.70 mm/tip; update the local calibration only after field
    measurement.
-5. Verify the optional LCD backpack voltage/controller before connecting it;
-   never assume 5 V I2C is safe for ESP32 pins.
+5. Verify the LCD supply, logic-level compatibility, contrast potentiometer,
+   and backlight current limiting before connecting it.
 6. Provision the Device using the R9 checklist, send one sample, and inspect
    Perangkat, Overview, and Audit Log.
 

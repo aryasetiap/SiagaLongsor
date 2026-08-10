@@ -134,14 +134,21 @@ For the locked R9-B1 hardware, the wiring is:
 
 | Function                     | Pin    |
 | ---------------------------- | ------ |
-| Shared I2C SDA (MPU6050/LCD) | GPIO21 |
-| Shared I2C SCL (MPU6050/LCD) | GPIO22 |
+| I2C SDA (MPU6050)            | GPIO21 |
+| I2C SCL (MPU6050)            | GPIO22 |
 | Soil analog output (ADC1)    | GPIO34 |
 | Rain pulse input             | GPIO27 |
+| LCD RS                       | GPIO13 |
+| LCD E                        | GPIO14 |
+| LCD D4-D7                    | GPIO16-GPIO19 |
 
-Use 3.3 V logic. The LCD backpack address/controller remains unconfirmed;
-the firmware scans I2C and continues without an LCD. There is no battery
-measurement circuit, cellular modem, RTC, SD card, buzzer, or siren in R9-B1.
+Firmware drives the bare 16-pin LCD1602A in 4-bit mode. Tie LCD `RW` to GND,
+leave D0-D3 disconnected, and wire D4-D7 in order to GPIO16-GPIO19. Use a
+10 kOhm potentiometer on V0 for contrast. Confirm the LCD supply voltage,
+3.3 V logic-level compatibility, and backlight current limiting on the
+physical unit before acceptance; ESP32 GPIO is not 5 V tolerant. There is no
+battery measurement circuit, cellular modem, RTC, SD card, buzzer, or siren
+in R9-B1.
 
 ## 8. Send first telemetry
 

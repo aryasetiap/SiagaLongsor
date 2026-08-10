@@ -25,13 +25,18 @@
 #ifndef TILT_REFERENCE_CALIBRATED
 #define TILT_REFERENCE_CALIBRATED false
 #endif
-
 namespace firmware {
 
 constexpr uint8_t I2C_SDA_PIN = 21;
 constexpr uint8_t I2C_SCL_PIN = 22;
 constexpr uint8_t SOIL_ADC_PIN = 34;
 constexpr uint8_t RAIN_PULSE_PIN = 27;
+constexpr uint8_t LCD_RS_PIN = 13;
+constexpr uint8_t LCD_ENABLE_PIN = 14;
+constexpr uint8_t LCD_D4_PIN = 16;
+constexpr uint8_t LCD_D5_PIN = 17;
+constexpr uint8_t LCD_D6_PIN = 18;
+constexpr uint8_t LCD_D7_PIN = 19;
 
 constexpr uint32_t SERIAL_BAUD = 115200;
 constexpr uint32_t SENSOR_INTERVAL_MS = 5000;

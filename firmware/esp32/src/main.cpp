@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h>
+#include <math.h>
 
 #include "clock_service.hpp"
 #include "device_identity.hpp"
@@ -19,11 +20,39 @@ firmware::WifiManager wifi;
 firmware::Mpu6050 mpu(Wire);
 firmware::SoilSensor soil;
 firmware::RainSensor rain;
-firmware::LcdDisplay lcd(Wire);
+firmware::LcdDisplay lcd;
 firmware::TelemetryClient telemetry;
 uint32_t nextSensorAt = 0;
 bool mpuAvailable = false;
+bool showSensorPage = true;
+
+String measurementLine(const char* label, float value, const char* unit) {
+  String line(label);
+  line += ':';
+  if (isnan(value)) {
+    line += " --";
+    return line;
+  }
+  line += String(value, 1);
+  line += unit;
+  return line;
 }
+
+String connectivityLine() {
+  String line;
+  if (wifi.connected()) {
+    line = "WiFi:";
+    line += String(wifi.rssi());
+    line += "dBm";
+  } else {
+    line = "WiFi:putus";
+  }
+  line += " Q:";
+  line += String(telemetry.depth());
+  return line;
+}
+
+}  // namespace
 
 void setup() {
   Serial.begin(firmware::SERIAL_BAUD);
@@ -32,7 +61,8 @@ void setup() {
   identity.begin();
 
   Wire.begin(firmware::I2C_SDA_PIN, firmware::I2C_SCL_PIN);
-  lcd.scan();
+  lcd.begin();
+  lcd.show("SiagaLongsor", "Memulai sistem");
   mpuAvailable = mpu.begin();
   firmware::TiltReference tiltReference;
   tiltReference.xDeg = TILT_REFERENCE_X_DEG;
@@ -48,6 +78,7 @@ void setup() {
   Serial.println("battery measurement hardware absent; batteryVoltage=null");
 
   wifi.begin();
+  lcd.show("SiagaLongsor", "WiFi menghubung");
   clockService.begin();
   telemetry.begin();
   nextSensorAt = millis();
@@ -59,11 +90,37 @@ void loop() {
   rain.update(now, firmware::RAIN_SAMPLE_INTERVAL_MS);
   if (static_cast<int32_t>(now - nextSensorAt) >= 0) {
     nextSensorAt = now + firmware::SENSOR_INTERVAL_MS;
-    firmware::TiltReading rawTilt{};
-    const bool rawTiltReadable = mpuAvailable && mpu.readRawOrientation(rawTilt);
-    if (!mpu.calibrated() && rawTiltReadable) {
-      Serial.printf("tilt raw reference candidate x=%.2f y=%.2f\n", rawTilt.xDeg, rawTilt.yDeg);
+
+    firmware::TiltReading tilt{};
+    bool tiltReadable = false;
+    if (mpuAvailable && mpu.calibrated()) {
+      tiltReadable = mpu.read(tilt);
+    } else if (mpuAvailable) {
+      firmware::TiltReading rawTilt{};
+      if (mpu.readRawOrientation(rawTilt)) {
+        Serial.printf("tilt raw reference candidate x=%.2f y=%.2f\n", rawTilt.xDeg, rawTilt.yDeg);
+      }
     }
+
+    int rawSoil = 0;
+    float soilPercentage = NAN;
+    const bool soilReadable = soil.read(soilPercentage, rawSoil);
+    Serial.printf("soil raw=%d calibration=%s\n", rawSoil,
+                  soil.calibrated() ? "ready" : "unavailable");
+
+    const firmware::RainReading rainReading = rain.reading();
+    const bool rainReadable = rainReading.state == firmware::RainSampleState::VALID_ZERO ||
+                              rainReading.state == firmware::RainSampleState::VALID_NONZERO;
+
+    if (showSensorPage) {
+      lcd.show(measurementLine("Tilt", tiltReadable ? tilt.magnitudeDeg : NAN, "deg"),
+               measurementLine("Tanah", soilReadable ? soilPercentage : NAN, "%"));
+    } else {
+      lcd.show(measurementLine("Hujan", rainReadable ? rainReading.rainfallMmHour : NAN, "mm/j"),
+               connectivityLine());
+    }
+    showSensorPage = !showSensorPage;
+
     if (!clockService.synchronized()) {
       Serial.println("clock unavailable; sensor acquisition continues, telemetry deferred");
     } else {
@@ -75,8 +132,7 @@ void loop() {
       sample.firmwareVersion = "r9b1-esp32";
       sample.signalRssi = wifi.rssi();
 
-      firmware::TiltReading tilt{};
-      if (mpuAvailable && mpu.read(tilt)) {
+      if (tiltReadable) {
         sample.tiltXDeg = tilt.xDeg;
         sample.tiltYDeg = tilt.yDeg;
         sample.tiltMagnitudeDeg = tilt.magnitudeDeg;
@@ -86,14 +142,9 @@ void loop() {
         sample.tiltMagnitudeDeg = NAN;
       }
 
-      int rawSoil = 0;
-      float soilPercentage = NAN;
-      if (soil.read(soilPercentage, rawSoil)) sample.soilMoisturePct = soilPercentage;
-      Serial.printf("soil raw=%d calibration=%s\n", rawSoil, soil.calibrated() ? "ready" : "unavailable");
+      if (soilReadable) sample.soilMoisturePct = soilPercentage;
 
-      const firmware::RainReading rainReading = rain.reading();
-      if (rainReading.state == firmware::RainSampleState::VALID_ZERO ||
-          rainReading.state == firmware::RainSampleState::VALID_NONZERO) {
+      if (rainReadable) {
         sample.rainfallMmHour = rainReading.rainfallMmHour;
       }
       sample.batteryVoltage = NAN;

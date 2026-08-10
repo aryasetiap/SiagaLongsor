@@ -2,13 +2,20 @@
 
 import { useEffect, useId, useMemo, useRef } from 'react';
 import * as echarts from 'echarts/core';
-import { LineChart } from 'echarts/charts';
+import { LineChart, ScatterChart } from 'echarts/charts';
 import { GridComponent, MarkLineComponent, TooltipComponent } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 
 import type { SeriesPoint, Threshold } from './single-device-contracts';
 
-echarts.use([LineChart, GridComponent, MarkLineComponent, TooltipComponent, CanvasRenderer]);
+echarts.use([
+  LineChart,
+  ScatterChart,
+  GridComponent,
+  MarkLineComponent,
+  TooltipComponent,
+  CanvasRenderer,
+]);
 
 export interface ChartStats {
   readonly current: number | null;
