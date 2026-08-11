@@ -1,6 +1,6 @@
 'use client';
 
-import { type FormEvent, useCallback, useEffect, useState } from 'react';
+import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
 
 import type { ApiClient } from '../auth/api-client';
 import { readPublicWebConfig } from '../config/public-env';
@@ -24,15 +24,198 @@ import { InteractiveChart } from './interactive-chart';
 
 const unavailable = 'Data tidak tersedia';
 type RequestClient = Pick<ApiClient, 'request'>;
-const overviewRanges = [
-  [5, '5m', '5 menit'],
-  [15, '15m', '15 menit'],
-  [60, '1j', '1 jam'],
-  [360, '6j', '6 jam'],
-  [1440, '24j', '24 jam'],
-  [4320, '72j', '72 jam'],
-  [10080, '7h', '7 hari'],
+type OverviewRangeMode =
+  'quick-5' | 'quick-15' | 'quick-60' | 'quick-360' | 'daily' | 'weekly' | 'monthly';
+interface OverviewRange {
+  readonly mode: OverviewRangeMode;
+  readonly shortLabel: string;
+  readonly label: string;
+  readonly group: 'quick' | 'period';
+  readonly minutes?: number;
+}
+const overviewRanges: readonly OverviewRange[] = [
+  { mode: 'quick-5', minutes: 5, shortLabel: '5m', label: '5 menit', group: 'quick' },
+  { mode: 'quick-15', minutes: 15, shortLabel: '15m', label: '15 menit', group: 'quick' },
+  { mode: 'quick-60', minutes: 60, shortLabel: '1j', label: '1 jam', group: 'quick' },
+  { mode: 'quick-360', minutes: 360, shortLabel: '6j', label: '6 jam', group: 'quick' },
+  {
+    mode: 'daily',
+    shortLabel: 'Harian',
+    label: 'Harian — pilih tanggal',
+    group: 'period',
+  },
+  {
+    mode: 'weekly',
+    shortLabel: 'Mingguan',
+    label: 'Mingguan — pilih minggu',
+    group: 'period',
+  },
+  {
+    mode: 'monthly',
+    shortLabel: 'Bulanan',
+    label: 'Bulanan — pilih bulan',
+    group: 'period',
+  },
 ] as const;
+
+type OverviewSensorKey = keyof Overview['data']['readings'];
+interface OverviewSensorDefinition {
+  readonly label: string;
+  readonly key: OverviewSensorKey;
+  readonly unit: string;
+  readonly description: string;
+}
+const overviewSensors: readonly OverviewSensorDefinition[] = [
+  {
+    label: 'Kemiringan',
+    key: 'tiltMagnitudeDeg',
+    unit: '°',
+    description: 'Perubahan kemiringan lereng terhadap posisi referensi hasil kalibrasi.',
+  },
+  {
+    label: 'Kelembapan tanah',
+    key: 'soilMoisturePct',
+    unit: '%',
+    description: 'Persentase kelembapan tanah berdasarkan hasil kalibrasi sensor.',
+  },
+  {
+    label: 'Curah hujan',
+    key: 'rainfallMmHour',
+    unit: 'mm/jam',
+    description: 'Intensitas curah hujan yang dihitung dari pulsa tipping bucket.',
+  },
+] as const;
+
+function resolveOverviewRange({
+  mode,
+  selectedDay,
+  selectedWeek,
+  selectedMonth,
+  now,
+}: {
+  readonly mode: OverviewRangeMode;
+  readonly selectedDay: string;
+  readonly selectedWeek: string;
+  readonly selectedMonth: string;
+  readonly now: Date;
+}): { readonly from: Date; readonly to: Date } {
+  const quick = overviewRanges.find((range) => range.mode === mode)?.minutes;
+  if (quick !== undefined) return { from: new Date(now.getTime() - quick * 60_000), to: now };
+
+  let from: Date;
+  let periodEnd: Date;
+  if (mode === 'monthly') {
+    from = parseLocalMonth(selectedMonth);
+    periodEnd = new Date(from.getFullYear(), from.getMonth() + 1, 1);
+  } else if (mode === 'weekly') {
+    from = parseLocalWeek(selectedWeek);
+    periodEnd = addLocalDays(from, 7);
+  } else {
+    from = parseLocalDate(selectedDay);
+    periodEnd = addLocalDays(from, 1);
+  }
+  return { from, to: periodEnd < now ? periodEnd : now };
+}
+
+function overviewPeriodLabel(
+  mode: OverviewRangeMode,
+  selectedDay: string,
+  selectedWeek: string,
+  selectedMonth: string,
+): string {
+  const quick = overviewRanges.find((range) => range.mode === mode);
+  if (quick?.minutes !== undefined) return `${quick.label} terakhir`;
+  if (mode === 'monthly') {
+    const month = parseLocalMonth(selectedMonth).toLocaleDateString('id-ID', {
+      month: 'long',
+      year: 'numeric',
+    });
+    return `Bulanan · ${month}`;
+  }
+  if (mode === 'weekly') {
+    const start = parseLocalWeek(selectedWeek);
+    const end = addLocalDays(start, 6);
+    return `Mingguan · ${formatCalendarDate(start)} – ${formatCalendarDate(end)}`;
+  }
+  return `Harian · ${parseLocalDate(selectedDay).toLocaleDateString('id-ID', {
+    dateStyle: 'long',
+  })}`;
+}
+
+function isCurrentOverviewPeriod(
+  mode: OverviewRangeMode,
+  selectedDay: string,
+  selectedWeek: string,
+  selectedMonth: string,
+): boolean {
+  const now = new Date();
+  if (mode === 'monthly') return selectedMonth >= localMonthInputValue(now);
+  if (mode === 'weekly') return selectedWeek >= localWeekInputValue(now);
+  if (mode === 'daily') return selectedDay >= localDateInputValue(now);
+  return true;
+}
+
+function shiftOverviewPeriod(mode: OverviewRangeMode, value: string, amount: -1 | 1): string {
+  if (mode === 'monthly') {
+    const month = parseLocalMonth(value);
+    return localMonthInputValue(new Date(month.getFullYear(), month.getMonth() + amount, 1));
+  }
+  if (mode === 'weekly')
+    return localWeekInputValue(addLocalDays(parseLocalWeek(value), 7 * amount));
+  if (mode === 'daily') return localDateInputValue(addLocalDays(parseLocalDate(value), amount));
+  return value;
+}
+
+function localDateInputValue(date: Date): string {
+  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}`;
+}
+
+function localMonthInputValue(date: Date): string {
+  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}`;
+}
+
+function localWeekInputValue(date: Date): string {
+  const utc = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const weekday = utc.getUTCDay() || 7;
+  utc.setUTCDate(utc.getUTCDate() + 4 - weekday);
+  const weekYear = utc.getUTCFullYear();
+  const yearStart = new Date(Date.UTC(weekYear, 0, 1));
+  const week = Math.ceil(((utc.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
+  return `${weekYear}-W${padDatePart(week)}`;
+}
+
+function parseLocalDate(value: string): Date {
+  const [year = 0, month = 1, day = 1] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function parseLocalMonth(value: string): Date {
+  const [year = 0, month = 1] = value.split('-').map(Number);
+  return new Date(year, month - 1, 1);
+}
+
+function parseLocalWeek(value: string): Date {
+  const match = /^(\d{4})-W(\d{2})$/.exec(value);
+  const year = Number(match?.[1] ?? 0);
+  const week = Number(match?.[2] ?? 1);
+  const januaryFourth = new Date(year, 0, 4);
+  const weekday = januaryFourth.getDay() || 7;
+  januaryFourth.setDate(januaryFourth.getDate() - weekday + 1 + (week - 1) * 7);
+  januaryFourth.setHours(0, 0, 0, 0);
+  return januaryFourth;
+}
+
+function addLocalDays(date: Date, days: number): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+function formatCalendarDate(date: Date): string {
+  return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function padDatePart(value: number): string {
+  return String(value).padStart(2, '0');
+}
 
 function formatDate(value: string | null): string {
   return value === null ? unavailable : new Date(value).toLocaleString('id-ID');
@@ -48,12 +231,18 @@ function ErrorBanner({ message }: { readonly message: string | null }) {
 
 export function OverviewPanel({ client }: { readonly client: RequestClient }) {
   const presentationMode = readPublicWebConfig().presentationMode;
-  const [minutes, setMinutes] = useState(() => (presentationMode ? 5 : 24 * 60));
+  const [rangeMode, setRangeMode] = useState<OverviewRangeMode>(() =>
+    presentationMode ? 'quick-5' : 'daily',
+  );
+  const [selectedDay, setSelectedDay] = useState(() => localDateInputValue(new Date()));
+  const [selectedWeek, setSelectedWeek] = useState(() => localWeekInputValue(new Date()));
+  const [selectedMonth, setSelectedMonth] = useState(() => localMonthInputValue(new Date()));
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
   const [presentationView, setPresentationView] = useState(false);
+  const [selectedSensor, setSelectedSensor] = useState<OverviewSensorKey | null>(null);
 
   useEffect(() => {
     const exit = (event: KeyboardEvent) => {
@@ -64,8 +253,13 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
   }, []);
 
   const load = useCallback(async () => {
-    const to = new Date();
-    const from = new Date(to.getTime() - minutes * 60 * 1000);
+    const { from, to } = resolveOverviewRange({
+      mode: rangeMode,
+      selectedDay,
+      selectedWeek,
+      selectedMonth,
+      now: new Date(),
+    });
     try {
       setLoading(true);
       setData(await getSingleDeviceOverview(client, from.toISOString(), to.toISOString()));
@@ -76,7 +270,7 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
     } finally {
       setLoading(false);
     }
-  }, [client, minutes]);
+  }, [client, rangeMode, selectedDay, selectedMonth, selectedWeek]);
 
   useEffect(() => {
     const initialTimeoutId = window.setTimeout(() => void load(), 0);
@@ -87,11 +281,33 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
     };
   }, [load, presentationMode]);
 
-  const readings = [
-    ['Kemiringan', 'tiltMagnitudeDeg', '°'],
-    ['Kelembapan tanah', 'soilMoisturePct', '%'],
-    ['Curah hujan', 'rainfallMmHour', 'mm/jam'],
-  ] as const;
+  const selectedSensorDefinition = overviewSensors.find((sensor) => sensor.key === selectedSensor);
+  const activeRange = overviewRanges.find((range) => range.mode === rangeMode);
+  const periodLabel = overviewPeriodLabel(rangeMode, selectedDay, selectedWeek, selectedMonth);
+  const periodIsCurrent = isCurrentOverviewPeriod(
+    rangeMode,
+    selectedDay,
+    selectedWeek,
+    selectedMonth,
+  );
+  const periodPickerValue =
+    rangeMode === 'monthly' ? selectedMonth : rangeMode === 'weekly' ? selectedWeek : selectedDay;
+  const periodPickerMax =
+    rangeMode === 'monthly'
+      ? localMonthInputValue(new Date())
+      : rangeMode === 'weekly'
+        ? localWeekInputValue(new Date())
+        : localDateInputValue(new Date());
+  const updatePeriodValue = (value: string) => {
+    if (value === '' || value > periodPickerMax) return;
+    if (rangeMode === 'monthly') setSelectedMonth(value);
+    else if (rangeMode === 'weekly') setSelectedWeek(value);
+    else setSelectedDay(value);
+  };
+  const shiftPeriod = (amount: -1 | 1) => {
+    const shifted = shiftOverviewPeriod(rangeMode, periodPickerValue, amount);
+    updatePeriodValue(shifted);
+  };
 
   return (
     <section
@@ -117,35 +333,54 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
             <span>Data dapat berasal dari simulator</span>
           </p>
         )}
-        <div className="range-pills" role="group" aria-label="Pilihan rentang waktu">
-          {overviewRanges.map(([value, shortLabel, label]) => (
-            <button
-              key={value}
-              type="button"
-              className={minutes === value ? 'active' : ''}
-              aria-pressed={minutes === value}
-              aria-label={label}
-              onClick={() => setMinutes(value)}
-            >
-              {shortLabel}
-            </button>
-          ))}
+        <div className="overview-range-control">
+          <span className="overview-range-label">Rentang data</span>
+          <div className="range-pills" role="group" aria-label="Pilihan rentang waktu">
+            {overviewRanges.map((range, index) => (
+              <span key={range.mode} className="range-pill-item">
+                {index > 0 && overviewRanges[index - 1]?.group !== range.group && (
+                  <span className="range-pill-divider" aria-hidden="true" />
+                )}
+                <button
+                  type="button"
+                  className={rangeMode === range.mode ? 'active' : ''}
+                  aria-pressed={rangeMode === range.mode}
+                  aria-label={range.label}
+                  onClick={() => setRangeMode(range.mode)}
+                >
+                  {range.shortLabel}
+                </button>
+              </span>
+            ))}
+          </div>
         </div>
         <label className="sr-only" htmlFor="overview-range">
           Rentang histori
         </label>
         <select
           id="overview-range"
-          value={minutes}
-          onChange={(event) => setMinutes(Number(event.target.value))}
+          value={rangeMode}
+          onChange={(event) => setRangeMode(event.target.value as OverviewRangeMode)}
           className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
         >
-          {overviewRanges.map(([value, , label]) => (
-            <option key={value} value={value}>
-              {label}
+          {overviewRanges.map((range) => (
+            <option key={range.mode} value={range.mode}>
+              {range.label}
             </option>
           ))}
         </select>
+        {activeRange?.group === 'period' && (
+          <CalendarPeriodPicker
+            mode={rangeMode}
+            value={periodPickerValue}
+            max={periodPickerMax}
+            label={periodLabel}
+            nextDisabled={periodIsCurrent}
+            onChange={updatePeriodValue}
+            onPrevious={() => shiftPeriod(-1)}
+            onNext={() => shiftPeriod(1)}
+          />
+        )}
         <button
           type="button"
           onClick={() => void load()}
@@ -198,7 +433,7 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
               </div>
             </div>
             <div className="overview-kpis grid gap-3 md:grid-cols-3">
-              {readings.map(([label, key, unit]) => {
+              {overviewSensors.map(({ label, key, unit }) => {
                 const value = data.data.readings[key];
                 return (
                   <CurrentSensorCard
@@ -215,25 +450,242 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
           <div className="history-heading">
             <div>
               <h2>Riwayat Sensor</h2>
-              <p>Perubahan pembacaan pada rentang waktu yang dipilih.</p>
+              <p>
+                {periodLabel}
+                {rangeMode === 'weekly' || rangeMode === 'monthly'
+                  ? ' · Data diringkas untuk menjaga grafik tetap ringan.'
+                  : ''}
+              </p>
             </div>
             <p className="history-gap-hint">Celah grafik menunjukkan data sensor tidak tersedia.</p>
           </div>
           <div className="overview-chart-grid grid gap-4">
-            {readings.map(([label, key, unit]) => (
+            {overviewSensors.map(({ label, key, unit }) => (
               <InteractiveChart
                 key={key}
                 title={label}
                 unit={unit}
                 values={data.data.series[key]}
                 thresholds={data.data.thresholds?.[key]}
+                onOpenDetails={() => setSelectedSensor(key)}
               />
             ))}
           </div>
+          {selectedSensorDefinition !== undefined && (
+            <SensorOverviewDialog
+              sensor={selectedSensorDefinition}
+              currentValue={data.data.readings[selectedSensorDefinition.key]}
+              values={data.data.series[selectedSensorDefinition.key]}
+              thresholds={data.data.thresholds?.[selectedSensorDefinition.key]}
+              range={data.data.range}
+              onClose={() => setSelectedSensor(null)}
+            />
+          )}
         </>
       )}
     </section>
   );
+}
+
+function CalendarPeriodPicker({
+  mode,
+  value,
+  max,
+  label,
+  nextDisabled,
+  onChange,
+  onPrevious,
+  onNext,
+}: {
+  readonly mode: OverviewRangeMode;
+  readonly value: string;
+  readonly max: string;
+  readonly label: string;
+  readonly nextDisabled: boolean;
+  readonly onChange: (value: string) => void;
+  readonly onPrevious: () => void;
+  readonly onNext: () => void;
+}) {
+  const type = mode === 'monthly' ? 'month' : mode === 'weekly' ? 'week' : 'date';
+  const periodName = mode === 'monthly' ? 'bulan' : mode === 'weekly' ? 'minggu' : 'tanggal';
+  return (
+    <div className="calendar-period-picker" aria-label={`Pemilih ${periodName}`}>
+      <button type="button" aria-label={`${periodName} sebelumnya`} onClick={onPrevious}>
+        ‹
+      </button>
+      <label>
+        <span className="sr-only">Pilih {periodName}</span>
+        <input
+          type={type}
+          value={value}
+          max={max}
+          aria-label={`Pilih ${periodName}`}
+          title={label}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </label>
+      <button
+        type="button"
+        aria-label={`${periodName} berikutnya`}
+        disabled={nextDisabled}
+        onClick={onNext}
+      >
+        ›
+      </button>
+    </div>
+  );
+}
+
+function SensorOverviewDialog({
+  sensor,
+  currentValue,
+  values,
+  thresholds,
+  range,
+  onClose,
+}: {
+  readonly sensor: OverviewSensorDefinition;
+  readonly currentValue: number | null;
+  readonly values: Overview['data']['series'][OverviewSensorKey];
+  readonly thresholds?: Threshold | undefined;
+  readonly range: Overview['data']['range'];
+  readonly onClose: () => void;
+}) {
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const validValues = values.filter(
+    (point): point is typeof point & { readonly value: number } => point.value !== null,
+  );
+  const latest = validValues.at(-1) ?? null;
+  const effectiveCurrent = currentValue ?? latest?.value ?? null;
+  const sensorStatus =
+    effectiveCurrent === null || thresholds === undefined
+      ? 'Tidak diketahui'
+      : effectiveCurrent >= thresholds.danger
+        ? 'Bahaya'
+        : effectiveCurrent >= thresholds.watch
+          ? 'Waspada'
+          : 'Aman';
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeButton.current?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="dialog-backdrop sensor-overview-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="sensor-overview-title"
+        className="dialog-panel sensor-overview-dialog"
+      >
+        <header className="sensor-overview-header">
+          <div className="sensor-overview-title-group">
+            <span className="sensor-overview-icon" aria-hidden="true">
+              <SensorIcon title={sensor.label} />
+            </span>
+            <div>
+              <p>Overview sensor</p>
+              <h2 id="sensor-overview-title">{sensor.label}</h2>
+            </div>
+          </div>
+          <button
+            ref={closeButton}
+            type="button"
+            className="sensor-overview-close"
+            aria-label={`Tutup detail ${sensor.label}`}
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </header>
+
+        <p className="sensor-overview-description">{sensor.description}</p>
+        <div className="sensor-overview-metrics">
+          <SensorOverviewMetric
+            label="Pembacaan terkini"
+            value={
+              effectiveCurrent === null
+                ? 'Data tidak tersedia'
+                : `${formatSensorValue(effectiveCurrent)} ${sensor.unit}`
+            }
+          />
+          <SensorOverviewMetric label="Posisi terhadap ambang" value={sensorStatus} />
+          <SensorOverviewMetric
+            label="Data valid"
+            value={`${validValues.length} dari ${values.length} pembacaan`}
+          />
+          <SensorOverviewMetric
+            label="Terakhir terbaca"
+            value={latest === null ? 'Data tidak tersedia' : formatDate(latest.timestamp)}
+          />
+        </div>
+
+        <div className="sensor-overview-thresholds">
+          <span>
+            Rentang {formatDate(range.from)} – {formatDate(range.to)}
+          </span>
+          {thresholds === undefined ? (
+            <span>Ambang belum dikonfigurasi</span>
+          ) : (
+            <>
+              <span className="sensor-threshold sensor-threshold-watch">
+                Waspada ≥ {formatSensorValue(thresholds.watch)} {sensor.unit}
+              </span>
+              <span className="sensor-threshold sensor-threshold-danger">
+                Bahaya ≥ {formatSensorValue(thresholds.danger)} {sensor.unit}
+              </span>
+            </>
+          )}
+        </div>
+
+        <InteractiveChart
+          title={sensor.label}
+          unit={sensor.unit}
+          values={values}
+          thresholds={thresholds}
+          expanded
+        />
+        <p className="sensor-overview-note">
+          Status risiko utama tetap dihitung backend dari gabungan seluruh sensor dan kondisi
+          perangkat.
+        </p>
+      </section>
+    </div>
+  );
+}
+
+function SensorOverviewMetric({
+  label,
+  value,
+}: {
+  readonly label: string;
+  readonly value: string;
+}) {
+  return (
+    <div>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function formatSensorValue(value: number): string {
+  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(value);
 }
 
 function CurrentSensorCard({

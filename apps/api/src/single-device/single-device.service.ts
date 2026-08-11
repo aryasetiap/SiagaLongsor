@@ -16,12 +16,20 @@ import { DeviceLifecycleStatus } from '../generated/prisma/enums.js';
 import type { AuditQueryDto, OverviewQueryDto, SingleRiskProfileDto } from './single-device.dto.js';
 
 const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
+const MAX_OVERVIEW_RANGE = 31 * DAY;
 const contextDeviceInclude = {
   site: {
     include: { riskProfiles: { where: { isActive: true }, orderBy: { version: 'desc' }, take: 2 } },
   },
 } satisfies Prisma.DeviceInclude;
 type ContextDevice = Prisma.DeviceGetPayload<{ include: typeof contextDeviceInclude }>;
+interface OverviewSeriesRow {
+  readonly deviceTimestamp: Date;
+  readonly tiltMagnitudeDeg: Prisma.Decimal | null;
+  readonly soilMoisturePct: Prisma.Decimal | null;
+  readonly rainfallMmHour: Prisma.Decimal | null;
+}
 interface SingleDeviceContext extends ContextDevice {
   readonly profile: RiskProfile | null;
 }
@@ -77,16 +85,7 @@ export class SingleDeviceService {
         where: { monitoringPointId: context.monitoringPointId },
         include: { latestTelemetry: true },
       }),
-      this.prisma.telemetry.findMany({
-        where: { deviceId: context.id, deviceTimestamp: { gte: range.from, lt: range.to } },
-        orderBy: [{ deviceTimestamp: 'asc' }, { id: 'asc' }],
-        select: {
-          deviceTimestamp: true,
-          tiltMagnitudeDeg: true,
-          soilMoisturePct: true,
-          rainfallMmHour: true,
-        },
-      }),
+      this.overviewSeries(context.id, range.from, range.to),
     ]);
     const telemetry = state?.latestTelemetry ?? null;
     const freshness = freshnessOf(
@@ -131,6 +130,45 @@ export class SingleDeviceService {
         range: { from: range.from.toISOString(), to: range.to.toISOString() },
       },
     };
+  }
+
+  private async overviewSeries(
+    deviceId: string,
+    from: Date,
+    to: Date,
+  ): Promise<readonly OverviewSeriesRow[]> {
+    const duration = to.getTime() - from.getTime();
+    if (duration <= DAY)
+      return this.prisma.telemetry.findMany({
+        where: { deviceId, deviceTimestamp: { gte: from, lt: to } },
+        orderBy: [{ deviceTimestamp: 'asc' }, { id: 'asc' }],
+        select: {
+          deviceTimestamp: true,
+          tiltMagnitudeDeg: true,
+          soilMoisturePct: true,
+          rainfallMmHour: true,
+        },
+      });
+
+    const bucketMinutes = duration <= 7 * DAY ? 15 : 60;
+    const rows = await this.prisma.$queryRaw<OverviewSeriesRow[]>(Prisma.sql`
+      SELECT
+        date_bin(
+          make_interval(mins => ${bucketMinutes}::int),
+          "deviceTimestamp",
+          ${from}
+        ) AS "deviceTimestamp",
+        AVG("tiltMagnitudeDeg") AS "tiltMagnitudeDeg",
+        AVG("soilMoisturePct") AS "soilMoisturePct",
+        AVG("rainfallMmHour") AS "rainfallMmHour"
+      FROM "Telemetry"
+      WHERE "deviceId" = ${deviceId}
+        AND "deviceTimestamp" >= ${from}
+        AND "deviceTimestamp" < ${to}
+      GROUP BY 1
+      ORDER BY 1 ASC
+    `);
+    return fillOverviewBuckets(rows, from, to, bucketMinutes);
   }
 
   async device(principal: AuthenticatedPrincipal) {
@@ -472,13 +510,35 @@ function rangeOf(q: OverviewQueryDto, now: Date) {
     Number.isNaN(from.getTime()) ||
     Number.isNaN(to.getTime()) ||
     from >= to ||
-    to.getTime() - from.getTime() > 168 * HOUR
+    to.getTime() - from.getTime() > MAX_OVERVIEW_RANGE
   )
     throw new BadRequestException({
       code: 'VALIDATION_ERROR',
       message: 'Rentang Overview tidak valid.',
     });
   return { from, to };
+}
+
+function fillOverviewBuckets(
+  rows: readonly OverviewSeriesRow[],
+  from: Date,
+  to: Date,
+  bucketMinutes: number,
+): readonly OverviewSeriesRow[] {
+  const interval = bucketMinutes * 60_000;
+  const byTimestamp = new Map(rows.map((row) => [row.deviceTimestamp.getTime(), row]));
+  const result: OverviewSeriesRow[] = [];
+  for (let timestamp = from.getTime(); timestamp < to.getTime(); timestamp += interval) {
+    result.push(
+      byTimestamp.get(timestamp) ?? {
+        deviceTimestamp: new Date(timestamp),
+        tiltMagnitudeDeg: null,
+        soilMoisturePct: null,
+        rainfallMmHour: null,
+      },
+    );
+  }
+  return result;
 }
 function freshnessOf(
   received: Date | null,

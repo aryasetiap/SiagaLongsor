@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 
@@ -29,7 +30,7 @@ export default function LoginPage() {
           <div className="absolute -right-24 -top-24 size-80 rounded-full bg-emerald-400/15 blur-3xl" />
           <div className="absolute -bottom-20 -left-20 size-72 rounded-full bg-cyan-400/10 blur-3xl" />
           <div className="relative">
-            <BrandMark inverted />
+            <LoginBrandLockup inverted />
           </div>
           <div className="relative max-w-lg">
             <p className="mb-5 inline-flex rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-semibold text-emerald-100">
@@ -58,7 +59,7 @@ export default function LoginPage() {
         <section className="flex items-center px-6 py-10 sm:px-12 lg:px-16">
           <div className="mx-auto w-full max-w-md">
             <div className="mb-9 lg:hidden">
-              <BrandMark />
+              <LoginBrandLockup />
             </div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
               Portal pengguna
@@ -78,5 +79,28 @@ export default function LoginPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function LoginBrandLockup({ inverted = false }: { readonly inverted?: boolean }) {
+  return (
+    <div className={`login-brand-lockup ${inverted ? 'login-brand-lockup-inverted' : ''}`}>
+      <BrandMark inverted={inverted} />
+      <span className="login-brand-divider" aria-hidden="true" />
+      <div className="login-unila-lockup">
+        <Image
+          src="/brand/logo-unila.png"
+          alt="Logo Universitas Lampung"
+          width={48}
+          height={48}
+          className="login-unila-logo"
+          priority
+        />
+        <span className="login-unila-copy">
+          <strong>Universitas Lampung</strong>
+          <span>Fakultas Teknik</span>
+        </span>
+      </div>
+    </div>
   );
 }

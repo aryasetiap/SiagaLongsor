@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useMemo, useRef } from 'react';
+import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useId, useMemo, useRef } from 'react';
 import * as echarts from 'echarts/core';
 import { LineChart, ScatterChart } from 'echarts/charts';
 import { GridComponent, MarkLineComponent, TooltipComponent } from 'echarts/components';
@@ -152,11 +152,15 @@ export function InteractiveChart({
   unit,
   values,
   thresholds,
+  expanded = false,
+  onOpenDetails,
 }: {
   readonly title: string;
   readonly unit: string;
   readonly values: readonly SeriesPoint[];
   readonly thresholds?: Threshold | undefined;
+  readonly expanded?: boolean;
+  readonly onOpenDetails?: (() => void) | undefined;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const chart = useRef<echarts.ECharts | null>(null);
@@ -192,8 +196,21 @@ export function InteractiveChart({
   useEffect(() => {
     chart.current?.setOption(option, { notMerge: true, lazyUpdate: true });
   }, [option]);
+  const openOnKeyboard = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (onOpenDetails !== undefined && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault();
+      onOpenDetails();
+    }
+  };
   return (
-    <article className="chart-card min-w-0 bg-white">
+    <article
+      className={`chart-card min-w-0 bg-white ${expanded ? 'chart-card-expanded' : ''} ${onOpenDetails === undefined ? '' : 'chart-card-clickable'}`}
+      role={onOpenDetails === undefined ? undefined : 'button'}
+      tabIndex={onOpenDetails === undefined ? undefined : 0}
+      aria-label={onOpenDetails === undefined ? undefined : `Buka detail sensor ${title}`}
+      onClick={onOpenDetails}
+      onKeyDown={openOnKeyboard}
+    >
       <header className="chart-card-header">
         <div>
           <h2 id={id} className="font-bold text-slate-950">
@@ -203,11 +220,18 @@ export function InteractiveChart({
             {stats.current === null ? '—' : `${format(stats.current)} ${unit}`}
           </p>
         </div>
-        <dl className="chart-card-stats">
-          <Metric label="Min" value={stats.min} unit={unit} />
-          <Metric label="Avg" value={stats.average} unit={unit} />
-          <Metric label="Maks" value={stats.max} unit={unit} />
-        </dl>
+        <div className="chart-card-summary">
+          <dl className="chart-card-stats">
+            <Metric label="Min" value={stats.min} unit={unit} />
+            <Metric label="Avg" value={stats.average} unit={unit} />
+            <Metric label="Maks" value={stats.max} unit={unit} />
+          </dl>
+          {onOpenDetails !== undefined && (
+            <span className="chart-card-open-hint" aria-hidden="true">
+              Lihat detail <span>↗</span>
+            </span>
+          )}
+        </div>
       </header>
       {stats.current === null ? (
         <div className="grid h-52 place-items-center text-sm text-slate-500">
@@ -219,7 +243,7 @@ export function InteractiveChart({
           role="img"
           aria-labelledby={id}
           aria-label={`${title}, pembacaan terkini ${stats.current} ${unit}`}
-          className="mt-3 h-52 w-full min-w-0"
+          className={`mt-3 w-full min-w-0 ${expanded ? 'h-80' : 'h-52'}`}
         />
       )}
     </article>
