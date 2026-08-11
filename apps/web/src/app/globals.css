@@ -95,6 +95,77 @@ a {
     radial-gradient(circle at 90% 90%, rgb(14 165 233 / 8%), transparent 24rem), var(--app-bg);
 }
 
+.login-brand-lockup,
+.login-unila-lockup {
+  display: flex;
+  align-items: center;
+}
+
+.login-brand-lockup {
+  flex-wrap: wrap;
+  gap: 0.8rem;
+}
+
+.login-brand-divider {
+  width: 1px;
+  height: 2.75rem;
+  flex: 0 0 1px;
+  background: #cbd5e1;
+}
+
+.login-brand-lockup-inverted .login-brand-divider {
+  background: rgb(255 255 255 / 20%);
+}
+
+.login-unila-lockup {
+  gap: 0.65rem;
+}
+
+.login-unila-logo {
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 2.75rem;
+  object-fit: contain;
+}
+
+.login-unila-copy {
+  display: grid;
+  gap: 0.12rem;
+  line-height: 1.2;
+}
+
+.login-unila-copy strong {
+  color: #0f172a;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.login-unila-copy > span {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 600;
+}
+
+.login-brand-lockup-inverted .login-unila-copy strong {
+  color: #fff;
+}
+
+.login-brand-lockup-inverted .login-unila-copy > span {
+  color: #94a3b8;
+}
+
+@media (max-width: 420px) {
+  .login-brand-divider {
+    display: none;
+  }
+
+  .login-unila-lockup {
+    flex-basis: 100%;
+  }
+}
+
 .auth-input {
   min-height: 3rem;
   width: 100%;
@@ -536,11 +607,42 @@ a {
   min-width: 0;
   padding: 1.2rem;
 }
+.chart-card-clickable {
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    border-color 180ms ease;
+}
+.chart-card-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px rgb(15 23 42 / 11%);
+}
+.chart-card-clickable:focus-visible {
+  outline: 3px solid rgb(37 99 235 / 28%);
+  outline-offset: 3px;
+}
 .chart-card-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 0.8rem;
+}
+.chart-card-summary {
+  display: grid;
+  justify-items: end;
+  gap: 0.65rem;
+}
+.chart-card-open-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #276a5e;
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+.chart-card-open-hint span {
+  font-size: 0.85rem;
 }
 .chart-card-stats {
   display: flex;
@@ -554,12 +656,210 @@ a {
   color: #455550;
   font-size: 0.7rem;
 }
+.sensor-overview-backdrop {
+  z-index: 80;
+  backdrop-filter: blur(5px);
+}
+.sensor-overview-dialog {
+  width: min(100%, 68rem);
+  border: 1px solid #dce6e2;
+  border-radius: 1.75rem;
+  padding: 1.35rem;
+}
+.sensor-overview-header,
+.sensor-overview-title-group,
+.sensor-overview-thresholds {
+  display: flex;
+  align-items: center;
+}
+.sensor-overview-header {
+  justify-content: space-between;
+  gap: 1rem;
+}
+.sensor-overview-title-group {
+  gap: 0.8rem;
+}
+.sensor-overview-title-group p,
+.sensor-overview-title-group h2,
+.sensor-overview-description,
+.sensor-overview-note {
+  margin: 0;
+}
+.sensor-overview-title-group p {
+  color: #70807c;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.sensor-overview-title-group h2 {
+  color: #17211f;
+  font-size: 1.5rem;
+  letter-spacing: -0.035em;
+}
+.sensor-overview-icon {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  place-items: center;
+  border-radius: 0.9rem;
+  background: #e5f2ee;
+  color: #176b5b;
+}
+.sensor-overview-icon svg {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+.sensor-overview-close {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  place-items: center;
+  border: 1px solid #d7e1de;
+  border-radius: 50%;
+  background: #f7faf9;
+  color: #40514d;
+  font-size: 1.45rem;
+  line-height: 1;
+}
+.sensor-overview-close:hover {
+  background: #eaf1ef;
+}
+.sensor-overview-description {
+  margin-top: 0.9rem;
+  color: #62716e;
+  font-size: 0.85rem;
+}
+.sensor-overview-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+.sensor-overview-metrics > div {
+  border: 1px solid #e1e9e6;
+  border-radius: 1rem;
+  background: #f8fbfa;
+  padding: 0.8rem 0.9rem;
+}
+.sensor-overview-metrics span {
+  display: block;
+  color: #71807d;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.sensor-overview-metrics strong {
+  display: block;
+  margin-top: 0.25rem;
+  color: #1d2926;
+  font-size: 0.88rem;
+}
+.sensor-overview-thresholds {
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 1rem 0;
+  color: #667570;
+  font-size: 0.72rem;
+}
+.sensor-overview-thresholds > span {
+  border-radius: 999px;
+  background: #edf2f0;
+  padding: 0.38rem 0.62rem;
+}
+.sensor-overview-thresholds .sensor-threshold-watch {
+  background: #fff7db;
+  color: #8a5b00;
+  font-weight: 800;
+}
+.sensor-overview-thresholds .sensor-threshold-danger {
+  background: #ffe7e7;
+  color: #a22525;
+  font-weight: 800;
+}
+.sensor-overview-dialog .chart-card-expanded {
+  border: 1px solid #e0e8e5;
+  background: #fbfdfc;
+  box-shadow: none;
+}
+.sensor-overview-note {
+  margin-top: 0.8rem;
+  color: #71807d;
+  font-size: 0.72rem;
+  text-align: center;
+}
 .range-pills {
   display: flex;
   gap: 0.16rem;
   border-radius: 999px;
   background: #e7eeeb;
   padding: 0.22rem;
+}
+.overview-range-control {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.overview-range-label {
+  color: #64736f;
+  font-size: 0.72rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.range-pill-item {
+  display: flex;
+  align-items: center;
+  gap: 0.16rem;
+}
+.range-pill-divider {
+  width: 1px;
+  height: 1.25rem;
+  margin: 0 0.14rem;
+  background: #c7d3cf;
+}
+.calendar-period-picker {
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #cedbd7;
+  border-radius: 0.85rem;
+  background: #fff;
+  box-shadow: 0 2px 5px rgb(18 31 29 / 5%);
+}
+.calendar-period-picker button {
+  display: grid;
+  width: 2.25rem;
+  min-height: 2.45rem;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #354642;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+.calendar-period-picker button:hover:not(:disabled) {
+  background: #edf3f1;
+}
+.calendar-period-picker button:disabled {
+  cursor: not-allowed;
+  color: #b2bfbb;
+}
+.calendar-period-picker label {
+  border-right: 1px solid #e1e8e6;
+  border-left: 1px solid #e1e8e6;
+}
+.calendar-period-picker input {
+  min-height: 2.45rem;
+  border: 0;
+  background: #fff;
+  padding: 0.4rem 0.55rem;
+  color: #25332f;
+  font-size: 0.78rem;
+  font-weight: 750;
+  outline: none;
+}
+.calendar-period-picker:focus-within {
+  border-color: #6e9d90;
+  box-shadow: 0 0 0 3px rgb(23 107 91 / 12%);
 }
 .range-pills button {
   border: 0;
@@ -611,7 +911,7 @@ a {
   .overview-toolbar {
     align-items: center;
   }
-  .range-pills {
+  .overview-range-control {
     display: none;
   }
   .overview-toolbar select {
@@ -635,6 +935,19 @@ a {
   }
   .history-heading .history-gap-hint {
     text-align: left;
+  }
+  .sensor-overview-dialog {
+    border-radius: 1.25rem;
+    padding: 1rem;
+  }
+  .sensor-overview-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .sensor-overview-dialog .chart-card-header {
+    display: grid;
+  }
+  .sensor-overview-dialog .chart-card-summary {
+    justify-items: start;
   }
 }
 @media (min-width: 641px) {

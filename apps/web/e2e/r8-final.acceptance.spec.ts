@@ -15,14 +15,15 @@ test('PROJECT_OWNER dapat membuka empat halaman produk single-device', async ({ 
   ).toHaveCount(0);
 
   await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
-  await expect(page.locator('#overview-range')).toHaveValue('1440');
+  await expect(page.locator('#overview-range')).toHaveValue('daily');
   const range = page.locator('#overview-range');
-  await expect(range.locator('option[value="5"]')).toHaveText('5 menit');
-  await expect(range.locator('option[value="15"]')).toHaveText('15 menit');
-  await expect(range.locator('option[value="60"]')).toHaveText('1 jam');
-  await expect(range.locator('option[value="360"]')).toHaveText('6 jam');
-  await expect(range.locator('option[value="4320"]')).toHaveText('72 jam');
-  await expect(range.locator('option[value="10080"]')).toHaveText('7 hari');
+  await expect(range.locator('option[value="quick-5"]')).toHaveText('5 menit');
+  await expect(range.locator('option[value="quick-15"]')).toHaveText('15 menit');
+  await expect(range.locator('option[value="quick-60"]')).toHaveText('1 jam');
+  await expect(range.locator('option[value="quick-360"]')).toHaveText('6 jam');
+  await expect(range.locator('option[value="daily"]')).toHaveText('Harian — pilih tanggal');
+  await expect(range.locator('option[value="weekly"]')).toHaveText('Mingguan — pilih minggu');
+  await expect(range.locator('option[value="monthly"]')).toHaveText('Bulanan — pilih bulan');
 
   await page.goto('/devices');
   await expect(page.getByRole('heading', { name: 'Perangkat', exact: true })).toBeVisible();

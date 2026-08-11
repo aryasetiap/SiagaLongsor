@@ -18,16 +18,19 @@ paths:
       description: >-
         Public read-only projection containing risk, sensor readings, time series, and chart
         thresholds. Device identity, calibration details, profile notes, and audit data are not
-        exposed by this operation.
+        exposed by this operation. The optional range may span at most 31 days. Series longer
+        than 24 hours are returned as time-bucket averages to keep the projection bounded.
       security: []
       parameters:
         - name: from
           in: query
           required: false
+          description: Inclusive range start; defaults to 24 hours before `to`.
           schema: { type: string, format: date-time }
         - name: to
           in: query
           required: false
+          description: Exclusive range end; defaults to the server evaluation time.
           schema: { type: string, format: date-time }
       responses:
         '200':

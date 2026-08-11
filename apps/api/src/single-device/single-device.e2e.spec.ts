@@ -335,10 +335,19 @@ describe('R2 single-device facade', () => {
 
   it('validates overview range, audit cursor, duplicate transitions, late data, battery, and stale projection', async () => {
     const now = new Date();
+    const monthlyFrom = new Date(now.getTime() - 31 * 24 * 3_600_000);
+    const monthly = await get(
+      `/overview?from=${monthlyFrom.toISOString()}&to=${now.toISOString()}`,
+    );
+    expect(monthly.status).toBe(200);
+    expect(monthly.body.data.range).toEqual({
+      from: monthlyFrom.toISOString(),
+      to: now.toISOString(),
+    });
     const badRanges = await Promise.all([
       get(`/overview?from=${now.toISOString()}&to=${now.toISOString()}`),
       get(
-        `/overview?from=${new Date(now.getTime() - 169 * 3_600_000).toISOString()}&to=${now.toISOString()}`,
+        `/overview?from=${new Date(now.getTime() - (31 * 24 + 1) * 3_600_000).toISOString()}&to=${now.toISOString()}`,
       ),
     ]);
     expect(

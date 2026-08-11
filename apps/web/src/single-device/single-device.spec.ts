@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
@@ -85,13 +85,47 @@ describe('single-device frontend contract', () => {
     render(createElement(OverviewPanel, { client }));
     expect(await screen.findByText('TIDAK DIKETAHUI')).toBeInTheDocument();
     expect(screen.getByText('UNKNOWN', { exact: true })).toBeInTheDocument();
-    await user.selectOptions(screen.getByLabelText('Rentang histori'), '5');
+    const range = screen.getByLabelText('Rentang histori');
+    expect(screen.getByRole('option', { name: 'Harian — pilih tanggal' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Mingguan — pilih minggu' })).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'Bulanan — pilih bulan' })).toBeInTheDocument();
+    await user.selectOptions(range, 'quick-5');
     await waitFor(() => expect(request).toHaveBeenCalledTimes(2));
     const path = request.mock.calls[1]?.[0] as string;
     expect(path).toMatch(/^\/overview\?from=/);
     expect(
       request.mock.calls.every(([requestedPath]) => String(requestedPath).startsWith('/overview?')),
     ).toBe(true);
+    await user.selectOptions(range, 'monthly');
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(3));
+    fireEvent.change(screen.getByLabelText('Pilih bulan'), { target: { value: '2026-01' } });
+    await waitFor(() => expect(request).toHaveBeenCalledTimes(4));
+    const monthlyPath = new URL(request.mock.calls.at(-1)?.[0] as string, 'http://localhost');
+    const from = new Date(monthlyPath.searchParams.get('from') ?? '');
+    const to = new Date(monthlyPath.searchParams.get('to') ?? '');
+    expect([from.getFullYear(), from.getMonth(), from.getDate(), from.getHours()]).toEqual([
+      2026, 0, 1, 0,
+    ]);
+    expect([to.getFullYear(), to.getMonth(), to.getDate(), to.getHours()]).toEqual([2026, 1, 1, 0]);
+  });
+
+  it('opens and closes an individual sensor overview from a history card', async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = 'http://localhost:3001/api/v1';
+    process.env.NEXT_PUBLIC_PRESENTATION_MODE = 'false';
+    const user = userEvent.setup();
+    const { client, request } = requestClient();
+    request.mockResolvedValue(overview('SAFE'));
+
+    render(createElement(OverviewPanel, { client }));
+    await screen.findByText('AMAN');
+    await user.click(screen.getByRole('button', { name: 'Buka detail sensor Kemiringan' }));
+
+    expect(screen.getByRole('dialog', { name: 'Kemiringan' })).toBeInTheDocument();
+    expect(screen.getByText('Overview sensor')).toBeInTheDocument();
+    expect(screen.getByText('1 °')).toBeInTheDocument();
+    expect(screen.getByText('Waspada ≥ 3 °')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Tutup detail Kemiringan' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('shows the synthetic-data banner only in explicit presentation mode', async () => {
