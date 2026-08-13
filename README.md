@@ -39,6 +39,7 @@ See [Presentation Demo](docs/PRESENTATION_DEMO.md).
 ## Deployment and operations
 
 See [Production Deployment and Operations](docs/28_PRODUCTION_DEPLOYMENT_OPERATIONS.md).
+For optional outbound alerts, see [Telegram risk notifications](docs/30_TELEGRAM_NOTIFICATIONS.md).
 
 ## Documentation
 

@@ -7,12 +7,15 @@ import {
   type RiskProfile,
   type Telemetry,
 } from '../generated/prisma/client.js';
+import { NotificationOutboxService } from '../notifications/notification-outbox.service.js';
 import { evaluateRisk } from './risk-engine.js';
 import type { RiskEngineProfile, RiskEngineState } from './risk-engine.types.js';
 import { summarizeRainfallDuration } from './rainfall-duration.js';
 
 @Injectable()
 export class RiskEvaluationService {
+  constructor(private readonly notifications: NotificationOutboxService) {}
+
   async evaluateAcceptedTelemetry(
     transaction: Prisma.TransactionClient,
     input: {
@@ -111,7 +114,19 @@ export class RiskEvaluationService {
       },
     });
     if (previousStatus !== result.nextState.serverRisk) {
-      await transaction.auditLog.create({
+      const sensorSnapshot = {
+        tiltMagnitudeDeg: input.telemetry.tiltMagnitudeDeg?.toNumber() ?? null,
+        soilMoisturePct: input.telemetry.soilMoisturePct?.toNumber() ?? null,
+        rainfallMmHour: input.telemetry.rainfallMmHour?.toNumber() ?? null,
+      };
+      const rainfallDuration =
+        rainfallHistory === undefined
+          ? null
+          : {
+              consecutiveModerateDays: rainfallHistory.consecutiveModerateDays,
+              previousDailyTotalsMm: [...rainfallHistory.previousDailyTotalsMm],
+            };
+      const auditLog = await transaction.auditLog.create({
         data: {
           organizationId: input.device.organizationId,
           actorId: null,
@@ -126,21 +141,24 @@ export class RiskEvaluationService {
             telemetryId: input.telemetry.id,
             riskProfileId: profile?.id ?? null,
             riskProfileVersion: profile?.version ?? null,
-            sensorSnapshot: {
-              tiltMagnitudeDeg: input.telemetry.tiltMagnitudeDeg?.toNumber() ?? null,
-              soilMoisturePct: input.telemetry.soilMoisturePct?.toNumber() ?? null,
-              rainfallMmHour: input.telemetry.rainfallMmHour?.toNumber() ?? null,
-            },
-            rainfallDuration:
-              rainfallHistory === undefined
-                ? null
-                : {
-                    consecutiveModerateDays: rainfallHistory.consecutiveModerateDays,
-                    previousDailyTotalsMm: [...rainfallHistory.previousDailyTotalsMm],
-                  },
+            sensorSnapshot,
+            rainfallDuration,
             occurredAt: input.evaluatedAt.toISOString(),
           },
         },
+      });
+      await this.notifications.enqueueRiskTransition(transaction, {
+        auditLogId: auditLog.id,
+        organizationId: input.device.organizationId,
+        siteId: input.device.siteId,
+        monitoringPointId: input.device.monitoringPointId,
+        telemetryId: input.telemetry.id,
+        previousStatus,
+        currentStatus: result.nextState.serverRisk,
+        reasons: result.reasons,
+        sensorSnapshot,
+        rainfallDuration,
+        occurredAt: input.evaluatedAt,
       });
     }
   }

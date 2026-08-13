@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../database/prisma.service.js';
 import { Prisma, type Device } from '../generated/prisma/client.js';
 import { DeviceLifecycleStatus, RiskLevel } from '../generated/prisma/enums.js';
+import { NotificationOutboxService } from '../notifications/notification-outbox.service.js';
 import { evaluateConnectivity } from './connectivity-policy.js';
 import { DistributedLockService } from './distributed-lock.service.js';
 
@@ -14,6 +15,7 @@ export class ConnectivityEvaluatorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly locks: DistributedLockService,
+    private readonly notifications: NotificationOutboxService,
   ) {}
 
   async runOnce(
@@ -130,7 +132,12 @@ export class ConnectivityEvaluatorService {
             },
     });
     if (reason !== null && state.serverRisk !== RiskLevel.UNKNOWN) {
-      await transaction.auditLog.create({
+      const sensorSnapshot = {
+        tiltMagnitudeDeg: state.latestTelemetry.tiltMagnitudeDeg?.toNumber() ?? null,
+        soilMoisturePct: state.latestTelemetry.soilMoisturePct?.toNumber() ?? null,
+        rainfallMmHour: state.latestTelemetry.rainfallMmHour?.toNumber() ?? null,
+      };
+      const auditLog = await transaction.auditLog.create({
         data: {
           organizationId: state.organizationId,
           actorId: null,
@@ -145,14 +152,23 @@ export class ConnectivityEvaluatorService {
             telemetryId: state.latestTelemetry.id,
             riskProfileId: profile.id,
             riskProfileVersion: profile.version,
-            sensorSnapshot: {
-              tiltMagnitudeDeg: state.latestTelemetry.tiltMagnitudeDeg?.toNumber() ?? null,
-              soilMoisturePct: state.latestTelemetry.soilMoisturePct?.toNumber() ?? null,
-              rainfallMmHour: state.latestTelemetry.rainfallMmHour?.toNumber() ?? null,
-            },
+            sensorSnapshot,
             occurredAt: evaluationTime.toISOString(),
           },
         },
+      });
+      await this.notifications.enqueueRiskTransition(transaction, {
+        auditLogId: auditLog.id,
+        organizationId: state.organizationId,
+        siteId: state.siteId,
+        monitoringPointId: state.monitoringPointId,
+        telemetryId: state.latestTelemetry.id,
+        previousStatus: state.serverRisk,
+        currentStatus: RiskLevel.UNKNOWN,
+        reasons: [reason],
+        sensorSnapshot,
+        rainfallDuration: null,
+        occurredAt: evaluationTime,
       });
     }
     return { changed: true };

@@ -10,6 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { AppModule } from '../app.module.js';
 import { configureApp } from '../bootstrap/configure-app.js';
+import { APP_CONFIG, parseAppConfig } from '../config/app-config.js';
 import {
   runSimulator,
   type SimulatorConfig,
@@ -37,7 +38,18 @@ describe('R4 simulator single-device HTTP acceptance', () => {
 
   beforeAll(async () => {
     environment(hardwareId);
-    const module = await Test.createTestingModule({ imports: [AppModule] }).compile();
+    const module = await Test.createTestingModule({ imports: [AppModule] })
+      .overrideProvider(APP_CONFIG)
+      .useValue(
+        parseAppConfig({
+          ...process.env,
+          TELEGRAM_NOTIFICATIONS_ENABLED: 'true',
+          TELEGRAM_BOT_TOKEN: '123456789:integration-token-that-is-not-sent',
+          TELEGRAM_CHAT_ID: '-1001234567890',
+          TELEGRAM_DASHBOARD_URL: 'https://siagalongsor.example/overview',
+        }),
+      )
+      .compile();
     app = module.createNestApplication<NestExpressApplication>();
     configureApp(app as NestExpressApplication);
     await app.init();
@@ -128,6 +140,9 @@ describe('R4 simulator single-device HTTP acceptance', () => {
 
   afterAll(async () => {
     if (prisma !== undefined) {
+      await prisma.notificationOutbox.deleteMany({
+        where: { payload: { path: ['organizationId'], equals: organizationId } },
+      });
       await prisma.auditLog.deleteMany({ where: { organizationId } });
       await prisma.currentMonitoringPointState.deleteMany({ where: { organizationId } });
       await prisma.riskAssessment.deleteMany({ where: { organizationId } });
@@ -150,6 +165,10 @@ describe('R4 simulator single-device HTTP acceptance', () => {
     const get = (path: string) => http.get(`/api/v1${path}`).set('Authorization', authorization);
     const auditCount = () =>
       prisma.auditLog.count({ where: { organizationId, eventType: 'RISK_STATUS_CHANGED' } });
+    const notificationCount = () =>
+      prisma.notificationOutbox.count({
+        where: { payload: { path: ['organizationId'], equals: organizationId } },
+      });
     const send = async (
       readings: SimulatorConfig['readings'],
       scenario: SimulatorConfig['scenario'] = 'normal',
@@ -189,6 +208,7 @@ describe('R4 simulator single-device HTTP acceptance', () => {
     expect(JSON.stringify(audit.body)).not.toMatch(/credential|authorization|secret/i);
 
     const baseline = await auditCount();
+    const notificationBaseline = await notificationCount();
     await send({ ...config.readings, tiltMagnitudeDeg: 3 });
     expect((await get('/overview')).body.data.risk.status).toBe('WATCH');
     expect((await get('/overview')).body.data.readings.tiltMagnitudeDeg).toBe(3);
@@ -198,6 +218,7 @@ describe('R4 simulator single-device HTTP acceptance', () => {
       rainfall: 'READABLE',
     });
     expect(await auditCount()).toBe(baseline + 1);
+    expect(await notificationCount()).toBe(notificationBaseline + 1);
     expect((await get('/audit-log')).body.data[0]).toMatchObject({
       previousStatus: 'SAFE',
       currentStatus: 'WATCH',
@@ -206,6 +227,7 @@ describe('R4 simulator single-device HTTP acceptance', () => {
     await send({ ...config.readings, tiltMagnitudeDeg: 8 });
     expect((await get('/overview')).body.data.risk.status).toBe('DANGER');
     expect(await auditCount()).toBe(baseline + 2);
+    expect(await notificationCount()).toBe(notificationBaseline + 2);
     expect((await get('/audit-log')).body.data[0]).toMatchObject({
       previousStatus: 'WATCH',
       currentStatus: 'DANGER',
@@ -222,6 +244,7 @@ describe('R4 simulator single-device HTTP acceptance', () => {
       rainfall: 'READABLE',
     });
     expect(await auditCount()).toBe(baseline + 3);
+    expect(await notificationCount()).toBe(notificationBaseline + 3);
     expect((await get('/audit-log')).body.data[0]).toMatchObject({
       previousStatus: 'DANGER',
       currentStatus: 'UNKNOWN',
@@ -241,6 +264,7 @@ describe('R4 simulator single-device HTTP acceptance', () => {
       rainfall: 'READABLE',
     });
     expect(await auditCount()).toBe(baseline + 4);
+    expect(await notificationCount()).toBe(notificationBaseline + 4);
     expect((await get('/audit-log')).body.data[0]).toMatchObject({
       previousStatus: 'UNKNOWN',
       currentStatus: 'SAFE',
@@ -250,6 +274,7 @@ describe('R4 simulator single-device HTTP acceptance', () => {
       telemetry: await prisma.telemetry.count({ where: { device: { organizationId } } }),
       assessments: await prisma.riskAssessment.count({ where: { organizationId } }),
       audits: await auditCount(),
+      notifications: await notificationCount(),
     };
     const duplicateLogs: SimulatorLogEntry[] = [];
     await runSimulator(
@@ -267,6 +292,7 @@ describe('R4 simulator single-device HTTP acceptance', () => {
       duplicateBefore.assessments + 1,
     );
     expect(await auditCount()).toBe(duplicateBefore.audits);
+    expect(await notificationCount()).toBe(duplicateBefore.notifications);
     expect((await get('/overview')).body.data.risk.status).toBe('SAFE');
 
     const lateBefore = {
@@ -318,6 +344,7 @@ describe('R4 simulator single-device HTTP acceptance', () => {
       data: { serverReceivedAt: delayedAt },
     });
     const delayedAuditCount = await auditCount();
+    const delayedNotificationCount = await notificationCount();
     await expect(evaluator.runOnce(new Date())).resolves.toMatchObject({ acquired: true });
     const delayedState = await prisma.currentMonitoringPointState.findUniqueOrThrow({
       where: { monitoringPointId: pointId },
@@ -325,6 +352,7 @@ describe('R4 simulator single-device HTTP acceptance', () => {
     expect(delayedState.connectivityStatus).toBe('DELAYED');
     expect(delayedState.serverRisk).toBe('UNKNOWN');
     expect(await auditCount()).toBe(delayedAuditCount + 1);
+    expect(await notificationCount()).toBe(delayedNotificationCount + 1);
 
     await prisma.telemetry.update({
       where: { id: latestTelemetryId },
@@ -338,6 +366,7 @@ describe('R4 simulator single-device HTTP acceptance', () => {
     expect(offlineState.connectivityStatus).toBe('OFFLINE');
     expect(offlineState.serverRisk).toBe('UNKNOWN');
     expect(await auditCount()).toBe(offlineAuditCount);
+    expect(await notificationCount()).toBe(delayedNotificationCount + 1);
   });
 });
 

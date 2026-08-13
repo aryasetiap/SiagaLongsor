@@ -20,6 +20,7 @@
 - [Physical provisioning and field checklist](22_R9_PROVISIONING_AND_FIELD_CHECKLIST.md)
 - [Firmware README](../firmware/esp32/README.md)
 - [Release process](29_RELEASE_PROCESS.md)
+- [Telegram risk notifications](30_TELEGRAM_NOTIFICATIONS.md)
 
 ## Final acceptance and evidence
 
@@ -37,4 +38,3 @@ The following records are retained for traceability, not as current operational 
 - [R8 final acceptance](19_R8_FINAL_ACCEPTANCE_REPORT.md)
 - [Architecture decision records](adr/)
 - [Migration notes](migrations/)
-
