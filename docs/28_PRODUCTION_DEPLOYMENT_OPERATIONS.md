@@ -40,6 +40,11 @@ AUTH_REFRESH_TOKEN_TTL_SECONDS
 AUTH_REFRESH_COOKIE_NAME
 AUTH_LOGIN_RATE_LIMIT_TTL_MS
 AUTH_LOGIN_RATE_LIMIT_MAX
+TELEGRAM_NOTIFICATIONS_ENABLED
+TELEGRAM_BOT_TOKEN
+TELEGRAM_CHAT_ID
+TELEGRAM_MESSAGE_THREAD_ID
+TELEGRAM_DASHBOARD_URL
 ```
 
 `PUBLIC_DEVICE_HARDWARE_ID` selects the one enabled deployment exposed by the public read-only
@@ -48,6 +53,11 @@ accident. Seed variables are bootstrap/development/operator-provisioning inputs,
 authentication fallback. Frontend build inputs are `NEXT_PUBLIC_API_BASE_URL` and
 `NEXT_PUBLIC_PRESENTATION_MODE=false`. `NEXT_PUBLIC_*` values are embedded in the Next.js browser
 build; production must not use presentation mode.
+
+Telegram delivery is optional and disabled by default. When enabled, keep `TELEGRAM_BOT_TOKEN` in
+the deployment secret manager and allow outbound HTTPS to `api.telegram.org`. The token must never
+be exposed to the browser or firmware. Follow the dedicated
+[Telegram notification guide](30_TELEGRAM_NOTIFICATIONS.md) for bot and destination setup.
 
 ## 5. Pre-deployment checks
 

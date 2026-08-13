@@ -50,6 +50,13 @@ enum CalibrationStatus {
   CALIBRATED
 }
 
+enum NotificationDeliveryStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+}
+
 model Organization {
   id                           String                        @id @default(cuid())
   name                         String
@@ -363,4 +370,24 @@ model AuditLog {
   @@index([actorId, createdAt(sort: Desc)])
   @@index([eventType, createdAt(sort: Desc)])
   @@index([requestId])
+}
+
+model NotificationOutbox {
+  id                  String                     @id @default(cuid())
+  eventKey            String                     @unique @db.VarChar(191)
+  channel             String                     @db.VarChar(32)
+  eventType           String                     @db.VarChar(64)
+  status              NotificationDeliveryStatus @default(PENDING)
+  payload             Json
+  attemptCount        Int                        @default(0)
+  nextAttemptAt       DateTime                   @default(now()) @db.Timestamptz(3)
+  processingStartedAt DateTime?                  @db.Timestamptz(3)
+  sentAt              DateTime?                  @db.Timestamptz(3)
+  externalMessageId   String?                    @db.VarChar(64)
+  lastErrorCode       String?                    @db.VarChar(64)
+  lastErrorMessage    String?                    @db.VarChar(500)
+  createdAt           DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                   @updatedAt @db.Timestamptz(3)
+
+  @@index([status, nextAttemptAt, createdAt])
 }
