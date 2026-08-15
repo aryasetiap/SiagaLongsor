@@ -8,13 +8,29 @@ verification, or an official emergency procedure.
 
 The backend creates one notification when current server risk changes:
 
-- `SAFE -> WATCH`: **WASPADA**;
-- `SAFE` or `WATCH -> DANGER`: **BAHAYA**;
+- internal `SAFE`: **AMAN**, di luar tingkat peringatan;
+- internal `WATCH`: **WASPADA (TINGKAT 1)**;
+- internal `WARNING`: **SIAGA (TINGKAT 2)**;
+- internal `DANGER`: **AWAS (TINGKAT 3)**;
 - any known state -> `UNKNOWN`: monitoring data unavailable or untrusted, never safe;
-- `WATCH`, `DANGER`, or `UNKNOWN -> SAFE`: recovery to **AMAN**.
+- any transition between known states uses Aman followed by the public Waspada–Siaga–Awas
+  warning terminology.
+
+`WARNING` is added to the server/database enum using an additive migration. It must not be shown to
+operators as the public warning name. `UNKNOWN` is an operational data-quality/connectivity state,
+not a warning level and never means Aman.
 
 Repeated telemetry with the same current status, exact duplicate telemetry, and late historical
 telemetry do not create additional messages. Risk calculation remains server-side and unchanged.
+
+Every message includes the level, site/monitoring point, local timestamp, reasons, latest sensor
+snapshot, recommended response, dashboard link, and event ID. An Awas message directs recipients
+to contact the local preparedness team/authority and follow the approved evacuation command. The
+Telegram bot itself does not issue an autonomous legal evacuation order.
+
+Threshold values remain site-specific and must be based on investigation, calibration, and an
+approved local procedure. SNI 9021:2021 is not treated as a universal numeric threshold table.
+See [SNI status alignment](32_SNI_9021_STATUS_ALIGNMENT.md).
 
 ## 2. Create a bot with BotFather
 

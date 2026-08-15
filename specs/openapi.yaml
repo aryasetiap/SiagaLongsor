@@ -1119,7 +1119,11 @@ components:
       type: object
       additionalProperties: false
       required: [watch, danger]
-      description: WATCH must be lower than DANGER and both values must remain inside the stored technical range.
+      description: >-
+        The legacy watch field is the WASPADA (Tingkat 1) entry threshold and danger is the
+        SIAGA (Tingkat 2) entry threshold. watch must be lower than danger and both values
+        must remain inside the stored technical range. Values below watch are presented as AMAN.
+        AWAS (Tingkat 3) is derived from an explicit combination or duration rule.
       properties:
         watch: { type: number, minimum: 0 }
         danger: { type: number, minimum: 0 }
@@ -1130,8 +1134,9 @@ components:
       required:
         [moderateDailyMinMm, moderateDailyMaxMm, consecutiveDays, continuationRainfallMmHourGt]
       description: >-
-        DANGER is triggered when rainfall continues after the configured number of immediately
-        preceding local calendar days each accumulated rainfall inside the moderate daily range.
+        AWAS (internal DANGER) is triggered when rainfall continues after the configured number
+        of immediately preceding local calendar days each accumulated rainfall inside the
+        moderate daily range.
       properties:
         moderateDailyMinMm: { type: number, minimum: 0, example: 30 }
         moderateDailyMaxMm: { type: number, exclusiveMinimum: 0, example: 50 }
@@ -1588,7 +1593,11 @@ components:
           description: Original server receipt timestamp for both new and duplicate acknowledgements.
     RiskLevel:
       type: string
-      enum: [SAFE, WATCH, DANGER, UNKNOWN]
+      enum: [SAFE, WATCH, WARNING, DANGER, UNKNOWN]
+      description: >-
+        Server enum. Public Indonesian terminology maps SAFE to AMAN outside the warning levels,
+        WATCH to WASPADA (Tingkat 1), WARNING to SIAGA (Tingkat 2), and DANGER to AWAS
+        (Tingkat 3). UNKNOWN is an operational data state and is never treated as Aman.
     ConnectivityStatus:
       type: string
       enum: [ONLINE, DELAYED, OFFLINE, UNKNOWN]
@@ -1600,6 +1609,10 @@ components:
       enum:
         - SAFE_THRESHOLDS_MET
         - WATCH_THRESHOLDS_MET
+        - WARNING_TILT
+        - WARNING_RAINFALL
+        - WARNING_SOIL_MOISTURE
+        - DANGER_RAIN_TILT
         - DANGER_TILT
         - DANGER_RAIN_MOISTURE
         - REQUIRED_SENSOR_MISSING

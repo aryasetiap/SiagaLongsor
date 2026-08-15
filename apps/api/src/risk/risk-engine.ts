@@ -82,23 +82,32 @@ function classify(input: EvaluateRiskInput): {
     return { risk: 'UNKNOWN', reasons: ['REQUIRED_SENSOR_INVALID'] };
   }
 
-  const dangerReasons: RiskReason[] = [];
-  if (tiltMagnitudeDeg >= input.profile.danger.tiltMagnitudeDegGt) {
-    dangerReasons.push('DANGER_TILT');
-  }
-  if (rainfallMmHour >= input.profile.danger.rainfallMmHourGt) {
-    dangerReasons.push('DANGER_RAINFALL');
-  }
-  if (
+  const prolongedRainfall =
     (input.rainfallHistory?.consecutiveModerateDays ?? 0) >=
       input.profile.rainfallDuration.consecutiveDays &&
-    rainfallMmHour > input.profile.rainfallDuration.continuationRainfallMmHourGt
-  ) {
+    rainfallMmHour > input.profile.rainfallDuration.continuationRainfallMmHourGt;
+  const combinedRainAndTilt =
+    tiltMagnitudeDeg >= input.profile.danger.tiltMagnitudeDegGt &&
+    rainfallMmHour >= input.profile.danger.rainfallMmHourGt;
+
+  const dangerReasons: RiskReason[] = [];
+  if (combinedRainAndTilt) dangerReasons.push('DANGER_RAIN_TILT');
+  if (prolongedRainfall) {
     dangerReasons.push('DANGER_PROLONGED_RAINFALL');
   }
-  if (soilMoisturePct >= input.profile.danger.soilMoisturePctGt)
-    dangerReasons.push('DANGER_SOIL_MOISTURE');
   if (dangerReasons.length > 0) return { risk: 'DANGER', reasons: dangerReasons };
+
+  const warningReasons: RiskReason[] = [];
+  if (tiltMagnitudeDeg >= input.profile.danger.tiltMagnitudeDegGt) {
+    warningReasons.push('WARNING_TILT');
+  }
+  if (rainfallMmHour >= input.profile.danger.rainfallMmHourGt) {
+    warningReasons.push('WARNING_RAINFALL');
+  }
+  if (soilMoisturePct >= input.profile.danger.soilMoisturePctGt) {
+    warningReasons.push('WARNING_SOIL_MOISTURE');
+  }
+  if (warningReasons.length > 0) return { risk: 'WARNING', reasons: warningReasons };
 
   if (
     tiltMagnitudeDeg < input.profile.safe.tiltMagnitudeDegLt &&

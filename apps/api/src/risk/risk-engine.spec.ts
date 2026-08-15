@@ -121,11 +121,11 @@ describe('evaluateRisk - R2 direct boundary semantics', () => {
   });
 
   it.each([
-    ['tilt', 8, 40, 5, 'DANGER_TILT'],
-    ['soil moisture', 1, 85, 5, 'DANGER_SOIL_MOISTURE'],
-    ['rainfall', 1, 40, 50, 'DANGER_RAINFALL'],
+    ['tilt', 8, 40, 5, 'WARNING_TILT'],
+    ['soil moisture', 1, 85, 5, 'WARNING_SOIL_MOISTURE'],
+    ['rainfall', 1, 40, 50, 'WARNING_RAINFALL'],
   ] as const)(
-    'returns DANGER when %s reaches its exact DANGER boundary',
+    'returns WARNING when %s reaches its exact SIAGA boundary',
     (_name, tilt, moisture, rainfall, reason) => {
       const result = evaluateRisk(
         input({
@@ -133,62 +133,78 @@ describe('evaluateRisk - R2 direct boundary semantics', () => {
             tiltMagnitudeDeg: tilt,
             soilMoisturePct: moisture,
             rainfallMmHour: rainfall,
-            firmwareRisk: 'DANGER',
+            firmwareRisk: 'UNKNOWN',
           },
         }),
       );
 
-      expect(result.assessmentRisk).toBe('DANGER');
+      expect(result.assessmentRisk).toBe('WARNING');
       expect(result.reasons).toContain(reason);
     },
   );
 
-  it('allows tilt alone to cause DANGER', () => {
+  it('classifies high tilt alone as WARNING (Siaga)', () => {
     const result = evaluateRisk(
       input({
         telemetry: {
           tiltMagnitudeDeg: 9,
           soilMoisturePct: 40,
           rainfallMmHour: 5,
-          firmwareRisk: 'DANGER',
+          firmwareRisk: 'UNKNOWN',
         },
       }),
     );
 
-    expect(result.assessmentRisk).toBe('DANGER');
-    expect(result.reasons).toContain('DANGER_TILT');
+    expect(result.assessmentRisk).toBe('WARNING');
+    expect(result.reasons).toContain('WARNING_TILT');
   });
 
-  it('allows soil moisture alone to cause DANGER', () => {
+  it('classifies high soil moisture alone as WARNING (Siaga)', () => {
     const result = evaluateRisk(
       input({
         telemetry: {
           tiltMagnitudeDeg: 1,
           soilMoisturePct: 90,
           rainfallMmHour: 5,
-          firmwareRisk: 'DANGER',
+          firmwareRisk: 'UNKNOWN',
         },
       }),
     );
 
-    expect(result.assessmentRisk).toBe('DANGER');
-    expect(result.reasons).toContain('DANGER_SOIL_MOISTURE');
+    expect(result.assessmentRisk).toBe('WARNING');
+    expect(result.reasons).toContain('WARNING_SOIL_MOISTURE');
   });
 
-  it('allows rainfall alone to cause DANGER', () => {
+  it('classifies high rainfall alone as WARNING (Siaga)', () => {
     const result = evaluateRisk(
       input({
         telemetry: {
           tiltMagnitudeDeg: 1,
           soilMoisturePct: 40,
           rainfallMmHour: 60,
+          firmwareRisk: 'UNKNOWN',
+        },
+      }),
+    );
+
+    expect(result.assessmentRisk).toBe('WARNING');
+    expect(result.reasons).toContain('WARNING_RAINFALL');
+  });
+
+  it('returns DANGER (Awas) for the high-tilt and high-rainfall combination', () => {
+    const result = evaluateRisk(
+      input({
+        telemetry: {
+          tiltMagnitudeDeg: 8,
+          soilMoisturePct: 40,
+          rainfallMmHour: 50,
           firmwareRisk: 'DANGER',
         },
       }),
     );
 
     expect(result.assessmentRisk).toBe('DANGER');
-    expect(result.reasons).toContain('DANGER_RAINFALL');
+    expect(result.reasons).toContain('DANGER_RAIN_TILT');
   });
 
   it('returns DANGER when rain continues after three consecutive moderate-rain days', () => {
@@ -237,21 +253,21 @@ describe('evaluateRisk - R2 direct boundary semantics', () => {
     },
   );
 
-  it('collects independent DANGER reasons when multiple thresholds are reached', () => {
+  it('collects independent WARNING reasons when multiple Siaga thresholds are reached', () => {
     const result = evaluateRisk(
       input({
         telemetry: {
           tiltMagnitudeDeg: 9,
           soilMoisturePct: 90,
-          rainfallMmHour: 60,
-          firmwareRisk: 'DANGER',
+          rainfallMmHour: 20,
+          firmwareRisk: 'UNKNOWN',
         },
       }),
     );
 
-    expect(result.candidateRisk).toBe('DANGER');
+    expect(result.candidateRisk).toBe('WARNING');
     expect(result.reasons).toEqual(
-      expect.arrayContaining(['DANGER_TILT', 'DANGER_SOIL_MOISTURE', 'DANGER_RAINFALL']),
+      expect.arrayContaining(['WARNING_TILT', 'WARNING_SOIL_MOISTURE']),
     );
   });
 
@@ -330,7 +346,7 @@ describe('evaluateRisk - R2 direct boundary semantics', () => {
         telemetry: {
           tiltMagnitudeDeg: 9,
           soilMoisturePct: 40,
-          rainfallMmHour: 5,
+          rainfallMmHour: 60,
           firmwareRisk: 'DANGER',
         },
       }),
@@ -366,7 +382,7 @@ describe('evaluateRisk - R2 direct boundary semantics', () => {
         telemetry: {
           tiltMagnitudeDeg: 9,
           soilMoisturePct: 40,
-          rainfallMmHour: 5,
+          rainfallMmHour: 60,
           firmwareRisk: 'DANGER',
         },
       }),

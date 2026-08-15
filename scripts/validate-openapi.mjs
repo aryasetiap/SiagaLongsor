@@ -714,10 +714,10 @@ try {
   );
   assert(
     JSON.stringify(rawSpecification.components.schemas.RiskLevel.enum) ===
-      JSON.stringify(['SAFE', 'WATCH', 'DANGER', 'UNKNOWN']) &&
+      JSON.stringify(['SAFE', 'WATCH', 'WARNING', 'DANGER', 'UNKNOWN']) &&
       JSON.stringify(rawSpecification.components.schemas.ConnectivityStatus.enum) ===
         JSON.stringify(['ONLINE', 'DELAYED', 'OFFLINE', 'UNKNOWN']),
-    'Risk and connectivity enums drifted from the approved Phase 03 contract.',
+    'Risk and connectivity enums drifted from the approved operational-status contract.',
   );
   assert(
     JSON.stringify(rawSpecification.components.schemas.AlertStatus.enum) ===

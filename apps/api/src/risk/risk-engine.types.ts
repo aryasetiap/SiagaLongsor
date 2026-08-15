@@ -1,9 +1,13 @@
-export type ServerRisk = 'SAFE' | 'WATCH' | 'DANGER' | 'UNKNOWN';
+export type ServerRisk = 'SAFE' | 'WATCH' | 'WARNING' | 'DANGER' | 'UNKNOWN';
 export type Connectivity = 'ONLINE' | 'DELAYED' | 'OFFLINE' | 'UNKNOWN';
 
 export type RiskReason =
   | 'SAFE_THRESHOLDS_MET'
   | 'WATCH_THRESHOLDS_MET'
+  | 'WARNING_TILT'
+  | 'WARNING_RAINFALL'
+  | 'WARNING_SOIL_MOISTURE'
+  | 'DANGER_RAIN_TILT'
   | 'DANGER_TILT'
   | 'DANGER_RAIN_MOISTURE'
   | 'DANGER_RAINFALL'

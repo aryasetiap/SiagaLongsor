@@ -24,6 +24,19 @@ Risk level hanya:
 - `DANGER`
 - `UNKNOWN`
 
+Nama enum tersebut dipertahankan untuk kompatibilitas database/API. Terminologi publik mengikuti
+tingkat peringatan gerakan tanah Indonesia:
+
+- internal `SAFE` → **AMAN**, di luar tingkat peringatan;
+- internal `WATCH` → **WASPADA (Tingkat 1)**;
+- internal `WARNING` → **SIAGA (Tingkat 2)**;
+- internal `DANGER` → **AWAS (Tingkat 3)**;
+- `UNKNOWN` → **TIDAK DIKETAHUI**, yaitu status operasional data, bukan Aman, dan bukan tingkat
+  peringatan.
+
+Pemetaan dan batas klaim SNI dijelaskan dalam
+[`32_SNI_9021_STATUS_ALIGNMENT.md`](32_SNI_9021_STATUS_ALIGNMENT.md).
+
 Urutan evaluasi wajib:
 
 1. Data tidak dapat dievaluasi live menghasilkan `UNKNOWN`.

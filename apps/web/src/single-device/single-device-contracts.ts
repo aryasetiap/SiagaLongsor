@@ -1,4 +1,4 @@
-export type RiskStatus = 'SAFE' | 'WATCH' | 'DANGER' | 'UNKNOWN';
+export type RiskStatus = 'SAFE' | 'WATCH' | 'WARNING' | 'DANGER' | 'UNKNOWN';
 export type SensorHealth = 'READABLE' | 'UNREADABLE' | 'UNKNOWN';
 export type Connectivity = 'ONLINE' | 'DELAYED' | 'OFFLINE' | 'UNKNOWN';
 
@@ -89,23 +89,51 @@ export interface AuditResponse {
 export const riskLabel: Record<RiskStatus, string> = {
   SAFE: 'AMAN',
   WATCH: 'WASPADA',
-  DANGER: 'BAHAYA',
+  WARNING: 'SIAGA',
+  DANGER: 'AWAS',
   UNKNOWN: 'TIDAK DIKETAHUI',
 };
 
+/**
+ * The API/database enum names are retained for backward compatibility. Public
+ * warning terminology follows the three landslide-warning levels used by BNPB:
+ * Waspada (Tingkat 1), Siaga (Tingkat 2), and Awas (Tingkat 3). Aman is
+ * intentionally represented outside those warning levels.
+ */
+export const riskLevelLabel: Record<RiskStatus, string> = {
+  SAFE: 'DI LUAR TINGKAT PERINGATAN',
+  WATCH: 'TINGKAT 1',
+  WARNING: 'TINGKAT 2',
+  DANGER: 'TINGKAT 3',
+  UNKNOWN: 'STATUS OPERASIONAL',
+};
+
 const riskReasons: Readonly<Record<string, string>> = {
-  DANGER_TILT: 'Kemiringan mencapai ambang bahaya',
-  DANGER_SOIL_MOISTURE: 'Kelembapan tanah mencapai ambang bahaya',
-  DANGER_RAINFALL: 'Curah hujan mencapai ambang bahaya',
+  SAFE_THRESHOLDS_MET: 'Seluruh pembacaan valid berada di bawah ambang Waspada',
+  WATCH_THRESHOLDS_MET: 'Satu atau lebih pembacaan mencapai ambang Waspada (Tingkat 1)',
+  WARNING_TILT: 'Kemiringan mencapai ambang Siaga (Tingkat 2)',
+  WARNING_SOIL_MOISTURE: 'Kelembapan tanah mencapai ambang Siaga (Tingkat 2)',
+  WARNING_RAINFALL: 'Curah hujan mencapai ambang Siaga (Tingkat 2)',
+  DANGER_RAIN_TILT: 'Kombinasi kemiringan dan curah hujan mencapai tingkat Awas',
+  DANGER_TILT: 'Kemiringan mencapai ambang Awas (Tingkat 3)',
+  DANGER_SOIL_MOISTURE: 'Kelembapan tanah mencapai ambang Awas (Tingkat 3)',
+  DANGER_RAINFALL: 'Curah hujan mencapai ambang Awas (Tingkat 3)',
   DANGER_PROLONGED_RAINFALL:
-    'Hujan berlanjut setelah beberapa hari berturut-turut dengan curah hujan sedang',
-  DANGER_RAIN_MOISTURE: 'Kombinasi hujan dan kelembapan terdeteksi',
-  WATCH_TILT: 'Kemiringan mencapai ambang waspada',
-  WATCH_SOIL_MOISTURE: 'Kelembapan tanah mencapai ambang waspada',
-  WATCH_RAINFALL: 'Curah hujan mencapai ambang waspada',
-  STALE_TELEMETRY: 'Data telemetri tidak segar',
+    'Hujan berlanjut setelah beberapa hari hujan sedang dan memicu tingkat Awas',
+  DANGER_RAIN_MOISTURE: 'Kombinasi hujan dan kelembapan mencapai tingkat Awas',
+  WATCH_TILT: 'Kemiringan mencapai ambang Waspada (Tingkat 1)',
+  WATCH_SOIL_MOISTURE: 'Kelembapan tanah mencapai ambang Waspada (Tingkat 1)',
+  WATCH_RAINFALL: 'Curah hujan mencapai ambang Waspada (Tingkat 1)',
+  REQUIRED_SENSOR_MISSING: 'Pembacaan sensor wajib tidak tersedia',
+  REQUIRED_SENSOR_INVALID: 'Pembacaan sensor wajib berada di luar rentang teknis',
+  DEVICE_DISABLED: 'Perangkat dinonaktifkan',
+  TELEMETRY_DELAYED: 'Telemetri terlambat diterima',
   DEVICE_OFFLINE: 'Perangkat tidak terhubung',
-  REQUIRED_SENSOR_UNAVAILABLE: 'Sensor bahaya wajib tidak tersedia',
+  TIMESTAMP_UNTRUSTED: 'Waktu perangkat tidak dapat dipercaya',
+  PROFILE_UNAVAILABLE: 'Profil risiko aktif tidak tersedia',
+  DEVICE_SERVER_MISMATCH: 'Status firmware berbeda dengan perhitungan server',
+  WATCH_HYSTERESIS_PENDING: 'Konfirmasi kondisi Siaga masih berlangsung',
+  DOWNGRADE_STABILITY_PENDING: 'Stabilitas penurunan tingkat masih dipantau',
 };
 
 export function riskReasonLabel(reason: string): string {

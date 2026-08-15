@@ -157,7 +157,7 @@ function validateConfiguration(input: UpdateRiskProfileDto): void {
   ) {
     failures.push({
       field: 'thresholds',
-      messages: ['Threshold SAFE tidak boleh melampaui threshold DANGER terkait.'],
+      messages: ['Ambang WASPADA tidak boleh melampaui ambang SIAGA terkait.'],
     });
   }
   if (failures.length > 0) {

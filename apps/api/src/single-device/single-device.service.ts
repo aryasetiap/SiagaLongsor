@@ -612,7 +612,7 @@ function validate(i: SingleRiskProfileDto, p: RiskProfile): void {
     ) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
-        message: 'WATCH harus lebih rendah dari DANGER dan berada dalam rentang teknis.',
+        message: 'Ambang WASPADA harus lebih rendah dari SIAGA dan berada dalam rentang teknis.',
       });
     }
   }

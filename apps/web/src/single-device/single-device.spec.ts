@@ -14,6 +14,7 @@ import {
 import {
   chartSegments,
   riskLabel,
+  riskLevelLabel,
   riskReasonLabel,
   type SeriesPoint,
 } from './single-device-contracts';
@@ -56,10 +57,18 @@ describe('single-device frontend contract', () => {
     expect(riskLabel).toEqual({
       SAFE: 'AMAN',
       WATCH: 'WASPADA',
-      DANGER: 'BAHAYA',
+      WARNING: 'SIAGA',
+      DANGER: 'AWAS',
       UNKNOWN: 'TIDAK DIKETAHUI',
     });
-    expect(riskReasonLabel('DANGER_RAINFALL')).toBe('Curah hujan mencapai ambang bahaya');
+    expect(riskLevelLabel).toEqual({
+      SAFE: 'DI LUAR TINGKAT PERINGATAN',
+      WATCH: 'TINGKAT 1',
+      WARNING: 'TINGKAT 2',
+      DANGER: 'TINGKAT 3',
+      UNKNOWN: 'STATUS OPERASIONAL',
+    });
+    expect(riskReasonLabel('DANGER_RAINFALL')).toBe('Curah hujan mencapai ambang Awas (Tingkat 3)');
   });
 
   it('breaks native chart segments at unavailable readings', () => {
@@ -84,7 +93,7 @@ describe('single-device frontend contract', () => {
     request.mockResolvedValue(overview('UNKNOWN'));
     render(createElement(OverviewPanel, { client }));
     expect(await screen.findByText('TIDAK DIKETAHUI')).toBeInTheDocument();
-    expect(screen.getByText('UNKNOWN', { exact: true })).toBeInTheDocument();
+    expect(screen.getByText('STATUS OPERASIONAL', { exact: true })).toBeInTheDocument();
     const range = screen.getByLabelText('Rentang histori');
     expect(screen.getByRole('option', { name: 'Harian — pilih tanggal' })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: 'Mingguan — pilih minggu' })).toBeInTheDocument();
@@ -124,6 +133,8 @@ describe('single-device frontend contract', () => {
     expect(screen.getByText('Overview sensor')).toBeInTheDocument();
     expect(screen.getByText('1 °')).toBeInTheDocument();
     expect(screen.getByText('Waspada ≥ 3 °')).toBeInTheDocument();
+    expect(screen.getByText('Siaga ≥ 8 °')).toBeInTheDocument();
+    expect(screen.getByText('Awas · kombinasi/durasi')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Tutup detail Kemiringan' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
@@ -147,7 +158,7 @@ describe('single-device frontend contract', () => {
     ]);
   });
 
-  it('initializes risk-profile fields and rejects WATCH equal to DANGER before updating', async () => {
+  it('initializes risk-profile fields and rejects WASPADA equal to SIAGA before updating', async () => {
     const user = userEvent.setup();
     const { client, request } = requestClient();
     request.mockResolvedValueOnce({ data: profile(3, 'catatan awal') });
@@ -155,11 +166,13 @@ describe('single-device frontend contract', () => {
 
     expect(await screen.findByDisplayValue('10')).toBeInTheDocument();
     expect(screen.getByDisplayValue('catatan awal')).toBeInTheDocument();
-    await user.clear(screen.getByLabelText('Kemiringan DANGER'));
-    await user.type(screen.getByLabelText('Kemiringan DANGER'), '10');
+    expect(screen.getByText('AWAS · TINGKAT 3')).toBeInTheDocument();
+    expect(screen.getByText(/Kemiringan ≥ 20 ° \+ curah hujan ≥ 60 mm\/jam/)).toBeInTheDocument();
+    await user.clear(screen.getByLabelText('Kemiringan SIAGA'));
+    await user.type(screen.getByLabelText('Kemiringan SIAGA'), '10');
     await user.click(screen.getByRole('button', { name: 'Simpan' }));
 
-    expect(await screen.findByText(/WATCH harus lebih rendah/)).toBeInTheDocument();
+    expect(await screen.findByText(/Ambang WASPADA harus lebih rendah/)).toBeInTheDocument();
     expect(request).toHaveBeenCalledOnce();
   });
 
