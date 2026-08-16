@@ -225,7 +225,6 @@ test.describe('smoke autentikasi Teknila Siaga Longsor', () => {
     await expect(
       page.getByRole('link', { name: /Monitoring|Peringatan|Peta|Laporan/ }),
     ).toHaveCount(0);
-    await expect(page.getByText('Sesi aktif dan terverifikasi')).toBeAttached();
     await expectNoTokensInBrowserStorage(page);
 
     await page.reload();
@@ -234,7 +233,9 @@ test.describe('smoke autentikasi Teknila Siaga Longsor', () => {
     await expectNoTokensInBrowserStorage(page);
 
     await page.getByRole('button', { name: /Menu akun/ }).click();
-    await page.getByRole('menuitem', { name: 'Keluar' }).click();
+    const accountMenu = page.getByRole('menu', { name: /Menu akun/ });
+    await expect(accountMenu.getByText('Sesi aktif dan terverifikasi')).toBeVisible();
+    await accountMenu.getByRole('menuitem', { name: 'Keluar' }).click();
     await expect(page).toHaveURL(/\/login$/);
     await expect(page.getByRole('button', { name: 'Masuk ke Dashboard' })).toBeEnabled();
     expect(browserErrors).toEqual([]);
