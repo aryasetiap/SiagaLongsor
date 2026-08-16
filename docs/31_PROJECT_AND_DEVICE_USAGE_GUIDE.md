@@ -211,6 +211,11 @@ Seeder membuat data awal untuk pengembangan, termasuk organisasi, site, titik
 pemantauan, akun pengujian, perangkat demo, dan profil risiko provisional sesuai
 konfigurasi repository.
 
+Migration `20260815170000_r13_four_operational_warning_states` menambahkan enum
+server `WARNING` untuk status Siaga. Jalankan migration sebelum menjalankan versi
+API yang memakai model empat kondisi. Migration ini bersifat aditif; jangan mencoba
+menghapus nilai enum saat rollback jika sudah ada row berstatus `WARNING`.
+
 ### 7.5 Menjalankan backend dan frontend
 
 Buka dua terminal terpisah.
@@ -302,6 +307,15 @@ pengguna dapat memilih tanggal, minggu, atau bulan tertentu.
 Data publik tidak boleh mengekspos device secret, identitas sensitif perangkat,
 konfigurasi penuh, atau audit administratif.
 
+Setiap kartu riwayat sensor dapat dibuka menjadi popup overview sensor. Popup
+menampilkan pembacaan terkini, jumlah data valid, waktu pembacaan terakhir, grafik,
+serta posisi terhadap aturan berikut:
+
+- Aman jika nilai berada di bawah ambang Waspada;
+- Waspada jika mencapai ambang Waspada;
+- Siaga jika mencapai ambang Siaga;
+- Awas sebagai aturan kombinasi/durasi, bukan satu angka sensor tambahan.
+
 ### 9.2 Perangkat
 
 Halaman ini tersedia untuk Project Owner dan menampilkan antara lain:
@@ -318,13 +332,23 @@ Halaman ini tersedia untuk Project Owner dan menampilkan antara lain:
 
 Halaman ini dipakai untuk melihat dan mengelola:
 
-- threshold kemiringan;
-- threshold kelembapan tanah;
-- threshold curah hujan;
+- threshold Waspada dan Siaga untuk kemiringan;
+- threshold Waspada dan Siaga untuk kelembapan tanah;
+- threshold Waspada dan Siaga untuk curah hujan;
 - aturan hujan berdurasi beberapa hari;
 - rentang teknis sensor;
 - parameter konektivitas;
 - versi dan status kalibrasi profil.
+
+Halaman menampilkan kartu **AWAS · TINGKAT 3** secara terpisah. Kartu tersebut
+bersifat informatif dan tidak menyediakan input ambang sensor ketiga karena Awas
+diturunkan dari:
+
+1. kemiringan dan curah hujan yang sama-sama mencapai ambang Siaga; atau
+2. aturan hujan sedang berturut-turut yang kemudian berlanjut.
+
+Nilai di bawah seluruh ambang Waspada ditampilkan sebagai Aman. Aman berada di
+luar tiga tingkat peringatan.
 
 Perubahan profil harus dilakukan secara terkontrol karena memengaruhi hasil
 klasifikasi. Profil baru dicatat sebagai versi baru dan dapat menghasilkan audit
@@ -599,6 +623,24 @@ static constexpr char API_CA_CERT_VALUE[] = R"EOF(
 Gunakan CA certificate dari rantai TLS domain, bukan private key server. Jangan
 menonaktifkan verifikasi TLS pada produksi hanya agar koneksi berhasil.
 
+Untuk backend produksi proyek ini, bentuk konfigurasinya adalah:
+
+```cpp
+#define API_BASE_URL "https://siagalongsor.net/api/v1"
+static constexpr char API_CA_CERT_VALUE[] = R"EOF(
+-----BEGIN CERTIFICATE-----
+<ROOT_CA_YANG_MEMVALIDASI_RANTAI_TLS_DOMAIN>
+-----END CERTIFICATE-----
+)EOF";
+#define API_CA_CERT API_CA_CERT_VALUE
+```
+
+CA certificate bukan private key, tetapi harus tetap diperoleh dari rantai TLS
+domain yang sedang aktif dan diverifikasi sebelum upload firmware. Penyedia TLS
+atau CDN dapat mengganti rantai sertifikat. Jika rantai berubah, firmware perlu
+dibangun dan diunggah ulang dengan root CA yang sesuai. Waktu perangkat juga harus
+tersinkronisasi karena validasi sertifikat bergantung pada waktu yang benar.
+
 ## 14. Registrasi perangkat ke backend
 
 ESP32 mengirim header autentikasi berbentuk konseptual:
@@ -632,6 +674,24 @@ perangkat aktif. Jangan membuat perangkat kedua secara buta. Pilih salah satu:
 Secret lama tidak dapat dibaca kembali dari database karena disimpan sebagai
 hash. Jika hilang, lakukan rotasi credential. Credential database lokal tidak
 otomatis berlaku pada database produksi.
+
+### 14.1 Rotasi credential yang terpapar
+
+Jika Wi-Fi password atau device secret pernah muncul di chat, screenshot, log,
+atau dokumen yang dibagikan, anggap credential tersebut telah terpapar:
+
+1. ganti password Wi-Fi pada access point jika jaringan tersebut bukan jaringan
+   sementara yang terisolasi;
+2. login sebagai Project Owner;
+3. panggil `POST /api/v1/devices/{deviceId}/rotate-credential` untuk perangkat aktif;
+4. simpan secret baru yang hanya ditampilkan satu kali;
+5. perbarui `secrets.h`, build, dan upload ulang firmware;
+6. pastikan secret lama menghasilkan `401` dan secret baru menghasilkan telemetri
+   `201`;
+7. jangan menempelkan nilai baru ke chat atau commit Git.
+
+Rotasi langsung membatalkan secret lama. Rincian provisioning aman tersedia di
+`docs/22_R9_PROVISIONING_AND_FIELD_CHECKLIST.md`.
 
 ## 15. Compile, upload, dan serial monitor
 
@@ -1095,9 +1155,11 @@ dijalankan atau gagal. Catat hasil aktual dalam deskripsi PR.
 - [ ] device terdaftar pada monitoring point yang benar;
 - [ ] credential produksi digunakan hanya pada produksi;
 - [ ] HTTPS dan CA certificate valid;
+- [ ] migration enum `WARNING` sudah diterapkan sebelum API baru dijalankan;
 - [ ] NTP dapat diakses;
 - [ ] telemetri menghasilkan status `201`;
 - [ ] overview menampilkan timestamp dan data terbaru;
+- [ ] Overview dan Profil Risiko menampilkan Aman, Waspada, Siaga, dan Awas secara konsisten;
 - [ ] audit transition tercatat;
 - [ ] Telegram diuji dengan transisi terkontrol;
 - [ ] prosedur saat internet mati sudah disiapkan.
@@ -1197,6 +1259,8 @@ Untuk detail yang lebih spesifik, baca juga dokumentasi repository berikut:
   instalasi, dan checklist lapangan;
 - `docs/28_PRODUCTION_DEPLOYMENT_OPERATIONS.md` untuk operasi produksi;
 - `docs/30_TELEGRAM_NOTIFICATIONS.md` untuk integrasi Telegram;
+- `docs/32_SNI_9021_STATUS_ALIGNMENT.md` untuk pemetaan Aman, Waspada, Siaga,
+  Awas, dan batas klaim SNI;
 - `docs/PRESENTATION_DEMO.md` untuk mode presentasi;
 - `firmware/esp32/README.md` untuk firmware;
 - `firmware/esp32/include/secrets.example.h` untuk template konfigurasi.
