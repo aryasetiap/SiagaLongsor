@@ -5,8 +5,9 @@ import { AuthProvider } from '../auth/auth-context';
 import './globals.css';
 
 export const metadata: Metadata = {
-  description: 'Portal monitoring Sistem Deteksi Dini Tanah Longsor.',
-  title: 'SiagaLongsor',
+  description:
+    'Teknila Siaga Longsor adalah portal monitoring Sistem Deteksi Dini Tanah Longsor Fakultas Teknik Universitas Lampung.',
+  title: 'Teknila Siaga Longsor',
 };
 
 interface RootLayoutProps {

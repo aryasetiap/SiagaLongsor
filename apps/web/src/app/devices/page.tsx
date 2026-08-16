@@ -12,7 +12,7 @@ export default function DevicesPage() {
         <ApplicationShell
           principal={principal}
           title="Perangkat"
-          subtitle="Diagnostik konektivitas dan keterbacaan sensor perangkat."
+          subtitle="Pantau konektivitas perangkat dan ketersediaan data sensor terbaru."
         >
           {principal.memberships.some((membership) => membership.role === 'PROJECT_OWNER') ? (
             <SingleDeviceDevice />

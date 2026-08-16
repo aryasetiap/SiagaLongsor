@@ -154,7 +154,7 @@ describe('single-device frontend contract', () => {
       { label: 'Overview', href: '/overview' },
       { label: 'Perangkat', href: '/devices' },
       { label: 'Profil Risiko', href: '/settings/risk-profile' },
-      { label: 'Audit Log', href: '/settings/audit-log' },
+      { label: 'Riwayat Status Risiko', href: '/settings/audit-log' },
     ]);
   });
 
@@ -166,6 +166,7 @@ describe('single-device frontend contract', () => {
 
     expect(await screen.findByDisplayValue('10')).toBeInTheDocument();
     expect(screen.getByDisplayValue('catatan awal')).toBeInTheDocument();
+    expect(screen.getByText('Sementara')).toBeInTheDocument();
     expect(screen.getByText('AWAS · TINGKAT 3')).toBeInTheDocument();
     expect(screen.getByText(/Kemiringan ≥ 20 ° \+ curah hujan ≥ 60 mm\/jam/)).toBeInTheDocument();
     await user.clear(screen.getByLabelText('Kemiringan SIAGA'));
@@ -204,6 +205,20 @@ describe('single-device frontend contract', () => {
     await user.click(screen.getByRole('button', { name: 'Muat berikutnya' }));
     await waitFor(() => expect(screen.getAllByText(/AMAN → WASPADA/)).toHaveLength(3));
     expect(request).toHaveBeenNthCalledWith(2, '/audit-log?limit=25&cursor=next');
+  });
+
+  it('uses the concise empty-state copy when there is no risk transition history', async () => {
+    const { client, request } = requestClient();
+    request.mockResolvedValueOnce({ data: [], page: { hasMore: false, nextCursor: null } });
+
+    render(createElement(AuditPanel, { client }));
+
+    expect(await screen.findByText('Belum ada perubahan status risiko.')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Riwayat perubahan status akan muncul di sini setelah sistem mencatat transisi risiko.',
+      ),
+    ).toBeInTheDocument();
   });
 });
 

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { type ReactNode, useState } from 'react';
 
 import { useAuth } from '../auth/auth-context';
+import { AccountMenu } from './account-menu';
 import { ApplicationShell } from './application-shell';
 import { BrandMark } from './brand-mark';
 
@@ -47,14 +48,13 @@ export function PublicDashboardShell({ children, title, subtitle }: PublicDashbo
   return (
     <div className="app-shell min-h-screen md:p-4">
       <div className="app-frame md:grid md:grid-cols-[248px_1fr]">
-        <aside className="app-sidebar px-4 py-4 md:min-h-[calc(100vh-2rem)] md:px-5 md:py-6">
+        <aside className="app-sidebar px-4 py-4 md:min-h-[calc(100vh-2rem)] md:px-5 md:py-6 md:flex md:flex-col">
           <div className="flex items-center justify-between md:block">
-            <BrandMark inverted />
+            <BrandMark />
             <span className="rounded-full bg-sky-50 px-3 py-1 text-[11px] font-bold text-sky-700 md:hidden">
               Akses publik
             </span>
           </div>
-
           <nav className="mt-5 md:mt-10" aria-label="Navigasi publik">
             <Link
               href="/overview"
@@ -76,10 +76,11 @@ export function PublicDashboardShell({ children, title, subtitle }: PublicDashbo
             </Link>
           </nav>
 
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 md:mt-8">
+          <p className="sidebar-institutional-note">Universitas Lampung · Fakultas Teknik</p>
+          <div className="sidebar-access-card mt-4 rounded-2xl p-4 md:mt-8">
             <p className="text-xs font-semibold text-slate-400">Akses dashboard</p>
             <p className="mt-2 text-sm font-bold text-white">Pemantauan publik</p>
-            <p className="mt-1 text-xs leading-5 text-slate-400">
+            <p className="mt-1 text-xs leading-5 text-slate-300">
               Menampilkan status risiko dan riwayat sensor tanpa data administrasi perangkat.
             </p>
           </div>
@@ -95,47 +96,13 @@ export function PublicDashboardShell({ children, title, subtitle }: PublicDashbo
             </div>
 
             {isAuthenticated ? (
-              <div className="flex items-center gap-2">
-                <details className="group relative">
-                  <summary
-                    aria-label={`Menu akun ${auth.principal.name}`}
-                    className="flex cursor-pointer list-none items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600"
-                  >
-                    <span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-sm font-bold text-blue-700">
-                      {initials(auth.principal.name)}
-                    </span>
-                    <span className="hidden text-left sm:block">
-                      <span className="block max-w-44 truncate text-sm font-bold text-slate-900">
-                        {auth.principal.name}
-                      </span>
-                      <span className="block text-xs text-slate-500">Admin Sekolah</span>
-                    </span>
-                    <span aria-hidden="true" className="text-slate-400">
-                      ▾
-                    </span>
-                  </summary>
-                  <div className="absolute right-0 z-20 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
-                    <div className="border-b border-slate-100 px-2 pb-3">
-                      <p className="font-bold text-slate-950">{auth.principal.name}</p>
-                      <p className="mt-1 break-all text-xs text-slate-500">
-                        {auth.principal.email}
-                      </p>
-                    </div>
-                    <p className="my-2 rounded-xl bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
-                      Akun sekolah aktif. Akses administrasi perangkat hanya tersedia untuk Project
-                      Owner.
-                    </p>
-                    <button
-                      type="button"
-                      disabled={loggingOut}
-                      onClick={() => void logout()}
-                      className="mt-2 w-full rounded-xl px-3 py-2.5 text-left text-sm font-bold text-red-700 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-red-600 disabled:opacity-60"
-                    >
-                      {loggingOut ? 'Mengakhiri sesi…' : 'Keluar'}
-                    </button>
-                  </div>
-                </details>
-              </div>
+              <AccountMenu
+                principal={auth.principal}
+                roleLabel="Admin Sekolah"
+                message="Akun sekolah aktif. Akses administrasi perangkat hanya tersedia untuk Project Owner."
+                loggingOut={loggingOut}
+                onLogout={logout}
+              />
             ) : (
               <Link href="/login" className="secondary-button bg-white">
                 Masuk administrator
@@ -148,12 +115,4 @@ export function PublicDashboardShell({ children, title, subtitle }: PublicDashbo
       </div>
     </div>
   );
-}
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
 }

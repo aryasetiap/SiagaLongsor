@@ -129,3 +129,35 @@ Soil percentage calibration and final IMU mounting/reference calibration are def
 ## 16. Shutdown and maintenance
 
 Use the deployment environment's controlled service shutdown procedure. Presentation commands are not production operation commands.
+
+## 17. Teknila public hostname and legacy redirect
+
+The canonical production public origin is `https://teknila.siagalongsor.net`. Set deployed
+application URLs that represent the public service accordingly, for example
+`NEXT_PUBLIC_API_BASE_URL=https://teknila.siagalongsor.net/api/v1`, `WEB_URL=https://teknila.siagalongsor.net`,
+and `TELEGRAM_DASHBOARD_URL=https://teknila.siagalongsor.net/overview` where those variables are
+used by the deployment.
+
+Before switching the public origin, an operator must complete these VPS/infrastructure steps:
+
+1. Create and verify DNS for `teknila.siagalongsor.net` to the production reverse proxy/VPS.
+2. Provision and verify TLS for both `teknila.siagalongsor.net` and `siagalongsor.net`, including
+   automatic renewal, before redirecting traffic.
+3. Configure the canonical host to proxy the application normally, then configure the old host as
+   a permanent HTTP redirect. An nginx server block for the old host can use:
+
+   ```nginx
+   server {
+     listen 80;
+     listen 443 ssl http2;
+     server_name siagalongsor.net;
+
+     # TLS certificate directives for siagalongsor.net are required on the TLS listener.
+     return 308 https://teknila.siagalongsor.net$request_uri;
+   }
+   ```
+
+`$request_uri` preserves the incoming path and query string. Use an equivalent HTTP-server-level
+301 or 308 redirect if nginx is not the active proxy. Do not use a browser-side redirect as the
+primary migration mechanism. This repository does not contain the live VPS/nginx/DNS/TLS
+configuration, so these steps are manual and this document does not claim the redirect is active.

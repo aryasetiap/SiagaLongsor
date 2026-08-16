@@ -95,7 +95,7 @@ async function start() {
   await waitForUrl(webUrl);
   await startComponent('simulator', { ...environment, ...provisioned.simulatorEnvironment });
   console.log(
-    '\nSiagaLongsor Presentation READY\n\nWeb:\nhttp://localhost:3003\n\nOverview:\nhttp://localhost:3003/overview\n\nAPI health:\nhttp://localhost:3002/api/v1/health\n\nSimulator:\nRUNNING',
+    '\nTeknila Siaga Longsor Presentation READY\n\nWeb:\nhttp://localhost:3003\n\nOverview:\nhttp://localhost:3003/overview\n\nAPI health:\nhttp://localhost:3002/api/v1/health\n\nSimulator:\nRUNNING',
   );
 }
 
@@ -190,7 +190,7 @@ function presentationEnvironment(config) {
     PUBLIC_DEVICE_HARDWARE_ID: 'PRESENTATION-DEMO-001',
     DATABASE_URL: `postgresql://siagalongsor:${encodeURIComponent(config.PRESENTATION_POSTGRES_PASSWORD)}@localhost:55433/siagalongsor_presentation`,
     AUTH_ACCESS_TOKEN_SECRET: config.PRESENTATION_AUTH_SECRET,
-    SEED_ORGANIZATION_NAME: 'SiagaLongsor Presentation',
+    SEED_ORGANIZATION_NAME: 'Teknila Siaga Longsor Presentation',
     SEED_ORGANIZATION_SLUG: 'siagalongsor-presentation',
     SEED_SITE_NAME: 'Demo Terisolasi',
     SEED_SITE_SLUG: 'demo-terisolasi',

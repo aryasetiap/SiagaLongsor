@@ -78,7 +78,7 @@ export function chartOption({
       trigger: 'axis',
       confine: true,
       axisPointer: { type: 'line' },
-      backgroundColor: '#17211f',
+      backgroundColor: '#164b7a',
       borderWidth: 0,
       borderRadius: 12,
       padding: [9, 11],
@@ -234,7 +234,7 @@ export function InteractiveChart({
         </div>
       </header>
       {stats.current === null ? (
-        <div className="grid h-52 place-items-center text-sm text-slate-500">
+        <div className="chart-empty-state grid place-items-center text-sm text-slate-500">
           Belum ada pembacaan sensor.
         </div>
       ) : (

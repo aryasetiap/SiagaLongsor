@@ -12,7 +12,7 @@ export default function RiskProfilePage() {
         <ApplicationShell
           principal={principal}
           title="Profil Risiko"
-          subtitle="Threshold risiko aktif untuk satu perangkat pemantauan."
+          subtitle="Atur ambang Waspada dan Siaga yang digunakan untuk menilai kondisi lereng."
         >
           {principal.memberships.some((membership) => membership.role === 'PROJECT_OWNER') ? (
             <SingleDeviceProfile />

@@ -102,7 +102,15 @@ describe('AuthProvider and protected content', () => {
     expect(
       screen.getByText(/Akses administrasi perangkat hanya tersedia untuk Project Owner/),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Keluar' }));
+    expect(screen.getByRole('menu', { name: 'Menu akun Admin Sekolah' })).toBeInTheDocument();
+    await user.click(document.body);
+    expect(screen.queryByRole('menu', { name: 'Menu akun Admin Sekolah' })).not.toBeInTheDocument();
+    await user.click(accountMenu);
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('menu', { name: 'Menu akun Admin Sekolah' })).not.toBeInTheDocument();
+    expect(accountMenu).toHaveFocus();
+    await user.click(accountMenu);
+    await user.click(screen.getByRole('menuitem', { name: 'Keluar' }));
 
     expect(logout).toHaveBeenCalledOnce();
     expect(navigationMocks.replace).toHaveBeenCalledWith('/login');
@@ -199,14 +207,16 @@ describe('AuthProvider and protected content', () => {
           'href',
           '/settings/risk-profile',
         );
-        expect(screen.getByRole('link', { name: /Audit Log/ })).toHaveAttribute(
+        expect(screen.getByRole('link', { name: /Riwayat Status Risiko/ })).toHaveAttribute(
           'href',
           '/settings/audit-log',
         );
       } else {
         expect(screen.getByText(/memerlukan akses Project Owner/)).toBeInTheDocument();
         expect(screen.queryByRole('link', { name: /Overview/ })).not.toBeInTheDocument();
-        expect(screen.queryByRole('link', { name: /Audit Log/ })).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole('link', { name: /Riwayat Status Risiko/ }),
+        ).not.toBeInTheDocument();
       }
     },
   );
@@ -246,7 +256,8 @@ describe('AuthProvider and protected content', () => {
       </AuthProvider>,
     );
 
-    await user.click(screen.getByRole('button', { name: 'Keluar' }));
+    await user.click(screen.getByRole('button', { name: /Menu akun Admin Sekolah/ }));
+    await user.click(screen.getByRole('menuitem', { name: 'Keluar' }));
 
     expect(logout).toHaveBeenCalledOnce();
     expect(navigationMocks.replace).toHaveBeenCalledWith('/login');
@@ -295,7 +306,7 @@ describe('AuthProvider and protected content', () => {
 
   it.each([
     ['/settings/risk-profile', /Profil Risiko/],
-    ['/settings/audit-log', /Audit Log/],
+    ['/settings/audit-log', /Riwayat Status Risiko/],
   ])('marks the R3 navigation for %s as active', async (pathname, accessibleName) => {
     navigationMocks.pathname = pathname;
     const principal = createPrincipal('PROJECT_OWNER');

@@ -11,7 +11,7 @@ export default function AuditLogPage() {
       {(principal) => (
         <ApplicationShell
           principal={principal}
-          title="Audit Log"
+          title="Riwayat Status Risiko"
           subtitle="Riwayat perubahan status risiko yang bersifat otoritatif."
         >
           {principal.memberships.some((membership) => membership.role === 'PROJECT_OWNER') ? (

@@ -222,6 +222,10 @@ function formatDate(value: string | null): string {
   return value === null ? unavailable : new Date(value).toLocaleString('id-ID');
 }
 
+function calibrationStatusLabel(status: string): string {
+  return status === 'PROVISIONAL' ? 'Sementara' : status === 'CALIBRATED' ? 'Terkalibrasi' : status;
+}
+
 function ErrorBanner({ message }: { readonly message: string | null }) {
   return message === null ? null : (
     <p role="alert" className="error-banner">
@@ -315,7 +319,7 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
       className={`overview-dashboard space-y-4 ${presentationView ? 'presentation-view' : ''}`}
     >
       <div className="presentation-toolbar" aria-hidden={!presentationView}>
-        <strong>SiagaLongsor</strong>
+        <strong>Teknila Siaga Longsor</strong>
         <span>{presentationMode ? '● LIVE DEMO' : '● PEMANTAUAN'}</span>
         <span>
           {lastRefreshedAt === null
@@ -334,70 +338,76 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
             <span>Data dapat berasal dari simulator</span>
           </p>
         )}
-        <div className="overview-range-control">
-          <span className="overview-range-label">Rentang data</span>
-          <div className="range-pills" role="group" aria-label="Pilihan rentang waktu">
-            {overviewRanges.map((range, index) => (
-              <span key={range.mode} className="range-pill-item">
-                {index > 0 && overviewRanges[index - 1]?.group !== range.group && (
-                  <span className="range-pill-divider" aria-hidden="true" />
-                )}
-                <button
-                  type="button"
-                  className={rangeMode === range.mode ? 'active' : ''}
-                  aria-pressed={rangeMode === range.mode}
-                  aria-label={range.label}
-                  onClick={() => setRangeMode(range.mode)}
-                >
-                  {range.shortLabel}
-                </button>
-              </span>
-            ))}
+        <div className="toolbar-range-group">
+          <div className="overview-range-control">
+            <span className="overview-range-label">Rentang data</span>
+            <div className="range-pills" role="group" aria-label="Pilihan rentang waktu">
+              {overviewRanges.map((range, index) => (
+                <span key={range.mode} className="range-pill-item">
+                  {index > 0 && overviewRanges[index - 1]?.group !== range.group && (
+                    <span className="range-pill-divider" aria-hidden="true" />
+                  )}
+                  <button
+                    type="button"
+                    className={rangeMode === range.mode ? 'active' : ''}
+                    aria-pressed={rangeMode === range.mode}
+                    aria-label={range.label}
+                    onClick={() => setRangeMode(range.mode)}
+                  >
+                    {range.shortLabel}
+                  </button>
+                </span>
+              ))}
+            </div>
           </div>
+          <label className="sr-only" htmlFor="overview-range">
+            Rentang histori
+          </label>
+          <select
+            id="overview-range"
+            value={rangeMode}
+            onChange={(event) => setRangeMode(event.target.value as OverviewRangeMode)}
+            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
+          >
+            {overviewRanges.map((range) => (
+              <option key={range.mode} value={range.mode}>
+                {range.label}
+              </option>
+            ))}
+          </select>
         </div>
-        <label className="sr-only" htmlFor="overview-range">
-          Rentang histori
-        </label>
-        <select
-          id="overview-range"
-          value={rangeMode}
-          onChange={(event) => setRangeMode(event.target.value as OverviewRangeMode)}
-          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm"
-        >
-          {overviewRanges.map((range) => (
-            <option key={range.mode} value={range.mode}>
-              {range.label}
-            </option>
-          ))}
-        </select>
         {activeRange?.group === 'period' && (
-          <CalendarPeriodPicker
-            mode={rangeMode}
-            value={periodPickerValue}
-            max={periodPickerMax}
-            label={periodLabel}
-            nextDisabled={periodIsCurrent}
-            onChange={updatePeriodValue}
-            onPrevious={() => shiftPeriod(-1)}
-            onNext={() => shiftPeriod(1)}
-          />
+          <div className="toolbar-period-group">
+            <CalendarPeriodPicker
+              mode={rangeMode}
+              value={periodPickerValue}
+              max={periodPickerMax}
+              label={periodLabel}
+              nextDisabled={periodIsCurrent}
+              onChange={updatePeriodValue}
+              onPrevious={() => shiftPeriod(-1)}
+              onNext={() => shiftPeriod(1)}
+            />
+          </div>
         )}
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading}
-          className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-white"
-        >
-          {loading ? 'Memuat…' : 'Muat ulang'}
-        </button>
-        <button
-          type="button"
-          onClick={() => setPresentationView(true)}
-          className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-800"
-        >
-          Mode Presentasi
-        </button>
-        <p className="ml-auto text-xs text-slate-500" aria-live="polite">
+        <div className="toolbar-action-group">
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="rounded-xl bg-slate-900 px-3 py-2 text-sm font-bold text-white"
+          >
+            {loading ? 'Memuat…' : 'Muat ulang'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setPresentationView(true)}
+            className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-bold text-slate-800"
+          >
+            Mode Presentasi
+          </button>
+        </div>
+        <p className="toolbar-refresh-status text-xs text-slate-500" aria-live="polite">
           {lastRefreshedAt === null
             ? 'Belum diperbarui'
             : `Diperbarui ${lastRefreshedAt.toLocaleTimeString('id-ID')}`}{' '}
@@ -413,7 +423,7 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
             >
               <div className="risk-hero-top">
                 <div>
-                  <p className="risk-hero-eyebrow">STATUS RISIKO OTORITATIF</p>
+                  <p className="risk-hero-eyebrow">STATUS RISIKO SAAT INI</p>
                   <strong className="risk-hero-label">{riskLabel[data.data.risk.status]}</strong>
                 </div>
                 <span className="risk-status-code">
@@ -426,15 +436,15 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
                   'Tidak ada alasan tersedia'}
               </p>
               <p className="risk-standard-note">
-                Aman berada di luar tingkat peringatan. Tingkat peringatan terdiri atas Waspada
-                (Tingkat 1), Siaga (Tingkat 2), dan Awas (Tingkat 3). Ambang mengikuti profil hasil
-                kalibrasi lokasi.
+                Status Aman berlaku ketika seluruh data sensor valid berada di bawah ambang Waspada.
+                Tingkat peringatan terdiri dari Waspada, Siaga, dan Awas. Ambang mengikuti profil
+                risiko lokasi.
               </p>
               <div className="risk-hero-meta">
                 <span>
                   <span className="risk-online-dot" aria-hidden="true" /> {data.data.risk.freshness}
                 </span>
-                <span>Observasi {formatDate(data.data.risk.observedAt)}</span>
+                <span>Data terakhir {formatDate(data.data.risk.observedAt)}</span>
                 {!data.data.configured && <span>Perangkat belum dikonfigurasi</span>}
               </div>
             </div>
@@ -463,7 +473,9 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
                   : ''}
               </p>
             </div>
-            <p className="history-gap-hint">Celah grafik menunjukkan data sensor tidak tersedia.</p>
+            <p className="history-gap-hint">
+              Bagian kosong pada grafik menandakan tidak ada data sensor pada waktu tersebut.
+            </p>
           </div>
           <div className="overview-chart-grid grid gap-4">
             {overviewSensors.map(({ label, key, unit }) => (
@@ -821,7 +833,7 @@ export function DevicePanel({ client }: { readonly client: RequestClient }) {
         <article className="diagnostic-card diagnostic-connectivity">
           <h2>Konektivitas</h2>
           <dl className="device-field-grid">
-            <DeviceField label="Terakhir terlihat" value={formatDate(device.lastSeenAt)} />
+            <DeviceField label="Terakhir online" value={formatDate(device.lastSeenAt)} />
             <DeviceField label="Telemetri terakhir" value={formatDate(device.lastTelemetryAt)} />
             <DeviceField label="Jaringan" value={device.network?.type ?? unavailable} />
             <DeviceField
@@ -848,8 +860,8 @@ export function DevicePanel({ client }: { readonly client: RequestClient }) {
       </div>
       <section className="sensor-health-section">
         <div className="section-heading">
-          <h2>Kesehatan sensor</h2>
-          <p>Status keterbacaan pembacaan sensor terakhir.</p>
+          <h2>Status sensor</h2>
+          <p>Ketersediaan data dari pembacaan sensor terbaru.</p>
         </div>
         <div className="sensor-health-grid">
           <SensorHealthCard title="Kemiringan" status={health[device.sensors.tilt]} />
@@ -961,7 +973,9 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
         </div>
         <div>
           <p>Status kalibrasi</p>
-          <strong className="profile-calibration-status">{data.calibrationStatus}</strong>
+          <strong className="profile-calibration-status">
+            {calibrationStatusLabel(data.calibrationStatus)}
+          </strong>
         </div>
         <div>
           <p>Diaktifkan</p>
@@ -972,7 +986,7 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
         {fields.map(([label, key, unit, thresholds]) => (
           <fieldset key={key} className={`threshold-card threshold-${key}`}>
             <legend>{label}</legend>
-            <p>Di bawah ambang Waspada ditampilkan sebagai Aman.</p>
+            <p>Nilai di bawah ambang Waspada dikategorikan Aman.</p>
             <label>
               <span>WASPADA · TINGKAT 1</span>
               <span className="threshold-input">
@@ -1004,11 +1018,10 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
       </div>
       <section className="profile-awas-rule" aria-labelledby="profile-awas-title">
         <div>
-          <p>ATURAN RISIKO TERTINGGI</p>
+          <p>KONDISI AWAS</p>
           <h2 id="profile-awas-title">AWAS · TINGKAT 3</h2>
           <span>
-            Awas tidak memiliki satu input ambang sensor tersendiri. Status ini diturunkan dari
-            kombinasi sensor atau durasi hujan.
+            Status Awas ditentukan dari kombinasi beberapa kondisi, bukan dari satu ambang sensor.
           </span>
         </div>
         <div className="profile-awas-rule-items">
@@ -1033,11 +1046,11 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
       <fieldset className="threshold-card threshold-rain-duration">
         <legend>Durasi curah hujan</legend>
         <p>
-          Jika hujan harian berada dalam rentang ini selama beberapa hari, hujan berikutnya memicu
-          Awas (Tingkat 3).
+          Jika curah hujan harian berada pada rentang ini selama beberapa hari berturut-turut, hujan
+          lanjutan dapat memicu status Awas.
         </p>
         <label>
-          <span>Minimum hujan sedang</span>
+          <span>Batas bawah hujan sedang</span>
           <span className="threshold-input">
             <input
               name="rain-duration-min"
@@ -1049,7 +1062,7 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
           </span>
         </label>
         <label>
-          <span>Maksimum hujan sedang</span>
+          <span>Batas atas hujan sedang</span>
           <span className="threshold-input">
             <input
               name="rain-duration-max"
@@ -1075,7 +1088,7 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
           </span>
         </label>
         <label>
-          <span>Hujan lanjutan</span>
+          <span>Ambang hujan lanjutan</span>
           <span className="threshold-input">
             <input
               name="rain-duration-continuation"
@@ -1149,7 +1162,19 @@ export function AuditPanel({ client }: { readonly client: RequestClient }) {
   return (
     <section className="audit-feed">
       <ErrorBanner message={error} />
-      {data?.data.length === 0 && <p className="audit-empty">Belum ada perubahan status risiko.</p>}
+      {data?.data.length === 0 && (
+        <div className="audit-empty" role="status">
+          <span className="audit-empty-icon" aria-hidden="true">
+            ⌁
+          </span>
+          <div>
+            <h2>Belum ada perubahan status risiko.</h2>
+            <p>
+              Riwayat perubahan status akan muncul di sini setelah sistem mencatat transisi risiko.
+            </p>
+          </div>
+        </div>
+      )}
       <div className="audit-timeline">
         {data?.data.map((entry) => (
           <article

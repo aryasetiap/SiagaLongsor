@@ -1,4 +1,4 @@
-# Panduan Lengkap Proyek dan Penggunaan Alat SiagaLongsor
+# Panduan Lengkap Produk dan Penggunaan Alat Teknila Siaga Longsor
 
 > Status: draf dokumentasi teknis dan operasional. Dokumen ini dapat diberikan
 > kepada GPT atau anggota tim sebagai konteks awal, tetapi konfigurasi lapangan,
@@ -7,7 +7,7 @@
 
 ## 1. Tujuan dokumen
 
-Dokumen ini menjelaskan proyek SiagaLongsor secara menyeluruh, mulai dari
+Dokumen ini menjelaskan produk Teknila Siaga Longsor secara menyeluruh, mulai dari
 arsitektur perangkat lunak, cara menjalankan sistem, cara memasang dan menguji
 alat ESP32, alur pengiriman telemetri, perhitungan tingkat risiko, penggunaan
 dashboard, integrasi Telegram, hingga penanganan masalah umum.
@@ -18,7 +18,7 @@ token Telegram, device secret, session cookie, atau credential produksi.
 
 ## 2. Ringkasan proyek
 
-SiagaLongsor adalah implementasi riset sistem pemantauan longsor untuk **satu
+Teknila Siaga Longsor adalah implementasi riset sistem pemantauan longsor untuk **satu
 perangkat fisik ESP32** pada satu titik pemantauan. Perangkat membaca:
 
 - kemiringan melalui IMU/tiltmeter;
@@ -626,7 +626,7 @@ menonaktifkan verifikasi TLS pada produksi hanya agar koneksi berhasil.
 Untuk backend produksi proyek ini, bentuk konfigurasinya adalah:
 
 ```cpp
-#define API_BASE_URL "https://siagalongsor.net/api/v1"
+#define API_BASE_URL "https://teknila.siagalongsor.net/api/v1"
 static constexpr char API_CA_CERT_VALUE[] = R"EOF(
 -----BEGIN CERTIFICATE-----
 <ROOT_CA_YANG_MEMVALIDASI_RANTAI_TLS_DOMAIN>

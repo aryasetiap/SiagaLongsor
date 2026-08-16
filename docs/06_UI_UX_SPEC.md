@@ -6,9 +6,11 @@ The product has exactly four primary pages: Overview, Perangkat, Profil Risiko, 
 
 ## 2. Visual language
 
-The application uses a deep charcoal application shell/sidebar, mist/off-white canvas, editorial page headings, large rounded surfaces, restrained borders, and soft shadows. The active navigation item is a light pill on the charcoal shell.
+The application uses a Fakultas Teknik-inspired blue navigation shell, a light blue/slate canvas, editorial page headings, large rounded translucent surfaces, restrained blue-tinted glass borders, and soft layered shadows. Blue establishes shell identity while content cards remain readable white or lightly blue-tinted surfaces; the active navigation item uses a light treatment with strong blue text. Backdrop blur is used only on shell, floating controls, and card surfaces where it preserves readability.
 
-Sensor category surfaces are descriptive, not risk states: tilt is lavender/cool neutral, soil is mint, and rain is cyan. Risk states use explicit text plus semantic accents: SAFE green, WATCH amber, DANGER red, and UNKNOWN neutral slate. UNKNOWN must never look SAFE.
+Sensor category surfaces are descriptive, not risk states: tilt is lavender/cool neutral, soil is mint, and rain is cyan. Risk states use explicit text plus semantic accents: SAFE green, WATCH amber, WARNING orange, DANGER red, and UNKNOWN neutral slate. UNKNOWN must never look SAFE.
+
+Product-facing surfaces identify the system as **Teknila Siaga Longsor**. The Teknila logo is the primary product mark; **Universitas Lampung · Fakultas Teknik** is shown as a clear, subordinate institutional affiliation.
 
 ## 3. Overview
 
@@ -35,4 +37,4 @@ Audit Log is an accessible vertical risk-transition timeline. Each record shows 
 
 ## 7. Responsiveness and accessibility
 
-Desktop uses the charcoal shell and balanced bento/card layouts; small screens stack content without horizontal page overflow. Navigation remains reachable, controls retain comfortable touch targets, focus is visible, and `prefers-reduced-motion` is respected. Status never depends on color alone, and no-data/freshness remains explicit.
+Desktop uses the blue navigation shell and balanced bento/card layouts; small screens stack content without horizontal page overflow. Navigation remains reachable, controls retain comfortable touch targets, focus is visible, and `prefers-reduced-motion` is respected. Floating account controls remain above page content and can be dismissed with outside interaction or Escape. Status never depends on color alone, and no-data/freshness remains explicit.

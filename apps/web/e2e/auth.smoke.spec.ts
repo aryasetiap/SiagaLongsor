@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 
-test.describe('smoke autentikasi SiagaLongsor', () => {
+test.describe('smoke autentikasi Teknila Siaga Longsor', () => {
   test('root membuka overview publik untuk pengguna tanpa sesi', async ({ page }) => {
     await page.goto('/');
 
@@ -12,6 +12,12 @@ test.describe('smoke autentikasi SiagaLongsor', () => {
 
   test('form login tampil dan dapat digunakan dengan keyboard', async ({ page }) => {
     await page.goto('/login');
+    const visibleBrandLockup = page.locator('.login-brand-lockup:visible');
+    await expect(visibleBrandLockup.getByLabel('Teknila Siaga Longsor')).toBeVisible();
+    await expect(
+      visibleBrandLockup.getByText('Universitas Lampung', { exact: true }),
+    ).toBeVisible();
+    await expect(visibleBrandLockup.getByText('Fakultas Teknik', { exact: true })).toBeVisible();
     const emailInput = page.getByLabel('Alamat email');
     const passwordInput = page.getByRole('textbox', { name: 'Kata sandi', exact: true });
 
@@ -30,7 +36,7 @@ test.describe('smoke autentikasi SiagaLongsor', () => {
     await page.goto('/devices');
 
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByRole('button', { name: 'Masuk ke SiagaLongsor' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Masuk ke Dashboard' })).toBeEnabled();
   });
 
   test('invalid login menampilkan pesan aman', async ({ page }) => {
@@ -45,7 +51,7 @@ test.describe('smoke autentikasi SiagaLongsor', () => {
       (response) =>
         response.request().method() === 'POST' && response.url().endsWith('/api/v1/auth/login'),
     );
-    await page.getByRole('button', { name: 'Masuk ke SiagaLongsor' }).click();
+    await page.getByRole('button', { name: 'Masuk ke Dashboard' }).click();
 
     const loginResponse = await loginResponsePromise;
     expect(loginResponse.status()).toBe(401);
@@ -63,7 +69,7 @@ test.describe('smoke autentikasi SiagaLongsor', () => {
     await page.goto('/login');
     await page.getByLabel('Alamat email').fill(email);
     await page.getByRole('textbox', { name: 'Kata sandi', exact: true }).fill(password);
-    await page.getByRole('button', { name: 'Masuk ke SiagaLongsor' }).click();
+    await page.getByRole('button', { name: 'Masuk ke Dashboard' }).click();
 
     await expect(page).toHaveURL(/\/overview$/);
     await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
@@ -71,7 +77,7 @@ test.describe('smoke autentikasi SiagaLongsor', () => {
     await expect(page.getByRole('link', { name: /Overview/ })).toBeVisible();
     await expect(page.getByRole('link', { name: /Perangkat/ })).toBeVisible();
     await expect(page.getByRole('link', { name: /Profil Risiko/ })).toBeVisible();
-    await expect(page.getByRole('link', { name: /Audit Log/ })).toBeVisible();
+    await expect(page.getByRole('link', { name: /Riwayat Status Risiko/ })).toBeVisible();
     await expect(
       page.getByRole('link', { name: /Monitoring|Peringatan|Peta|Laporan/ }),
     ).toHaveCount(0);
@@ -83,10 +89,10 @@ test.describe('smoke autentikasi SiagaLongsor', () => {
     await expect(page.getByRole('heading', { name: 'Overview', exact: true })).toBeVisible();
     await expectNoTokensInBrowserStorage(page);
 
-    await page.locator('summary').click();
-    await page.getByRole('button', { name: 'Keluar' }).click();
+    await page.getByRole('button', { name: /Menu akun/ }).click();
+    await page.getByRole('menuitem', { name: 'Keluar' }).click();
     await expect(page).toHaveURL(/\/login$/);
-    await expect(page.getByRole('button', { name: 'Masuk ke SiagaLongsor' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Masuk ke Dashboard' })).toBeEnabled();
     expect(browserErrors).toEqual([]);
   });
 });

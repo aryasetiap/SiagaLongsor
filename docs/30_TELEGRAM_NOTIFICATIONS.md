@@ -1,6 +1,6 @@
 # Telegram risk notifications
 
-This guide configures outbound Telegram messages for authoritative SiagaLongsor risk transitions.
+This guide configures outbound Telegram messages for authoritative Teknila Siaga Longsor risk transitions.
 Telegram is an additional notification channel; it does not replace the dashboard, field
 verification, or an official emergency procedure.
 
@@ -36,7 +36,7 @@ See [SNI status alignment](32_SNI_9021_STATUS_ALIGNMENT.md).
 
 1. In Telegram, open the verified `@BotFather` account.
 2. Send `/newbot`.
-3. Enter a display name, for example `SiagaLongsor SMAN 17`.
+3. Enter a display name, for example `Teknila Siaga Longsor SMAN 17`.
 4. Enter a unique username ending in `bot`, for example `siagalongsor_sman17_bot`.
 5. BotFather returns a bot token. Treat it like a password. Do not paste it into source code, chat,
    screenshots, firmware `secrets.h`, or a `NEXT_PUBLIC_*` variable.
@@ -93,13 +93,13 @@ Leave `TELEGRAM_MESSAGE_THREAD_ID` empty for an ordinary group or the main chat.
 
 ## 5. Send a direct setup test
 
-This verifies Telegram independently of SiagaLongsor:
+This verifies Telegram independently of Teknila Siaga Longsor:
 
 ```powershell
 $chatId = Read-Host 'Telegram chat ID'
 $testBody = @{
   chat_id = $chatId
-  text = 'Uji koneksi bot SiagaLongsor berhasil.'
+  text = 'Uji koneksi bot Teknila Siaga Longsor berhasil.'
 } | ConvertTo-Json
 
 Invoke-RestMethod `
@@ -114,7 +114,7 @@ Remove-Variable token, secureToken, testBody
 The Bot API response must contain `ok: true`. Telegram documents `getUpdates` and `sendMessage` at
 <https://core.telegram.org/bots/api>.
 
-## 6. Configure SiagaLongsor
+## 6. Configure Teknila Siaga Longsor
 
 Add these values to the backend environment (`.env` locally or the production secret manager):
 
@@ -123,7 +123,7 @@ TELEGRAM_NOTIFICATIONS_ENABLED=true
 TELEGRAM_BOT_TOKEN=replace-with-the-real-secret-token
 TELEGRAM_CHAT_ID=-1001234567890
 TELEGRAM_MESSAGE_THREAD_ID=
-TELEGRAM_DASHBOARD_URL=https://siagalongsor.net/overview
+TELEGRAM_DASHBOARD_URL=https://teknila.siagalongsor.net/overview
 ```
 
 Do not add the real values to `.env.example`. The token belongs only to the backend process. It is

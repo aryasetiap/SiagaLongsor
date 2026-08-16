@@ -104,7 +104,7 @@ export function AuthProvider({ children, client }: AuthProviderProps) {
       async logout() {
         try {
           await clientRef.current?.logout();
-          setMessage('Anda telah keluar dari SiagaLongsor.');
+          setMessage('Anda telah keluar dari Teknila Siaga Longsor.');
         } catch {
           setMessage(
             'Sesi lokal telah diakhiri, tetapi server tidak dapat dikonfirmasi. Silakan masuk kembali.',
@@ -137,7 +137,7 @@ export function getLoginErrorMessage(error: unknown): string {
     error instanceof ApiClientError &&
     (error.kind === 'network' || error.kind === 'configuration')
   ) {
-    return 'Layanan SiagaLongsor tidak dapat dihubungi. Periksa koneksi dan coba kembali.';
+    return 'Layanan Teknila Siaga Longsor tidak dapat dihubungi. Periksa koneksi dan coba kembali.';
   }
 
   if (error instanceof ApiClientError && error.kind === 'api' && error.status === 429) {
