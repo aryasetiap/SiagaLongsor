@@ -161,8 +161,9 @@ describe('device telemetry simulator', () => {
     expect(new Set(payloads.map((payload) => payload.messageId)).size).toBe(3);
   });
 
-  it('presentation stream uses API payloads, marks its firmware, and includes a required null gap', async () => {
-    const responses = Array.from({ length: 14 }, (_, index) =>
+  it('presentation stream structurally exercises each visible risk state and recovery', async () => {
+    const profile = presentationProfile();
+    const responses = Array.from({ length: 17 }, (_, index) =>
       successResponse(201, false, `tel-${index}`),
     );
     const capture = createFetchCapture(responses);
@@ -171,7 +172,7 @@ describe('device telemetry simulator', () => {
         scenario: 'presentation',
         count: 1,
         intervalMs: 1000,
-        presentationProfile: presentationProfile(),
+        presentationProfile: profile,
       }),
       dependencies(
         capture.fetch,
@@ -179,12 +180,76 @@ describe('device telemetry simulator', () => {
       ),
     );
     const payloads = capture.payloads();
-    expect(payloads).toHaveLength(14);
-    expect(new Set(payloads.map((payload) => payload.messageId)).size).toBe(14);
+    expect(payloads).toHaveLength(17);
+    expect(new Set(payloads.map((payload) => payload.messageId)).size).toBe(17);
     expect(
       payloads.every((payload) => payload.firmwareVersion === 'presentation-simulator-1.0.0'),
     ).toBe(true);
-    expect(payloads.some((payload) => payload.readings.tiltMagnitudeDeg === null)).toBe(true);
+    expect(payloads.map((payload) => payload.deviceAssessment.riskLevel)).toEqual([
+      'SAFE',
+      'SAFE',
+      'SAFE',
+      'WATCH',
+      'WATCH',
+      'WATCH',
+      'DANGER',
+      'DANGER',
+      'DANGER',
+      'DANGER',
+      'DANGER',
+      'DANGER',
+      'UNKNOWN',
+      'UNKNOWN',
+      'SAFE',
+      'SAFE',
+      'SAFE',
+    ]);
+
+    const safeSamples = [...payloads.slice(0, 3), ...payloads.slice(14, 17)];
+    expect(safeSamples).toHaveLength(6);
+    expect(
+      safeSamples.every(
+        (payload) =>
+          payload.readings.tiltMagnitudeDeg! < profile.tiltMagnitudeDeg.watch &&
+          payload.readings.soilMoisturePct! < profile.soilMoisturePct.watch &&
+          payload.readings.rainfallMmHour! < profile.rainfallMmHour.watch,
+      ),
+    ).toBe(true);
+
+    const watchSamples = payloads.slice(3, 6);
+    expect(
+      watchSamples.every(
+        (payload) =>
+          payload.readings.tiltMagnitudeDeg! >= profile.tiltMagnitudeDeg.watch &&
+          payload.readings.tiltMagnitudeDeg! < profile.tiltMagnitudeDeg.danger &&
+          payload.readings.soilMoisturePct! >= profile.soilMoisturePct.watch &&
+          payload.readings.soilMoisturePct! < profile.soilMoisturePct.danger &&
+          payload.readings.rainfallMmHour! >= profile.rainfallMmHour.watch &&
+          payload.readings.rainfallMmHour! < profile.rainfallMmHour.danger,
+      ),
+    ).toBe(true);
+
+    const warningSamples = payloads.slice(6, 9);
+    expect(
+      warningSamples.every(
+        (payload) =>
+          payload.readings.tiltMagnitudeDeg! >= profile.tiltMagnitudeDeg.danger &&
+          payload.readings.rainfallMmHour! < profile.rainfallMmHour.danger &&
+          payload.readings.soilMoisturePct! < profile.soilMoisturePct.danger,
+      ),
+    ).toBe(true);
+
+    const dangerSamples = payloads.slice(9, 12);
+    expect(
+      dangerSamples.every(
+        (payload) =>
+          payload.readings.tiltMagnitudeDeg! >= profile.tiltMagnitudeDeg.danger &&
+          payload.readings.rainfallMmHour! >= profile.rainfallMmHour.danger,
+      ),
+    ).toBe(true);
+    expect(
+      payloads.slice(12, 14).every((payload) => payload.readings.tiltMagnitudeDeg === null),
+    ).toBe(true);
   });
 
   it('duplicate scenario sends the identical payload and validates 201 then 200', async () => {
@@ -383,6 +448,10 @@ interface TelemetryPayloadForTest {
   readonly sequence: number;
   readonly timestamp: string;
   readonly firmwareVersion: string;
+  readonly deviceAssessment: {
+    readonly riskLevel: 'SAFE' | 'WATCH' | 'DANGER' | 'UNKNOWN';
+    readonly sirenActive: boolean;
+  };
   readonly readings: Record<string, number | null>;
 }
 

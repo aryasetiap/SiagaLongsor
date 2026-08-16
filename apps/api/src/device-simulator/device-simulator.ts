@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
+import type { FirmwareRisk } from '../risk/risk-engine.types.js';
+
 export const SIMULATOR_SCENARIOS = [
   'normal',
   'duplicate',
@@ -56,7 +58,7 @@ export interface TelemetryPayload {
     readonly batteryVoltage: number | null;
   };
   readonly deviceAssessment: {
-    readonly riskLevel: 'SAFE';
+    readonly riskLevel: FirmwareRisk;
     readonly sirenActive: false;
   };
 }
@@ -363,11 +365,15 @@ async function runPresentation(
   }
   let cycle = 0;
   while (config.count === 0 || cycle < config.count) {
-    for (const readings of presentationReadings(config.presentationProfile)) {
+    for (const sample of presentationReadings(config.presentationProfile)) {
       assertNotCancelled(signal);
       const payload = {
-        ...generateTelemetryPayload(state, runtime.now(), runtime.randomId, readings),
+        ...generateTelemetryPayload(state, runtime.now(), runtime.randomId, sample.readings),
         firmwareVersion: 'presentation-simulator-1.0.0',
+        deviceAssessment: {
+          riskLevel: sample.firmwareRisk,
+          sirenActive: false as const,
+        },
       };
       await sendAndValidate(config, runtime, payload, { status: 201, duplicate: false }, signal);
       await runtime.wait(config.intervalMs, signal);
@@ -376,27 +382,33 @@ async function runPresentation(
   }
 }
 
-function presentationReadings(profile: PresentationProfile): readonly SimulatorReadings[] {
+function presentationReadings(profile: PresentationProfile): readonly PresentationSample[] {
   const safe = readingsAt(profile, 0.5);
   const watch = readingsAt(profile, 1.1);
+  const warning = { ...safe, tiltMagnitudeDeg: profile.tiltMagnitudeDeg.danger };
   const danger = readingsAt(profile, 1.2, true);
   const unavailable = { ...danger, tiltMagnitudeDeg: null };
   return [
-    safe,
-    safe,
-    safe,
-    watch,
-    watch,
-    watch,
-    danger,
-    danger,
-    danger,
-    unavailable,
-    unavailable,
-    safe,
-    safe,
-    safe,
+    ...repeatPresentationSample(safe, 'SAFE'),
+    ...repeatPresentationSample(watch, 'WATCH'),
+    ...repeatPresentationSample(warning, 'DANGER'),
+    ...repeatPresentationSample(danger, 'DANGER'),
+    ...repeatPresentationSample(unavailable, 'UNKNOWN', 2),
+    ...repeatPresentationSample(safe, 'SAFE'),
   ];
+}
+
+interface PresentationSample {
+  readonly readings: SimulatorReadings;
+  readonly firmwareRisk: FirmwareRisk;
+}
+
+function repeatPresentationSample(
+  readings: SimulatorReadings,
+  firmwareRisk: FirmwareRisk,
+  count = 3,
+): readonly PresentationSample[] {
+  return Array.from({ length: count }, () => ({ readings, firmwareRisk }));
 }
 
 function readingsAt(

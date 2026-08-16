@@ -1,4 +1,5 @@
 export type ServerRisk = 'SAFE' | 'WATCH' | 'WARNING' | 'DANGER' | 'UNKNOWN';
+export type FirmwareRisk = 'SAFE' | 'WATCH' | 'DANGER' | 'UNKNOWN';
 export type Connectivity = 'ONLINE' | 'DELAYED' | 'OFFLINE' | 'UNKNOWN';
 
 export type RiskReason =
@@ -79,7 +80,7 @@ export interface EvaluateRiskInput {
     readonly tiltMagnitudeDeg: number | null;
     readonly soilMoisturePct: number | null;
     readonly rainfallMmHour: number | null;
-    readonly firmwareRisk: ServerRisk;
+    readonly firmwareRisk: FirmwareRisk | null;
   };
   readonly rainfallHistory?: {
     readonly consecutiveModerateDays: number;

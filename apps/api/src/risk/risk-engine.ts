@@ -1,5 +1,6 @@
 import type {
   EvaluateRiskInput,
+  FirmwareRisk,
   RiskEngineProfile,
   RiskEngineResult,
   RiskEngineState,
@@ -29,7 +30,9 @@ export function evaluateRisk(input: EvaluateRiskInput): RiskEngineResult {
 
   // R2 final-product path intentionally applies direct boundary semantics; legacy fields remain persisted for compatibility.
 
-  const mismatch = input.telemetry.firmwareRisk !== effectiveRisk;
+  const mismatch =
+    input.telemetry.firmwareRisk !== null &&
+    !isFirmwareRiskCompatible(input.telemetry.firmwareRisk, effectiveRisk);
   const mismatchCount = mismatch ? (baseline?.mismatchCount ?? 0) + 1 : 0;
   if (mismatch) reasons.push('DEVICE_SERVER_MISMATCH');
 
@@ -58,6 +61,16 @@ export function evaluateRisk(input: EvaluateRiskInput): RiskEngineResult {
     firmwareMismatch: mismatch,
     currentProjectionShouldChange: true,
   };
+}
+
+export function isFirmwareRiskCompatible(
+  firmwareRisk: FirmwareRisk,
+  serverRisk: ServerRisk,
+): boolean {
+  if (firmwareRisk === 'DANGER') {
+    return serverRisk === 'WARNING' || serverRisk === 'DANGER';
+  }
+  return firmwareRisk === serverRisk;
 }
 
 function classify(input: EvaluateRiskInput): {
@@ -151,7 +164,9 @@ function result(
   nextState: RiskEngineState | null,
   mismatchCount: number,
 ): RiskEngineResult {
-  const mismatch = input.telemetry.firmwareRisk !== effectiveRisk;
+  const mismatch =
+    input.telemetry.firmwareRisk !== null &&
+    !isFirmwareRiskCompatible(input.telemetry.firmwareRisk, effectiveRisk);
   return {
     candidateRisk,
     effectiveServerRisk: effectiveRisk,

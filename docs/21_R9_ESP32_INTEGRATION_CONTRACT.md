@@ -67,8 +67,11 @@ fields:
 
 `network` is optional. Its `type` is `WIFI`, `CELLULAR`, or `UNKNOWN`; optional
 `signalRssi` is in dBm and constrained to -150…0. `deviceAssessment` is also
-optional and, when sent, contains `riskLevel` and `sirenActive`. It is firmware
-comparison data only.
+optional and, when sent, contains `riskLevel` and `sirenActive`. Omission means
+firmware comparison data is unavailable; it does not mean firmware explicitly
+assessed `UNKNOWN` and does not create `DEVICE_SERVER_MISMATCH`. An explicit
+`UNKNOWN` is comparison data and is compared normally. `deviceAssessment` is
+firmware comparison data only.
 
 ### Readings and units
 
@@ -95,15 +98,29 @@ The configured, versioned `RiskProfile` determines server risk. The evaluation
 order is:
 
 1. missing, invalid, stale, offline, or unavailable required hazard data → `UNKNOWN`;
-2. any hazard reading at or above its configured DANGER threshold → `DANGER`;
-3. otherwise any reading at or above WATCH → `WATCH`;
-4. otherwise valid fresh readings below WATCH → `SAFE`.
+2. configured combination or prolonged-rain rule → `DANGER`/Awas;
+3. otherwise any hazard reading at or above its configured high/Siaga threshold → `WARNING`/Siaga;
+4. otherwise any reading at or above WATCH → `WATCH`/Waspada;
+5. otherwise valid fresh readings below WATCH → `SAFE`/Aman.
 
 Only tilt magnitude, soil moisture, and rainfall are hazard inputs. Battery and
 firmware assessment do not determine landslide status. Late telemetry remains
 historical and has `affectsCurrentState=false` when it is older than the
 authoritative current sample. Fresh telemetry after reconnection can restore
 the current state; stale/offline evaluation must never become `SAFE`.
+
+### Firmware comparison compatibility
+
+The legacy firmware enum is `SAFE`, `WATCH`, `DANGER`, and `UNKNOWN`; it has
+no `WARNING` value. Before the server added Siaga, a firmware `DANGER` meant a
+hazard reading had reached the configured high threshold. Server evaluation now
+splits that legacy condition into `WARNING`/Siaga for an individual high sensor
+and `DANGER`/Awas for the combination or duration rules. Therefore comparison
+is explicitly compatible as follows: firmware `SAFE` ↔ server `SAFE`, firmware
+`WATCH` ↔ server `WATCH`, firmware `DANGER` ↔ server `WARNING` or `DANGER`, and
+firmware `UNKNOWN` ↔ server `UNKNOWN`. Every other pair remains
+`DEVICE_SERVER_MISMATCH`. This comparison is diagnostic only and never changes
+the server-authoritative result.
 
 ## 5. Boot, sequence, time, and retry behavior
 

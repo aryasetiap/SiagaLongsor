@@ -8,6 +8,7 @@ import {
   type Telemetry,
 } from '../generated/prisma/client.js';
 import { NotificationOutboxService } from '../notifications/notification-outbox.service.js';
+import { firmwareRiskFromRawPayload } from './firmware-assessment.js';
 import { evaluateRisk } from './risk-engine.js';
 import type { RiskEngineProfile, RiskEngineState } from './risk-engine.types.js';
 import { summarizeRainfallDuration } from './rainfall-duration.js';
@@ -46,7 +47,7 @@ export class RiskEvaluationService {
         tiltMagnitudeDeg: input.telemetry.tiltMagnitudeDeg?.toNumber() ?? null,
         soilMoisturePct: input.telemetry.soilMoisturePct?.toNumber() ?? null,
         rainfallMmHour: input.telemetry.rainfallMmHour?.toNumber() ?? null,
-        firmwareRisk: input.telemetry.firmwareRiskLevel,
+        firmwareRisk: firmwareRiskFromRawPayload(input.telemetry.rawPayload),
       },
       ...(rainfallHistory === undefined ? {} : { rainfallHistory }),
       previous: previous === null ? null : toEngineState(previous),

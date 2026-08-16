@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { evaluateRisk } from './risk-engine.js';
+import { evaluateRisk, isFirmwareRiskCompatible } from './risk-engine.js';
 import type {
   EvaluateRiskInput,
   RiskEngineProfile,
@@ -77,6 +77,64 @@ function state(risk: ServerRisk, overrides: Partial<RiskEngineState> = {}): Risk
 }
 
 describe('evaluateRisk - R2 direct boundary semantics', () => {
+  it.each([
+    ['SAFE', 'SAFE'],
+    ['WATCH', 'WATCH'],
+    ['DANGER', 'WARNING'],
+    ['DANGER', 'DANGER'],
+    ['UNKNOWN', 'UNKNOWN'],
+  ] as const)('accepts legacy firmware %s as compatible with server %s', (firmware, server) => {
+    expect(isFirmwareRiskCompatible(firmware, server)).toBe(true);
+  });
+
+  it.each([
+    ['SAFE', 'WATCH'],
+    ['WATCH', 'WARNING'],
+    ['DANGER', 'WATCH'],
+    ['UNKNOWN', 'SAFE'],
+  ] as const)('keeps incompatible firmware %s and server %s as a mismatch', (firmware, server) => {
+    expect(isFirmwareRiskCompatible(firmware, server)).toBe(false);
+  });
+
+  it('does not compare an unavailable firmware assessment against SAFE or WARNING', () => {
+    const safe = evaluateRisk(input({ telemetry: { ...input().telemetry, firmwareRisk: null } }));
+    const warning = evaluateRisk(
+      input({
+        telemetry: {
+          tiltMagnitudeDeg: 8,
+          soilMoisturePct: 40,
+          rainfallMmHour: 5,
+          firmwareRisk: null,
+        },
+      }),
+    );
+
+    expect(safe.assessmentRisk).toBe('SAFE');
+    expect(safe.reasons).not.toContain('DEVICE_SERVER_MISMATCH');
+    expect(warning.assessmentRisk).toBe('WARNING');
+    expect(warning.reasons).not.toContain('DEVICE_SERVER_MISMATCH');
+  });
+
+  it('compares explicit firmware UNKNOWN assessments', () => {
+    const safe = evaluateRisk(
+      input({ telemetry: { ...input().telemetry, firmwareRisk: 'UNKNOWN' } }),
+    );
+    const unknown = evaluateRisk(
+      input({
+        telemetry: {
+          tiltMagnitudeDeg: null,
+          soilMoisturePct: 40,
+          rainfallMmHour: 5,
+          firmwareRisk: 'UNKNOWN',
+        },
+      }),
+    );
+
+    expect(safe.reasons).toContain('DEVICE_SERVER_MISMATCH');
+    expect(unknown.assessmentRisk).toBe('UNKNOWN');
+    expect(unknown.reasons).not.toContain('DEVICE_SERVER_MISMATCH');
+  });
+
   it('returns SAFE when all required hazard readings are below WATCH thresholds', () => {
     const result = evaluateRisk(input());
 
@@ -150,13 +208,14 @@ describe('evaluateRisk - R2 direct boundary semantics', () => {
           tiltMagnitudeDeg: 9,
           soilMoisturePct: 40,
           rainfallMmHour: 5,
-          firmwareRisk: 'UNKNOWN',
+          firmwareRisk: 'DANGER',
         },
       }),
     );
 
     expect(result.assessmentRisk).toBe('WARNING');
     expect(result.reasons).toContain('WARNING_TILT');
+    expect(result.reasons).not.toContain('DEVICE_SERVER_MISMATCH');
   });
 
   it('classifies high soil moisture alone as WARNING (Siaga)', () => {

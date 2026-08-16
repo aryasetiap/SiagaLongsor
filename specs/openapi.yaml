@@ -1598,6 +1598,12 @@ components:
         Server enum. Public Indonesian terminology maps SAFE to AMAN outside the warning levels,
         WATCH to WASPADA (Tingkat 1), WARNING to SIAGA (Tingkat 2), and DANGER to AWAS
         (Tingkat 3). UNKNOWN is an operational data state and is never treated as Aman.
+    FirmwareRiskLevel:
+      type: string
+      enum: [SAFE, WATCH, DANGER, UNKNOWN]
+      description: >-
+        Legacy firmware comparison enum. Firmware DANGER is compatible with server WARNING
+        (SIAGA) and DANGER (AWAS); server risk remains authoritative.
     ConnectivityStatus:
       type: string
       enum: [ONLINE, DELAYED, OFFLINE, UNKNOWN]
@@ -1796,7 +1802,7 @@ components:
           minItems: 1
           uniqueItems: true
           items: { $ref: '#/components/schemas/RiskReason' }
-        firmwareRisk: { $ref: '#/components/schemas/RiskLevel' }
+        firmwareRisk: { $ref: '#/components/schemas/FirmwareRiskLevel' }
         firmwareSirenActive: { type: boolean }
         affectsCurrentState:
           type: boolean
