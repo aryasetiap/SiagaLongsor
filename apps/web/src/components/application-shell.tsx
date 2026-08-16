@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 import { useAuth } from '../auth/auth-context';
 import type { Principal } from '../auth/auth-types';
@@ -33,6 +33,10 @@ export function ApplicationShell({ principal, title, subtitle, children }: Appli
   const pathname = usePathname();
   const auth = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const [mobileViewport, setMobileViewport] = useState(false);
+  const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileDrawerRef = useRef<HTMLElement>(null);
   const hasProjectOwnerAccess = principal.memberships.some(
     (membership) => membership.role === 'PROJECT_OWNER',
   );
@@ -47,10 +51,114 @@ export function ApplicationShell({ principal, title, subtitle, children }: Appli
     }
   }
 
+  useEffect(() => {
+    if (!mobileNavigationOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileNavigationOpen(false);
+        mobileMenuTriggerRef.current?.focus();
+      }
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    mobileDrawerRef.current?.focus();
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [mobileNavigationOpen]);
+
+  useEffect(() => {
+    const update = () => setMobileViewport(window.innerWidth <= 767);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
   return (
     <div className="app-shell min-h-screen md:p-4">
+      {mobileViewport && (
+        <header className="mobile-app-bar md:hidden">
+          <button
+            ref={mobileMenuTriggerRef}
+            type="button"
+            className="mobile-app-bar-menu"
+            aria-label="Buka navigasi"
+            aria-expanded={mobileNavigationOpen}
+            onClick={() => setMobileNavigationOpen(true)}
+          >
+            <span aria-hidden="true">☰</span>
+          </button>
+          <h1 className="mobile-app-bar-title">{title}</h1>
+          <AccountMenu
+            principal={principal}
+            roleLabel={hasProjectOwnerAccess ? 'Project Owner' : 'Akses terbatas'}
+            message="Sesi aktif dan terverifikasi"
+            loggingOut={loggingOut}
+            onLogout={logout}
+          />
+        </header>
+      )}
+      {mobileViewport && mobileNavigationOpen && (
+        <div
+          className="mobile-drawer-backdrop md:hidden"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setMobileNavigationOpen(false);
+          }}
+        >
+          <aside
+            ref={mobileDrawerRef}
+            className="mobile-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigasi utama"
+            tabIndex={-1}
+          >
+            <div className="mobile-drawer-header">
+              <BrandMark />
+              <button
+                type="button"
+                aria-label="Tutup navigasi"
+                onClick={() => {
+                  setMobileNavigationOpen(false);
+                  mobileMenuTriggerRef.current?.focus();
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <nav aria-label="Navigasi mobile">
+              {visibleNavigation.map((item) => {
+                const active =
+                  pathname === item.href ||
+                  (item.href !== '/overview' && pathname.startsWith(`${item.href}/`));
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className={`shell-nav-item ${active ? 'shell-nav-item-active' : ''}`}
+                    aria-current={active ? 'page' : undefined}
+                    onClick={() => setMobileNavigationOpen(false)}
+                  >
+                    <NavigationIcon label={item.label} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+            <div className="mobile-drawer-footer">
+              <p>Universitas Lampung · Fakultas Teknik</p>
+              <span>Peran akun</span>
+              <strong>
+                {hasProjectOwnerAccess ? 'Administrator perangkat' : 'Akses terbatas'}
+              </strong>
+            </div>
+          </aside>
+        </div>
+      )}
       <div className="app-frame md:grid md:grid-cols-[248px_1fr]">
-        <aside className="app-sidebar px-4 py-4 md:min-h-[calc(100vh-2rem)] md:px-5 md:py-6 md:flex md:flex-col">
+        <aside className="app-sidebar hidden px-4 py-4 md:flex md:min-h-[calc(100vh-2rem)] md:flex-col md:px-5 md:py-6">
           <div className="flex items-center justify-between md:block">
             <BrandMark />
             <span className="rounded-full bg-sky-50 px-3 py-1 text-[11px] font-bold text-sky-700 md:hidden">
@@ -96,7 +204,7 @@ export function ApplicationShell({ principal, title, subtitle, children }: Appli
         </aside>
 
         <div className="app-canvas min-w-0">
-          <header className="app-header flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-8">
+          <header className="app-header hidden flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-8 md:flex">
             <div>
               <h1 className="text-3xl font-bold tracking-[-0.03em] text-slate-950 sm:text-[2rem]">
                 {title}

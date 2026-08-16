@@ -7,6 +7,7 @@ import type { LoginInput } from './auth-types';
 
 interface LoginFormProps {
   readonly message?: string | null;
+  readonly mobileSafetyNote?: string | undefined;
   onLogin(input: LoginInput): Promise<void>;
   onSuccess(): void;
 }
@@ -16,7 +17,7 @@ interface FieldErrors {
   readonly password?: string | undefined;
 }
 
-export function LoginForm({ message, onLogin, onSuccess }: LoginFormProps) {
+export function LoginForm({ message, mobileSafetyNote, onLogin, onSuccess }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -139,10 +140,18 @@ export function LoginForm({ message, onLogin, onSuccess }: LoginFormProps) {
         {submitting ? 'Memverifikasi…' : 'Masuk ke Dashboard'}
       </button>
 
-      <p className="text-center text-xs leading-5 text-slate-500">
-        Akses tersedia untuk pengguna terdaftar. Jika mengalami kendala masuk, hubungi pengelola
-        sistem.
-      </p>
+      <div className="login-secondary-info">
+        <p className="login-access-help text-center text-xs leading-5 text-slate-500">
+          <span className="login-copy-desktop">
+            Akses tersedia untuk pengguna terdaftar. Jika mengalami kendala masuk, hubungi pengelola
+            sistem.
+          </span>
+          <span className="login-copy-mobile">Akses hanya untuk pengguna terdaftar.</span>
+        </p>
+        {mobileSafetyNote !== undefined && (
+          <p className="login-mobile-safety-note">{mobileSafetyNote}</p>
+        )}
+      </div>
     </form>
   );
 }

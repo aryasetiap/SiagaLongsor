@@ -167,14 +167,71 @@ describe('single-device frontend contract', () => {
     expect(await screen.findByDisplayValue('10')).toBeInTheDocument();
     expect(screen.getByDisplayValue('catatan awal')).toBeInTheDocument();
     expect(screen.getByText('Sementara')).toBeInTheDocument();
+    expect(screen.getByText('Kondisi Awas', { selector: 'summary' })).toBeInTheDocument();
+    expect(screen.getByText('Durasi curah hujan', { selector: 'legend' })).toBeInTheDocument();
+    expect(screen.getByText('Catatan', { selector: 'label' })).toBeInTheDocument();
     expect(screen.getByText('AWAS · TINGKAT 3')).toBeInTheDocument();
     expect(screen.getByText(/Kemiringan ≥ 20 ° \+ curah hujan ≥ 60 mm\/jam/)).toBeInTheDocument();
+    const soilTab = screen.getByRole('tab', { name: 'Kelembapan tanah' });
+    await user.click(soilTab);
+    expect(soilTab).toHaveAttribute('aria-selected', 'true');
     await user.clear(screen.getByLabelText('Kemiringan SIAGA'));
     await user.type(screen.getByLabelText('Kemiringan SIAGA'), '10');
     await user.click(screen.getByRole('button', { name: 'Simpan' }));
 
     expect(await screen.findByText(/Ambang WASPADA harus lebih rendah/)).toBeInTheDocument();
     expect(request).toHaveBeenCalledOnce();
+  });
+
+  it('keeps advanced risk-profile sections collapsed and operable on mobile', async () => {
+    const originalInnerWidth = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+
+    try {
+      const user = userEvent.setup();
+      const { client, request } = requestClient();
+      request.mockResolvedValueOnce({ data: profile(3, 'catatan awal') });
+      render(createElement(ProfilePanel, { client }));
+      await screen.findByDisplayValue('10');
+
+      const awasSummary = screen.getByText('Kondisi Awas', { selector: 'summary' });
+      const durationSummary = screen.getByText('Durasi curah hujan', { selector: 'summary' });
+      const notesSummary = screen.getByText('Catatan', { selector: 'summary' });
+      const awasDetails = awasSummary.closest('details');
+      const durationDetails = durationSummary.closest('details');
+      const notesDetails = notesSummary.closest('details');
+
+      await waitFor(() => {
+        expect(awasDetails).not.toHaveAttribute('open');
+        expect(durationDetails).not.toHaveAttribute('open');
+        expect(notesDetails).not.toHaveAttribute('open');
+      });
+
+      await user.click(awasSummary);
+      expect(awasDetails).toHaveAttribute('open');
+      expect(screen.getByText(/TINGKAT 3/)).toBeInTheDocument();
+      await user.click(awasSummary);
+      expect(awasDetails).not.toHaveAttribute('open');
+
+      await user.click(durationSummary);
+      expect(durationDetails).toHaveAttribute('open');
+      expect(
+        durationDetails?.querySelector<HTMLInputElement>('input[name="rain-duration-min"]'),
+      ).toHaveValue(30);
+
+      await user.click(notesSummary);
+      expect(notesDetails).toHaveAttribute('open');
+      expect(screen.getByDisplayValue('catatan awal')).toBeInTheDocument();
+
+      for (const label of ['Kemiringan', 'Kelembapan tanah', 'Curah hujan']) {
+        await user.click(screen.getByRole('tab', { name: label }));
+        expect(screen.getByRole('tab', { name: label })).toHaveAttribute('aria-selected', 'true');
+      }
+      expect(screen.getByRole('button', { name: 'Simpan' })).toBeEnabled();
+    } finally {
+      if (originalInnerWidth === undefined) delete (window as { innerWidth?: number }).innerWidth;
+      else Object.defineProperty(window, 'innerWidth', originalInnerWidth);
+    }
   });
 
   it('reports a no-op profile update and appends audit pages without duplicate IDs', async () => {

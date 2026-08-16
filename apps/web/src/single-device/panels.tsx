@@ -895,6 +895,9 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
   const [data, setData] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [selectedSensor, setSelectedSensor] = useState<'tilt' | 'soil' | 'rain'>('tilt');
+  const [advancedOpen, setAdvancedOpen] = useState({ awas: false, duration: false, notes: false });
+  const [mobileViewport, setMobileViewport] = useState(false);
   const load = useCallback(async () => {
     try {
       setData((await getSingleDeviceRiskProfile(client)).data);
@@ -907,6 +910,12 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
     const initialTimeoutId = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(initialTimeoutId);
   }, [load]);
+  useEffect(() => {
+    const updateViewport = () => setMobileViewport(window.innerWidth <= 767);
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    return () => window.removeEventListener('resize', updateViewport);
+  }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>): Promise<void> {
     event.preventDefault();
@@ -982,9 +991,31 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
           <strong>{formatDate(data.activatedAt)}</strong>
         </div>
       </section>
+      <div className="mobile-profile-tabs" role="tablist" aria-label="Sensor profil risiko">
+        {fields.map(([label, key]) => (
+          <button
+            key={key}
+            id={`profile-tab-${key}`}
+            type="button"
+            role="tab"
+            aria-selected={selectedSensor === key}
+            aria-controls={`profile-panel-${key}`}
+            onClick={() => setSelectedSensor(key)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
       <div className="threshold-card-grid">
         {fields.map(([label, key, unit, thresholds]) => (
-          <fieldset key={key} className={`threshold-card threshold-${key}`}>
+          <fieldset
+            key={key}
+            id={`profile-panel-${key}`}
+            role="tabpanel"
+            aria-labelledby={`profile-tab-${key}`}
+            data-mobile-selected={selectedSensor === key}
+            className={`threshold-card threshold-${key}`}
+          >
             <legend>{label}</legend>
             <p>Nilai di bawah ambang Waspada dikategorikan Aman.</p>
             <label>
@@ -1016,95 +1047,125 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
           </fieldset>
         ))}
       </div>
-      <section className="profile-awas-rule" aria-labelledby="profile-awas-title">
-        <div>
-          <p>KONDISI AWAS</p>
-          <h2 id="profile-awas-title">AWAS · TINGKAT 3</h2>
-          <span>
-            Status Awas ditentukan dari kombinasi beberapa kondisi, bukan dari satu ambang sensor.
-          </span>
-        </div>
-        <div className="profile-awas-rule-items">
+      <details
+        className="mobile-profile-details"
+        open={!mobileViewport || advancedOpen.awas}
+        onToggle={(event) => {
+          const isOpen = event.currentTarget.open;
+          setAdvancedOpen((current) => ({ ...current, awas: isOpen }));
+        }}
+      >
+        <summary>Kondisi Awas</summary>
+        <section className="profile-awas-rule" aria-labelledby="profile-awas-title">
           <div>
-            <span>Kombinasi sensor</span>
-            <strong>
-              Kemiringan ≥ {formatSensorValue(data.tiltMagnitudeDeg.danger)} ° + curah hujan ≥{' '}
-              {formatSensorValue(data.rainfallMmHour.danger)} mm/jam
-            </strong>
+            <p>KONDISI AWAS</p>
+            <h2 id="profile-awas-title">AWAS · TINGKAT 3</h2>
+            <span>
+              Status Awas ditentukan dari kombinasi beberapa kondisi, bukan dari satu ambang sensor.
+            </span>
           </div>
-          <div>
-            <span>Hujan berkelanjutan</span>
-            <strong>
-              {data.rainfallDuration.consecutiveDays} hari pada{' '}
-              {formatSensorValue(data.rainfallDuration.moderateDailyMinMm)}–
-              {formatSensorValue(data.rainfallDuration.moderateDailyMaxMm)} mm/hari, lalu hujan
-              berlanjut
-            </strong>
+          <div className="profile-awas-rule-items">
+            <div>
+              <span>Kombinasi sensor</span>
+              <strong>
+                Kemiringan ≥ {formatSensorValue(data.tiltMagnitudeDeg.danger)} ° + curah hujan ≥{' '}
+                {formatSensorValue(data.rainfallMmHour.danger)} mm/jam
+              </strong>
+            </div>
+            <div>
+              <span>Hujan berkelanjutan</span>
+              <strong>
+                {data.rainfallDuration.consecutiveDays} hari pada{' '}
+                {formatSensorValue(data.rainfallDuration.moderateDailyMinMm)}–
+                {formatSensorValue(data.rainfallDuration.moderateDailyMaxMm)} mm/hari, lalu hujan
+                berlanjut
+              </strong>
+            </div>
           </div>
-        </div>
-      </section>
-      <fieldset className="threshold-card threshold-rain-duration">
-        <legend>Durasi curah hujan</legend>
-        <p>
-          Jika curah hujan harian berada pada rentang ini selama beberapa hari berturut-turut, hujan
-          lanjutan dapat memicu status Awas.
-        </p>
-        <label>
-          <span>Batas bawah hujan sedang</span>
-          <span className="threshold-input">
-            <input
-              name="rain-duration-min"
-              defaultValue={data.rainfallDuration.moderateDailyMinMm}
-              type="number"
-              step="any"
-            />
-            <span aria-hidden="true">mm/hari</span>
-          </span>
+        </section>
+      </details>
+      <details
+        className="mobile-profile-details"
+        open={!mobileViewport || advancedOpen.duration}
+        onToggle={(event) => {
+          const isOpen = event.currentTarget.open;
+          setAdvancedOpen((current) => ({ ...current, duration: isOpen }));
+        }}
+      >
+        <summary>Durasi curah hujan</summary>
+        <fieldset className="threshold-card threshold-rain-duration">
+          <legend>Durasi curah hujan</legend>
+          <p>
+            Jika curah hujan harian berada pada rentang ini selama beberapa hari berturut-turut,
+            hujan lanjutan dapat memicu status Awas.
+          </p>
+          <label>
+            <span>Batas bawah hujan sedang</span>
+            <span className="threshold-input">
+              <input
+                name="rain-duration-min"
+                defaultValue={data.rainfallDuration.moderateDailyMinMm}
+                type="number"
+                step="any"
+              />
+              <span aria-hidden="true">mm/hari</span>
+            </span>
+          </label>
+          <label>
+            <span>Batas atas hujan sedang</span>
+            <span className="threshold-input">
+              <input
+                name="rain-duration-max"
+                defaultValue={data.rainfallDuration.moderateDailyMaxMm}
+                type="number"
+                step="any"
+              />
+              <span aria-hidden="true">mm/hari</span>
+            </span>
+          </label>
+          <label>
+            <span>Hari berturut-turut</span>
+            <span className="threshold-input">
+              <input
+                name="rain-duration-days"
+                defaultValue={data.rainfallDuration.consecutiveDays}
+                type="number"
+                min="1"
+                max="30"
+                step="1"
+              />
+              <span aria-hidden="true">hari</span>
+            </span>
+          </label>
+          <label>
+            <span>Ambang hujan lanjutan</span>
+            <span className="threshold-input">
+              <input
+                name="rain-duration-continuation"
+                defaultValue={data.rainfallDuration.continuationRainfallMmHourGt}
+                type="number"
+                min="0"
+                step="any"
+              />
+              <span aria-hidden="true">mm/jam</span>
+            </span>
+          </label>
+        </fieldset>
+      </details>
+      <details
+        className="mobile-profile-details"
+        open={!mobileViewport || advancedOpen.notes}
+        onToggle={(event) => {
+          const isOpen = event.currentTarget.open;
+          setAdvancedOpen((current) => ({ ...current, notes: isOpen }));
+        }}
+      >
+        <summary>Catatan</summary>
+        <label className="profile-notes">
+          Catatan
+          <textarea name="notes" defaultValue={data.notes ?? ''} />
         </label>
-        <label>
-          <span>Batas atas hujan sedang</span>
-          <span className="threshold-input">
-            <input
-              name="rain-duration-max"
-              defaultValue={data.rainfallDuration.moderateDailyMaxMm}
-              type="number"
-              step="any"
-            />
-            <span aria-hidden="true">mm/hari</span>
-          </span>
-        </label>
-        <label>
-          <span>Hari berturut-turut</span>
-          <span className="threshold-input">
-            <input
-              name="rain-duration-days"
-              defaultValue={data.rainfallDuration.consecutiveDays}
-              type="number"
-              min="1"
-              max="30"
-              step="1"
-            />
-            <span aria-hidden="true">hari</span>
-          </span>
-        </label>
-        <label>
-          <span>Ambang hujan lanjutan</span>
-          <span className="threshold-input">
-            <input
-              name="rain-duration-continuation"
-              defaultValue={data.rainfallDuration.continuationRainfallMmHourGt}
-              type="number"
-              min="0"
-              step="any"
-            />
-            <span aria-hidden="true">mm/jam</span>
-          </span>
-        </label>
-      </fieldset>
-      <label className="profile-notes">
-        Catatan
-        <textarea name="notes" defaultValue={data.notes ?? ''} />
-      </label>
+      </details>
       <p className="profile-calibration-note">
         Ambang harus ditentukan dari investigasi dan kalibrasi lokasi yang tervalidasi. SNI tidak
         dipakai sebagai sumber angka universal untuk semua lereng.

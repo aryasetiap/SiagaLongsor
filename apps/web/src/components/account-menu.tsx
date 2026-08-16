@@ -14,9 +14,13 @@ interface AccountMenuProps {
 }
 
 interface MenuPosition {
-  readonly right: number;
+  readonly left: number;
   readonly top: number;
 }
+
+const menuViewportPadding = 12;
+const mobileMenuWidth = 288;
+const desktopMenuOuterWidth = 314;
 
 export function AccountMenu({
   principal,
@@ -29,6 +33,14 @@ export function AccountMenu({
   const menuRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
   const [position, setPosition] = useState<MenuPosition | null>(null);
+  const [mobile, setMobile] = useState(false);
+
+  useEffect(() => {
+    const update = () => setMobile(window.innerWidth <= 767);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -51,18 +63,25 @@ export function AccountMenu({
       }
     };
 
-    updatePosition();
-    window.addEventListener('resize', updatePosition);
-    window.addEventListener('scroll', updatePosition, true);
-    document.addEventListener('pointerdown', closeOnOutsidePointer);
+    const previousOverflow = document.body.style.overflow;
+    if (mobile) {
+      document.body.style.overflow = 'hidden';
+      menuRef.current?.focus();
+    } else {
+      updatePosition();
+      window.addEventListener('resize', updatePosition);
+      window.addEventListener('scroll', updatePosition, true);
+      document.addEventListener('pointerdown', closeOnOutsidePointer);
+    }
     document.addEventListener('keydown', closeOnEscape);
     return () => {
+      document.body.style.overflow = previousOverflow;
       window.removeEventListener('resize', updatePosition);
       window.removeEventListener('scroll', updatePosition, true);
       document.removeEventListener('pointerdown', closeOnOutsidePointer);
       document.removeEventListener('keydown', closeOnEscape);
     };
-  }, [open]);
+  }, [mobile, open]);
 
   async function logout(): Promise<void> {
     setOpen(false);
@@ -92,6 +111,39 @@ export function AccountMenu({
         </span>
       </button>
       {open &&
+        mobile &&
+        createPortal(
+          <div
+            className="mobile-account-sheet-backdrop"
+            onPointerDown={(event) => {
+              if (event.target === event.currentTarget) setOpen(false);
+            }}
+          >
+            <div
+              ref={menuRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Menu akun ${principal.name}`}
+              className="mobile-account-sheet"
+              tabIndex={-1}
+            >
+              <p className="text-sm font-bold text-slate-950">{principal.name}</p>
+              <p className="mt-1 break-all text-xs text-slate-500">{principal.email}</p>
+              <p className="account-menu-message">{message}</p>
+              <button
+                type="button"
+                disabled={loggingOut}
+                onClick={() => void logout()}
+                className="account-menu-logout"
+              >
+                {loggingOut ? 'Mengakhiri sesi…' : 'Keluar'}
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
+      {open &&
+        !mobile &&
         position !== null &&
         createPortal(
           <div
@@ -101,7 +153,7 @@ export function AccountMenu({
             className="account-menu-popover"
             style={
               {
-                '--account-menu-right': `${position.right}px`,
+                '--account-menu-left': `${position.left}px`,
                 '--account-menu-top': `${position.top}px`,
               } as CSSProperties
             }
@@ -131,8 +183,12 @@ function menuPosition(triggerRef: RefObject<HTMLButtonElement | null>): MenuPosi
   const trigger = triggerRef.current;
   if (trigger === null) return null;
   const rect = trigger.getBoundingClientRect();
+  const preferredWidth = window.innerWidth <= 767 ? mobileMenuWidth : desktopMenuOuterWidth;
+  const menuWidth = Math.min(preferredWidth, window.innerWidth - menuViewportPadding * 2);
+  const minimumLeft = menuViewportPadding;
+  const maximumLeft = Math.max(minimumLeft, window.innerWidth - menuWidth - menuViewportPadding);
   return {
-    right: Math.max(12, window.innerWidth - rect.right),
+    left: Math.min(Math.max(rect.right - menuWidth, minimumLeft), maximumLeft),
     top: rect.bottom + 8,
   };
 }

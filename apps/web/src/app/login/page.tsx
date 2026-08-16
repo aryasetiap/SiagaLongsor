@@ -43,18 +43,24 @@ export default function LoginPage() {
         </section>
 
         <section className="login-form-panel flex items-center px-6 py-10 sm:px-12 lg:px-14">
-          <div className="mx-auto w-full max-w-md">
+          <div className="login-card-surface mx-auto w-full max-w-md">
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-blue-700">
               Portal pengguna
             </p>
             <h2 className="mt-3 text-3xl font-bold tracking-tight text-slate-950">
               Selamat datang kembali
             </h2>
-            <p className="mt-3 text-sm leading-6 text-slate-600">
-              Masuk menggunakan akun terdaftar untuk mengakses dashboard Teknila Siaga Longsor.
+            <p className="login-supporting-copy mt-3 text-sm leading-6 text-slate-600">
+              <span className="login-copy-desktop">
+                Masuk menggunakan akun terdaftar untuk mengakses dashboard Teknila Siaga Longsor.
+              </span>
+              <span className="login-copy-mobile">
+                Masuk untuk mengakses dashboard Teknila Siaga Longsor.
+              </span>
             </p>
             <LoginForm
               message={auth.message}
+              mobileSafetyNote="Sistem ini mendukung pemantauan dan tidak menggantikan verifikasi lapangan."
               onLogin={auth.login}
               onSuccess={() => router.replace('/overview')}
             />

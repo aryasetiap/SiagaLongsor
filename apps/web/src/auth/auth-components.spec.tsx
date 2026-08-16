@@ -116,6 +116,37 @@ describe('AuthProvider and protected content', () => {
     expect(navigationMocks.replace).toHaveBeenCalledWith('/login');
   });
 
+  it('clamps the account popover inside a narrow viewport', async () => {
+    const user = userEvent.setup();
+    const originalInnerWidth = Object.getOwnPropertyDescriptor(window, 'innerWidth');
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+
+    try {
+      render(
+        <AuthProvider
+          client={createClient({
+            bootstrapSession: vi.fn().mockResolvedValue(createPrincipal('SCHOOL_ADMIN')),
+          })}
+        >
+          <PublicDashboardShell title="Overview">
+            <p>Data pemantauan publik</p>
+          </PublicDashboardShell>
+        </AuthProvider>,
+      );
+      const accountMenu = await screen.findByLabelText('Menu akun Admin Sekolah');
+      accountMenu.getBoundingClientRect = () =>
+        ({ bottom: 112, height: 44, left: 12, right: 56, top: 68, width: 44 }) as DOMRect;
+
+      await user.click(accountMenu);
+
+      const sheet = screen.getByRole('dialog', { name: 'Menu akun Admin Sekolah' });
+      expect(sheet).toHaveClass('mobile-account-sheet');
+    } finally {
+      if (originalInnerWidth === undefined) delete (window as { innerWidth?: number }).innerWidth;
+      else Object.defineProperty(window, 'innerWidth', originalInnerWidth);
+    }
+  });
+
   it('opens the complete administration shell directly for an authenticated project owner', async () => {
     const principal = createPrincipal('PROJECT_OWNER');
     render(

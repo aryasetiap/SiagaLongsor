@@ -149,6 +149,7 @@ a {
 
 .login-brand-panel .brand-mark,
 .app-sidebar .brand-mark {
+  box-sizing: border-box;
   justify-content: center;
   border: 1px solid rgb(191 219 254 / 75%);
   border-radius: 0.75rem;
@@ -1882,8 +1883,10 @@ a {
   position: fixed;
   z-index: 100;
   top: var(--account-menu-top);
-  right: var(--account-menu-right);
+  left: var(--account-menu-left);
   width: min(18rem, calc(100vw - 1.5rem));
+  max-height: calc(100dvh - var(--account-menu-top) - 0.75rem);
+  overflow-y: auto;
   border: 1px solid var(--glass-border);
   border-radius: 1rem;
   background: rgb(255 255 255 / 96%);
@@ -1959,8 +1962,250 @@ a {
 }
 
 @media (max-width: 767px) {
+  body {
+    overflow-x: hidden;
+  }
+  .mobile-app-bar {
+    display: grid;
+    height: 3.75rem;
+    grid-template-columns: 2.75rem 1fr 2.75rem;
+    align-items: center;
+    gap: 0.75rem;
+    border-bottom: 1px solid rgb(31 145 255 / 16%);
+    background: rgb(255 255 255 / 94%);
+    padding: 0.5rem 1rem;
+    backdrop-filter: blur(16px);
+  }
+  .mobile-app-bar-menu,
+  .mobile-app-bar .account-menu-trigger {
+    display: grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    place-items: center;
+    border: 1px solid rgb(31 145 255 / 18%);
+    border-radius: 0.8rem;
+    background: white;
+    color: var(--brand-blue-strong);
+  }
+  .mobile-app-bar-menu {
+    font-size: 1.25rem;
+  }
+  .mobile-app-bar .brand-mark {
+    justify-self: center;
+  }
+  .mobile-app-bar .brand-mark-logo {
+    width: 2.4rem;
+  }
+  .mobile-app-bar .account-menu-chevron {
+    display: none;
+  }
+  .mobile-drawer-backdrop,
+  .mobile-account-sheet-backdrop {
+    position: fixed;
+    z-index: 90;
+    inset: 0;
+    display: flex;
+    background: rgb(11 21 38 / 38%);
+    backdrop-filter: blur(2px);
+  }
+  .mobile-drawer {
+    display: flex;
+    flex-direction: column;
+    width: min(19rem, calc(100vw - 2rem));
+    min-height: 100%;
+    background: linear-gradient(165deg, #0b67b2, #084f8c 68%, #063d6d);
+    padding: 1rem;
+    color: white;
+    outline: none;
+  }
+  .mobile-drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .mobile-drawer-header .brand-mark {
+    border-radius: 0.7rem;
+    background: white;
+    padding: 0.35rem;
+  }
+  .mobile-drawer-header .brand-mark-logo {
+    width: 3.5rem;
+  }
+  .mobile-drawer-header button {
+    display: grid;
+    width: 2.75rem;
+    height: 2.75rem;
+    place-items: center;
+    border-radius: 0.75rem;
+    background: rgb(255 255 255 / 12%);
+    color: white;
+    font-size: 1.6rem;
+  }
+  .mobile-drawer nav {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+  }
+  .mobile-drawer .shell-nav-item {
+    min-height: 2.75rem;
+    padding: 0.7rem;
+    color: #dbeeff;
+  }
+  .mobile-drawer .shell-nav-item-active {
+    background: white;
+    color: var(--brand-blue-strong);
+  }
+  .mobile-drawer-footer {
+    display: grid;
+    gap: 0.3rem;
+    margin-top: auto;
+    padding-top: 1.5rem;
+    color: rgb(219 238 255 / 82%);
+    font-size: 0.78rem;
+  }
+  .mobile-drawer-footer p {
+    margin: 0 0 0.7rem;
+  }
+  .mobile-drawer-footer span {
+    font-size: 0.7rem;
+  }
+  .mobile-drawer-footer strong {
+    color: white;
+  }
+  .mobile-account-sheet-backdrop {
+    align-items: flex-end;
+  }
+  .mobile-account-sheet {
+    width: 100%;
+    padding: 1.25rem 1rem calc(1rem + env(safe-area-inset-bottom));
+    border-radius: 1.25rem 1.25rem 0 0;
+    background: rgb(255 255 255 / 98%);
+    box-shadow: 0 -12px 34px rgb(11 79 140 / 16%);
+    outline: none;
+  }
+  .login-canvas {
+    padding: 0;
+  }
+  .login-card {
+    min-height: 100dvh;
+    border-radius: 0;
+  }
+  .login-brand-panel {
+    padding: 1rem;
+  }
+  .login-brand-panel .absolute,
+  .login-brand-kicker,
+  .login-brand-heading,
+  .login-brand-description,
+  .login-brand-disclaimer {
+    display: none;
+  }
+  .login-brand-lockup {
+    display: grid;
+    grid-template-columns: minmax(0, 4.25rem) 1px minmax(0, 1fr);
+    gap: 0.8rem;
+  }
+  .login-brand-panel .brand-mark {
+    width: 4.25rem;
+    height: 4.25rem;
+    padding: 0.35rem;
+  }
+  .login-brand-panel .brand-mark-logo {
+    width: 3.5rem;
+  }
+  .login-brand-divider {
+    height: 3rem;
+  }
+  .institutional-affiliation-logo {
+    width: 2.5rem;
+    height: 2.5rem;
+    flex-basis: 2.5rem;
+  }
+  .institutional-affiliation strong {
+    font-size: 0.68rem;
+  }
+  .institutional-affiliation > span > span {
+    font-size: 0.66rem;
+  }
+  .login-form-panel {
+    align-items: flex-start;
+    padding: 1.5rem 1rem 2rem;
+  }
+  .login-form-panel h2 {
+    font-size: 1.75rem;
+  }
+  .login-mobile-safety-note {
+    margin: 1rem 0 0;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+  .app-canvas > main {
+    padding: 1rem;
+  }
+  .app-header {
+    align-items: flex-start;
+    padding: 1rem;
+  }
+  .app-header > div:first-child {
+    min-width: 0;
+    flex: 1 1 12rem;
+  }
+  .app-header h1 {
+    font-size: clamp(1.55rem, 8vw, 2rem);
+    line-height: 1.1;
+  }
+  .app-header .account-menu-trigger {
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    margin-left: auto;
+    padding: 0.25rem;
+  }
+  .account-menu-popover {
+    box-sizing: border-box;
+  }
+  .app-header .account-menu-chevron {
+    display: none;
+  }
+  .app-sidebar {
+    padding: 1rem;
+  }
+  .app-sidebar > div:first-child {
+    position: relative;
+    justify-content: center;
+  }
+  .app-sidebar > div:first-child > span {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
   .app-sidebar .brand-mark {
-    margin-inline: 0;
+    width: 5.75rem;
+    margin-inline: auto;
+  }
+  .app-sidebar .brand-mark-logo {
+    width: 4.75rem;
+  }
+  .app-sidebar nav[aria-label='Navigasi utama'] {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    overflow: visible;
+  }
+  .app-sidebar nav[aria-label='Navigasi utama'] .shell-nav-item {
+    min-width: 0;
+    justify-content: flex-start;
+    padding: 0.7rem;
+    white-space: normal;
+  }
+  .sidebar-institutional-note {
+    margin-top: 0.9rem;
+  }
+  .sidebar-access-card {
+    margin-top: 0.65rem !important;
+    padding: 0.8rem;
   }
   .login-brand-lockup {
     display: flex;
@@ -1976,9 +2221,58 @@ a {
   .toolbar-refresh-status {
     flex-basis: 100%;
   }
+  .risk-hero {
+    min-height: 0;
+    padding: 1.1rem;
+  }
+  .risk-hero-top {
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+  .risk-status-code {
+    align-self: flex-start;
+  }
+  .risk-hero-label {
+    font-size: clamp(1.8rem, 9vw, 2.15rem);
+  }
+  .chart-card {
+    padding: 1rem;
+  }
+  .chart-empty-state {
+    min-height: 7.5rem;
+  }
+  .chart-card-empty .chart-empty-state {
+    display: flex;
+    min-height: 0;
+    margin-top: 1rem;
+    padding-top: 0.85rem;
+    border-top: 1px solid var(--glass-border);
+  }
   .device-dashboard .panel-action-row {
     margin-bottom: 0;
     justify-content: flex-start;
+  }
+  .device-dashboard .panel-action-row .dashboard-button {
+    width: 100%;
+  }
+  .device-hero {
+    padding: 1rem 1.1rem;
+  }
+  .device-hero-top {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .device-status-pill {
+    align-self: flex-start;
+  }
+  .diagnostic-card,
+  .sensor-health-card,
+  .profile-summary,
+  .threshold-card,
+  .profile-awas-rule,
+  .profile-notes,
+  .audit-empty {
+    padding: 1rem;
   }
   .device-diagnostics-grid,
   .profile-summary,
@@ -1989,6 +2283,7 @@ a {
     grid-template-columns: 1fr;
   }
   .device-field-grid {
+    grid-template-columns: 1fr;
     gap: 1rem;
   }
   .section-heading {
@@ -1999,11 +2294,165 @@ a {
   .profile-summary {
     gap: 0.8rem;
   }
+  .threshold-card input,
+  .profile-notes textarea {
+    min-height: 2.75rem;
+  }
+  .profile-notes textarea {
+    min-height: 6rem;
+  }
+  .profile-form-footer {
+    gap: 0.75rem;
+  }
+  .profile-form-footer .dashboard-button {
+    width: 100%;
+  }
+  .profile-form {
+    padding-bottom: 5.5rem;
+  }
+  .mobile-profile-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+  .mobile-profile-details {
+    border: 1px solid var(--glass-border);
+    border-radius: 1rem;
+    background: var(--glass-surface);
+    padding: 0;
+  }
+  .mobile-profile-details summary {
+    display: flex;
+    min-height: 3rem;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1rem;
+    color: var(--text-primary);
+    font-size: 0.92rem;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .mobile-profile-details summary::after {
+    content: '⌄';
+  }
+  .mobile-profile-details[open] summary {
+    border-bottom: 1px solid var(--glass-border);
+  }
+  .mobile-profile-details .profile-awas-rule,
+  .mobile-profile-details .threshold-card,
+  .mobile-profile-details .profile-notes {
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  .mobile-profile-tabs button {
+    min-height: 2.75rem;
+    border: 1px solid rgb(31 145 255 / 20%);
+    border-radius: 0.75rem;
+    background: rgb(255 255 255 / 72%);
+    padding: 0.4rem;
+    color: var(--brand-blue-strong);
+    font-size: 0.72rem;
+    font-weight: 800;
+  }
+  .mobile-profile-tabs button[aria-selected='true'] {
+    background: var(--brand-blue-strong);
+    color: white;
+  }
+  .threshold-card-grid .threshold-card[data-mobile-selected='false'] {
+    display: none;
+  }
+  .profile-form-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 10;
+    margin: 0 -1rem;
+    padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom));
+    border-top: 1px solid rgb(31 145 255 / 16%);
+    background: rgb(231 242 255 / 96%);
+    backdrop-filter: blur(12px);
+  }
+  .sensor-health-grid {
+    gap: 0;
+    overflow: hidden;
+    border: 1px solid var(--glass-border);
+    border-radius: 1rem;
+    background: var(--glass-surface);
+  }
+  .sensor-health-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 0;
+    border-bottom: 1px solid var(--glass-border);
+    background: transparent !important;
+    padding: 0.9rem 1rem;
+    box-shadow: none;
+  }
+  .sensor-health-card:last-child {
+    border-bottom: 0;
+  }
+  .sensor-health-card strong {
+    margin-top: 0;
+  }
+  .device-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .device-field-grid > div:nth-child(-n + 2) {
+    grid-column: span 2;
+  }
+  .audit-empty {
+    width: 100%;
+    margin: 0;
+  }
   .audit-status-code {
     margin-top: 0.35rem;
     margin-left: 0;
   }
 }
+
+@media (min-width: 768px) {
+  .mobile-profile-tabs {
+    display: none;
+  }
+  .mobile-profile-details > summary {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .overview-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+  .toolbar-range-group,
+  .toolbar-period-group,
+  .toolbar-action-group {
+    width: 100%;
+  }
+  .toolbar-range-group select,
+  .toolbar-period-group .calendar-period-picker {
+    width: 100%;
+  }
+  .toolbar-period-group .calendar-period-picker {
+    justify-content: space-between;
+  }
+  .toolbar-action-group {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.65rem;
+  }
+  .toolbar-action-group button {
+    width: 100%;
+    min-height: 2.75rem;
+    padding-inline: 0.5rem;
+  }
+  .toolbar-refresh-status {
+    margin: 0;
+  }
+}
+
 @media (min-width: 1280px) {
   .presentation-view {
     padding: 1.5rem 3rem;
@@ -2025,5 +2474,215 @@ a {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+.login-mobile-safety-note {
+  display: none;
+}
+
+.login-copy-mobile {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .mobile-app-bar-title {
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: clamp(0.92rem, 4.4vw, 1.08rem);
+    font-weight: 800;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mobile-drawer .shell-nav-item-active,
+  .mobile-drawer .shell-nav-item-active span {
+    background: white;
+    color: var(--brand-blue-strong);
+  }
+  .mobile-drawer .shell-nav-item-active span:first-child {
+    background: transparent;
+  }
+  .mobile-account-sheet {
+    position: fixed;
+    right: 0.75rem;
+    bottom: max(0.75rem, env(safe-area-inset-bottom));
+    left: 0.75rem;
+    width: auto;
+    max-height: calc(100dvh - 1.5rem);
+    overflow-y: auto;
+  }
+  .login-brand-panel {
+    padding: 0.75rem 1rem;
+  }
+  .login-brand-lockup {
+    grid-template-columns: minmax(0, 4rem) 1px minmax(0, 1fr);
+  }
+  .login-brand-panel .brand-mark {
+    width: 4rem;
+    height: 4rem;
+  }
+  .login-brand-panel .brand-mark-logo {
+    width: 3.25rem;
+  }
+  .login-mobile-safety-note {
+    display: block;
+  }
+  .overview-toolbar > button:first-of-type {
+    background: var(--brand-blue-interactive);
+  }
+}
+
+@media (min-width: 768px) {
+  .mobile-profile-details:not([open]) > :not(summary) {
+    display: block;
+  }
+}
+
+@media (max-width: 767px) {
+  .login-canvas {
+    background: var(--app-bg);
+  }
+  .login-card {
+    display: flex;
+    min-height: 100dvh;
+    flex-direction: column;
+    overflow: visible;
+    background: transparent;
+    box-shadow: none;
+  }
+  .login-brand-panel {
+    min-height: 0;
+    padding: 1.375rem 1rem 2.5rem;
+    border-radius: 0 0 2rem 2rem;
+  }
+  .login-brand-lockup {
+    display: flex;
+    flex-direction: row;
+    width: max-content;
+    max-width: calc(100% - 2rem);
+    margin-inline: auto;
+    gap: 0.8125rem;
+    align-items: center;
+    flex-wrap: nowrap;
+  }
+  .login-brand-lockup .institutional-affiliation {
+    flex: 0 0 auto;
+    flex-direction: row;
+    gap: 0.5625rem;
+    text-align: left;
+  }
+  .login-brand-lockup .institutional-affiliation > span {
+    justify-items: start;
+  }
+  .login-brand-lockup .institutional-affiliation strong {
+    font-size: 0.8125rem;
+  }
+  .login-brand-lockup .institutional-affiliation > span > span {
+    font-size: 0.71875rem;
+  }
+  .login-brand-panel > .relative {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .login-brand-panel .brand-mark {
+    width: 4.25rem;
+    height: 4.25rem;
+  }
+  .login-brand-panel .brand-mark-logo {
+    width: 3.25rem;
+  }
+  .login-brand-divider {
+    display: block;
+    height: 2.875rem;
+  }
+  .login-brand-panel > .relative::after {
+    display: none;
+    color: #d7efff;
+    font-size: 0.62rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-align: center;
+    content: 'SISTEM PEMANTAUAN LERENG';
+  }
+  .institutional-affiliation-logo {
+    width: 2.375rem;
+    height: 2.375rem;
+    flex-basis: 2.375rem;
+  }
+  .login-form-panel {
+    display: flex;
+    width: 100%;
+    max-width: none;
+    flex: 1 1 auto;
+    min-height: max-content;
+    align-items: stretch !important;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    padding: 1rem;
+    box-shadow: none;
+  }
+  .login-card-surface {
+    width: min(100%, 23.125rem) !important;
+    max-width: 23.125rem !important;
+    flex: 0 0 auto;
+    margin: auto !important;
+    border: 1px solid rgb(31 145 255 / 14%);
+    border-radius: 1.75rem;
+    background: rgb(255 255 255 / 97%);
+    padding: 1.25rem;
+    box-shadow: 0 18px 38px rgb(11 79 140 / 13%);
+  }
+  .login-form-panel h2 {
+    font-size: 1.65rem;
+  }
+  .login-copy-desktop {
+    display: none;
+  }
+  .login-copy-mobile {
+    display: inline;
+  }
+  .login-supporting-copy {
+    margin-top: 0.5rem !important;
+    line-height: 1.4;
+  }
+  .login-form-panel form {
+    margin-top: 1.375rem !important;
+  }
+  .login-secondary-info {
+    margin-top: 1.125rem !important;
+    border-top: 1px solid rgb(31 145 255 / 14%);
+    padding-top: 1rem;
+  }
+  .login-access-help {
+    margin: 0 !important;
+    text-align: left !important;
+  }
+  .login-mobile-safety-note {
+    margin: 0.75rem 0 0;
+    text-align: left;
+    font-size: 0.72rem;
+    line-height: 1.45;
+  }
+  .login-form-panel .auth-input {
+    min-height: 3.1rem;
+    border-radius: 0.9rem;
+  }
+  .login-submit-button {
+    min-height: 3.125rem;
+    border-radius: 0.9rem;
+    background: var(--brand-blue-interactive);
+    box-shadow: 0 9px 20px rgb(11 103 178 / 22%);
+  }
+}
+
+@media (max-width: 767px) and (max-height: 42rem) {
+  .login-card {
+    min-height: 44rem;
   }
 }
