@@ -8,7 +8,7 @@ export default function OverviewPage() {
   return (
     <PublicDashboardShell
       title="Overview"
-      subtitle="Ringkasan publik kondisi sensor dan tingkat risiko terkini."
+      subtitle="Ringkasan kondisi sensor dan tingkat risiko terbaru."
     >
       <SingleDeviceOverview />
     </PublicDashboardShell>

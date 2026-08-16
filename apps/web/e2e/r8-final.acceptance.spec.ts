@@ -9,7 +9,7 @@ test('PROJECT_OWNER dapat membuka empat halaman produk single-device', async ({ 
   await expect(navigation.getByRole('link', { name: /Overview/ })).toBeVisible();
   await expect(navigation.getByRole('link', { name: /Perangkat/ })).toBeVisible();
   await expect(navigation.getByRole('link', { name: /Profil Risiko/ })).toBeVisible();
-  await expect(navigation.getByRole('link', { name: /Audit Log/ })).toBeVisible();
+  await expect(navigation.getByRole('link', { name: /Riwayat Status Risiko/ })).toBeVisible();
   await expect(
     navigation.getByRole('link', { name: /Monitoring|Peringatan|Peta|SOP|Laporan/ }),
   ).toHaveCount(0);
@@ -44,7 +44,9 @@ test('PROJECT_OWNER dapat membuka empat halaman produk single-device', async ({ 
 
   await page.goto('/settings/audit-log');
 
-  await expect(page.getByRole('heading', { name: 'Audit Log', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Riwayat Status Risiko', exact: true }),
+  ).toBeVisible();
 
   await expect(
     page.getByRole('alert').filter({
@@ -59,7 +61,7 @@ async function loginAsProjectOwner(page: import('@playwright/test').Page): Promi
   await page.goto('/login');
   await page.getByLabel('Alamat email').fill(email);
   await page.getByRole('textbox', { name: 'Kata sandi', exact: true }).fill(password);
-  await page.getByRole('button', { name: 'Masuk ke SiagaLongsor' }).click();
+  await page.getByRole('button', { name: 'Masuk ke Dashboard' }).click();
   await expect(page).toHaveURL(/\/overview$/);
 }
 

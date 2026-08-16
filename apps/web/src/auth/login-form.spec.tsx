@@ -11,14 +11,14 @@ describe('LoginForm', () => {
     const onLogin = vi.fn();
     render(<LoginForm onLogin={onLogin} onSuccess={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Masuk ke SiagaLongsor' }));
+    await user.click(screen.getByRole('button', { name: 'Masuk ke Dashboard' }));
     expect(screen.getByText('Email wajib diisi.')).toBeInTheDocument();
     expect(screen.getByText('Kata sandi wajib diisi.')).toBeInTheDocument();
     expect(onLogin).not.toHaveBeenCalled();
 
     await user.type(screen.getByLabelText('Alamat email'), 'bukan-email');
     await user.type(screen.getByLabelText('Kata sandi'), 'password');
-    await user.click(screen.getByRole('button', { name: 'Masuk ke SiagaLongsor' }));
+    await user.click(screen.getByRole('button', { name: 'Masuk ke Dashboard' }));
     expect(screen.getByText('Masukkan format email yang valid.')).toBeInTheDocument();
   });
 
@@ -34,7 +34,7 @@ describe('LoginForm', () => {
     expect(password).toHaveAttribute('type', 'text');
     await user.type(screen.getByLabelText('Alamat email'), 'admin@example.invalid');
     await user.type(password, 'secret-value');
-    await user.click(screen.getByRole('button', { name: 'Masuk ke SiagaLongsor' }));
+    await user.click(screen.getByRole('button', { name: 'Masuk ke Dashboard' }));
 
     expect(onLogin).toHaveBeenCalledWith({
       email: 'admin@example.invalid',
@@ -100,7 +100,7 @@ describe('LoginForm', () => {
     await fillAndSubmit(user);
 
     expect(screen.getByRole('alert')).toHaveTextContent(
-      'Layanan SiagaLongsor tidak dapat dihubungi',
+      'Layanan Teknila Siaga Longsor tidak dapat dihubungi',
     );
   });
 
@@ -132,7 +132,7 @@ describe('LoginForm', () => {
 
     await user.type(screen.getByLabelText('Alamat email'), 'admin@example.invalid');
     await user.type(screen.getByLabelText('Kata sandi'), 'secret-value');
-    const submit = screen.getByRole('button', { name: 'Masuk ke SiagaLongsor' });
+    const submit = screen.getByRole('button', { name: 'Masuk ke Dashboard' });
     await user.click(submit);
 
     expect(screen.getByRole('button', { name: 'Memverifikasi…' })).toBeDisabled();
@@ -161,5 +161,5 @@ async function fillAndSubmit(
 ): Promise<void> {
   await user.type(screen.getByLabelText('Alamat email'), 'admin@example.invalid');
   await user.type(screen.getByLabelText('Kata sandi'), password);
-  await user.click(screen.getByRole('button', { name: 'Masuk ke SiagaLongsor' }));
+  await user.click(screen.getByRole('button', { name: 'Masuk ke Dashboard' }));
 }

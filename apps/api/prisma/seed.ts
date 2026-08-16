@@ -104,7 +104,8 @@ async function runSeed(): Promise<void> {
           version: 1,
           isActive: true,
           calibrationStatus: 'PROVISIONAL',
-          notes: 'Profil provisional development; wajib dikalibrasi sebelum penggunaan lapangan.',
+          notes:
+            'Profil sementara untuk pengembangan; perlu dikalibrasi sebelum penggunaan lapangan.',
           safeTiltMagnitudeDegLt: 3,
           safeSoilMoisturePctLt: 65,
           safeRainfallMmHourLt: 20,

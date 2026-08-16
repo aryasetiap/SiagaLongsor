@@ -35,7 +35,7 @@ export function formatTelegramRiskMessage(
   const previous = nationalWarningLevelByRisk[payload.previousStatus].displayLabel;
   const reasons = payload.reasons.length === 0 ? ['Alasan tidak tersedia'] : payload.reasons;
   const lines = [
-    `${statusIcon(payload.currentStatus)} SIAGALONGSOR — ${current}`,
+    `${statusIcon(payload.currentStatus)} TEKNILA SIAGA LONGSOR — ${current}`,
     '',
     `Status: ${previous} → ${current}`,
     `Lokasi: ${payload.siteName} / ${payload.monitoringPointName}`,

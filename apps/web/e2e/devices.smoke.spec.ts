@@ -24,7 +24,7 @@ async function loginAsProjectOwner(page: import('@playwright/test').Page): Promi
   await page.goto('/login');
   await page.getByLabel('Alamat email').fill(email);
   await page.getByRole('textbox', { name: 'Kata sandi', exact: true }).fill(password);
-  await page.getByRole('button', { name: 'Masuk ke SiagaLongsor' }).click();
+  await page.getByRole('button', { name: 'Masuk ke Dashboard' }).click();
   await expect(page).toHaveURL(/\/overview$/);
 }
 

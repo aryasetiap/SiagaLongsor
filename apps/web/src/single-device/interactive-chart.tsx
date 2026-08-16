@@ -78,7 +78,7 @@ export function chartOption({
       trigger: 'axis',
       confine: true,
       axisPointer: { type: 'line' },
-      backgroundColor: '#17211f',
+      backgroundColor: '#164b7a',
       borderWidth: 0,
       borderRadius: 12,
       padding: [9, 11],
@@ -204,7 +204,7 @@ export function InteractiveChart({
   };
   return (
     <article
-      className={`chart-card min-w-0 bg-white ${expanded ? 'chart-card-expanded' : ''} ${onOpenDetails === undefined ? '' : 'chart-card-clickable'}`}
+      className={`chart-card min-w-0 bg-white ${stats.current === null ? 'chart-card-empty' : ''} ${expanded ? 'chart-card-expanded' : ''} ${onOpenDetails === undefined ? '' : 'chart-card-clickable'}`}
       role={onOpenDetails === undefined ? undefined : 'button'}
       tabIndex={onOpenDetails === undefined ? undefined : 0}
       aria-label={onOpenDetails === undefined ? undefined : `Buka detail sensor ${title}`}
@@ -234,9 +234,7 @@ export function InteractiveChart({
         </div>
       </header>
       {stats.current === null ? (
-        <div className="grid h-52 place-items-center text-sm text-slate-500">
-          Belum ada pembacaan sensor.
-        </div>
+        <div className="chart-empty-state text-sm text-slate-500">Belum ada data sensor.</div>
       ) : (
         <div
           ref={host}

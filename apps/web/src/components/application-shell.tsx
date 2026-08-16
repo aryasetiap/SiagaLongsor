@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { type ReactNode, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 
 import { useAuth } from '../auth/auth-context';
 import type { Principal } from '../auth/auth-types';
+import { AccountMenu } from './account-menu';
 import { BrandMark } from './brand-mark';
 
 interface ApplicationShellProps {
@@ -24,7 +25,7 @@ export const primaryNavigation: readonly NavigationItem[] = [
   { label: 'Overview', href: '/overview' },
   { label: 'Perangkat', href: '/devices' },
   { label: 'Profil Risiko', href: '/settings/risk-profile' },
-  { label: 'Audit Log', href: '/settings/audit-log' },
+  { label: 'Riwayat Status Risiko', href: '/settings/audit-log' },
 ];
 
 export function ApplicationShell({ principal, title, subtitle, children }: ApplicationShellProps) {
@@ -32,6 +33,10 @@ export function ApplicationShell({ principal, title, subtitle, children }: Appli
   const pathname = usePathname();
   const auth = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
+  const [mobileViewport, setMobileViewport] = useState(false);
+  const mobileMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const mobileDrawerRef = useRef<HTMLElement>(null);
   const hasProjectOwnerAccess = principal.memberships.some(
     (membership) => membership.role === 'PROJECT_OWNER',
   );
@@ -46,17 +51,120 @@ export function ApplicationShell({ principal, title, subtitle, children }: Appli
     }
   }
 
+  useEffect(() => {
+    if (!mobileNavigationOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileNavigationOpen(false);
+        mobileMenuTriggerRef.current?.focus();
+      }
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    mobileDrawerRef.current?.focus();
+    document.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [mobileNavigationOpen]);
+
+  useEffect(() => {
+    const update = () => setMobileViewport(window.innerWidth <= 767);
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, []);
+
   return (
     <div className="app-shell min-h-screen md:p-4">
+      {mobileViewport && (
+        <header className="mobile-app-bar md:hidden">
+          <button
+            ref={mobileMenuTriggerRef}
+            type="button"
+            className="mobile-app-bar-menu"
+            aria-label="Buka navigasi"
+            aria-expanded={mobileNavigationOpen}
+            onClick={() => setMobileNavigationOpen(true)}
+          >
+            <span aria-hidden="true">☰</span>
+          </button>
+          <h1 className="mobile-app-bar-title">{title}</h1>
+          <AccountMenu
+            principal={principal}
+            roleLabel={hasProjectOwnerAccess ? 'Project Owner' : 'Akses terbatas'}
+            message="Sesi aktif dan terverifikasi"
+            loggingOut={loggingOut}
+            onLogout={logout}
+          />
+        </header>
+      )}
+      {mobileViewport && mobileNavigationOpen && (
+        <div
+          className="mobile-drawer-backdrop md:hidden"
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setMobileNavigationOpen(false);
+          }}
+        >
+          <aside
+            ref={mobileDrawerRef}
+            className="mobile-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Navigasi utama"
+            tabIndex={-1}
+          >
+            <div className="mobile-drawer-header">
+              <BrandMark />
+              <button
+                type="button"
+                aria-label="Tutup navigasi"
+                onClick={() => {
+                  setMobileNavigationOpen(false);
+                  mobileMenuTriggerRef.current?.focus();
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <nav aria-label="Navigasi mobile">
+              {visibleNavigation.map((item) => {
+                const active =
+                  pathname === item.href ||
+                  (item.href !== '/overview' && pathname.startsWith(`${item.href}/`));
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className={`shell-nav-item ${active ? 'shell-nav-item-active' : ''}`}
+                    aria-current={active ? 'page' : undefined}
+                    onClick={() => setMobileNavigationOpen(false)}
+                  >
+                    <NavigationIcon label={item.label} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+            <div className="mobile-drawer-footer">
+              <p>Universitas Lampung · Fakultas Teknik</p>
+              <span>Peran akun</span>
+              <strong>
+                {hasProjectOwnerAccess ? 'Administrator perangkat' : 'Akses terbatas'}
+              </strong>
+            </div>
+          </aside>
+        </div>
+      )}
       <div className="app-frame md:grid md:grid-cols-[248px_1fr]">
-        <aside className="app-sidebar px-4 py-4 md:min-h-[calc(100vh-2rem)] md:px-5 md:py-6">
+        <aside className="app-sidebar hidden px-4 py-4 md:flex md:min-h-[calc(100vh-2rem)] md:flex-col md:px-5 md:py-6">
           <div className="flex items-center justify-between md:block">
-            <BrandMark inverted />
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-[11px] font-bold text-emerald-700 md:hidden">
+            <BrandMark />
+            <span className="rounded-full bg-sky-50 px-3 py-1 text-[11px] font-bold text-sky-700 md:hidden">
               Sesi aktif
             </span>
           </div>
-
           <nav
             className="mt-5 flex gap-2 overflow-x-auto pb-1 md:mt-10 md:block md:space-y-1"
             aria-label="Navigasi utama"
@@ -81,13 +189,14 @@ export function ApplicationShell({ principal, title, subtitle, children }: Appli
             })}
           </nav>
 
-          <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 md:mt-8">
-            <p className="text-xs font-semibold text-slate-400">Akses produk</p>
+          <p className="sidebar-institutional-note">Universitas Lampung · Fakultas Teknik</p>
+          <div className="sidebar-access-card mt-4 rounded-2xl p-4 md:mt-8">
+            <p className="text-xs font-semibold text-slate-400">Peran akun</p>
             <p className="mt-2 text-sm font-bold text-white">
               {hasProjectOwnerAccess ? 'Administrator perangkat' : 'Akses terbatas'}
             </p>
             {!hasProjectOwnerAccess && (
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-slate-300">
                 Halaman pemantauan memerlukan akses Project Owner.
               </p>
             )}
@@ -95,7 +204,7 @@ export function ApplicationShell({ principal, title, subtitle, children }: Appli
         </aside>
 
         <div className="app-canvas min-w-0">
-          <header className="app-header flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-8">
+          <header className="app-header hidden flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-8 md:flex">
             <div>
               <h1 className="text-3xl font-bold tracking-[-0.03em] text-slate-950 sm:text-[2rem]">
                 {title}
@@ -103,42 +212,13 @@ export function ApplicationShell({ principal, title, subtitle, children }: Appli
               <p className="mt-1 text-sm text-slate-500">{subtitle ?? 'Ruang kerja'}</p>
             </div>
 
-            <details className="group relative">
-              <summary className="flex cursor-pointer list-none items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 transition hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
-                <span className="grid size-9 place-items-center rounded-xl bg-blue-50 text-sm font-bold text-blue-700">
-                  {initials(principal.name)}
-                </span>
-                <span className="hidden text-left sm:block">
-                  <span className="block max-w-44 truncate text-sm font-bold text-slate-900">
-                    {principal.name}
-                  </span>
-                  <span className="block text-xs text-slate-500">
-                    {hasProjectOwnerAccess ? 'Project Owner' : 'Akses terbatas'}
-                  </span>
-                </span>
-                <span aria-hidden="true" className="text-slate-400">
-                  ▾
-                </span>
-              </summary>
-              <div className="absolute right-0 z-20 mt-2 w-72 rounded-2xl border border-slate-200 bg-white p-3 shadow-xl">
-                <div className="border-b border-slate-100 px-2 pb-3">
-                  <p className="font-bold text-slate-950">{principal.name}</p>
-                  <p className="mt-1 break-all text-xs text-slate-500">{principal.email}</p>
-                </div>
-                <div className="my-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
-                  <span className="mr-2 inline-block size-2 rounded-full bg-emerald-500" />
-                  Sesi aktif dan terverifikasi
-                </div>
-                <button
-                  type="button"
-                  disabled={loggingOut}
-                  onClick={() => void logout()}
-                  className="w-full rounded-xl px-3 py-2.5 text-left text-sm font-bold text-red-700 transition hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-red-600 disabled:opacity-60"
-                >
-                  {loggingOut ? 'Mengakhiri sesi…' : 'Keluar'}
-                </button>
-              </div>
-            </details>
+            <AccountMenu
+              principal={principal}
+              roleLabel={hasProjectOwnerAccess ? 'Project Owner' : 'Akses terbatas'}
+              message="Sesi aktif dan terverifikasi"
+              loggingOut={loggingOut}
+              onLogout={logout}
+            />
           </header>
 
           <main className="px-5 py-5 sm:px-8 sm:py-6">{children}</main>
@@ -172,12 +252,4 @@ function NavigationIcon({ label }: { readonly label: string }) {
       </svg>
     </span>
   );
-}
-
-function initials(name: string): string {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('');
 }

@@ -7,6 +7,7 @@ import type { LoginInput } from './auth-types';
 
 interface LoginFormProps {
   readonly message?: string | null;
+  readonly mobileSafetyNote?: string | undefined;
   onLogin(input: LoginInput): Promise<void>;
   onSuccess(): void;
 }
@@ -16,7 +17,7 @@ interface FieldErrors {
   readonly password?: string | undefined;
 }
 
-export function LoginForm({ message, onLogin, onSuccess }: LoginFormProps) {
+export function LoginForm({ message, mobileSafetyNote, onLogin, onSuccess }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -90,7 +91,7 @@ export function LoginForm({ message, onLogin, onSuccess }: LoginFormProps) {
           <label className="block text-sm font-semibold text-slate-800" htmlFor="password">
             Kata sandi
           </label>
-          <span className="text-xs text-slate-500">Peka huruf besar dan kecil</span>
+          <span className="text-xs text-slate-500">Perhatikan huruf besar dan kecil</span>
         </div>
         <div className="relative">
           <input
@@ -128,7 +129,7 @@ export function LoginForm({ message, onLogin, onSuccess }: LoginFormProps) {
       <button
         type="submit"
         disabled={submitting}
-        className="flex min-h-12 w-full items-center justify-center gap-3 rounded-2xl bg-[#17211f] px-5 py-3 text-sm font-bold text-white shadow-[0_8px_24px_rgba(18,31,29,.18)] transition hover:bg-[#263632] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 disabled:cursor-not-allowed disabled:opacity-65"
+        className="login-submit-button flex min-h-12 w-full items-center justify-center gap-3 rounded-2xl px-5 py-3 text-sm font-bold text-white transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-65"
       >
         {submitting && (
           <span
@@ -136,13 +137,21 @@ export function LoginForm({ message, onLogin, onSuccess }: LoginFormProps) {
             aria-hidden="true"
           />
         )}
-        {submitting ? 'Memverifikasi…' : 'Masuk ke SiagaLongsor'}
+        {submitting ? 'Memverifikasi…' : 'Masuk ke Dashboard'}
       </button>
 
-      <p className="text-center text-xs leading-5 text-slate-500">
-        Akses hanya untuk pengguna yang telah terdaftar. Hubungi Project Owner bila Anda mengalami
-        kendala akun.
-      </p>
+      <div className="login-secondary-info">
+        <p className="login-access-help text-center text-xs leading-5 text-slate-500">
+          <span className="login-copy-desktop">
+            Akses tersedia untuk pengguna terdaftar. Jika mengalami kendala masuk, hubungi pengelola
+            sistem.
+          </span>
+          <span className="login-copy-mobile">Akses hanya untuk pengguna terdaftar.</span>
+        </p>
+        {mobileSafetyNote !== undefined && (
+          <p className="login-mobile-safety-note">{mobileSafetyNote}</p>
+        )}
+      </div>
     </form>
   );
 }

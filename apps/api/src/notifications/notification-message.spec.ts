@@ -44,7 +44,7 @@ describe('formatTelegramRiskMessage', () => {
   it('formats an Indonesian danger notification with its authoritative context', () => {
     const message = formatTelegramRiskMessage(payload(), config);
 
-    expect(message).toContain('SIAGALONGSOR — AWAS (TINGKAT 3)');
+    expect(message).toContain('TEKNILA SIAGA LONGSOR — AWAS (TINGKAT 3)');
     expect(message).toContain('Status: WASPADA (TINGKAT 1) → AWAS (TINGKAT 3)');
     expect(message).toContain(
       'Skema: Aman → Waspada (Tingkat 1) → Siaga (Tingkat 2) → Awas (Tingkat 3)',
@@ -82,7 +82,7 @@ describe('formatTelegramRiskMessage', () => {
       config,
     );
 
-    expect(message).toContain('SIAGALONGSOR — AMAN');
+    expect(message).toContain('TEKNILA SIAGA LONGSOR — AMAN');
     expect(message).toContain('AMAN: pembacaan berada di bawah ambang Waspada');
     expect(message).not.toContain('kembali aman');
   });
@@ -97,7 +97,7 @@ describe('formatTelegramRiskMessage', () => {
       config,
     );
 
-    expect(message).toContain('SIAGALONGSOR — SIAGA (TINGKAT 2)');
+    expect(message).toContain('TEKNILA SIAGA LONGSOR — SIAGA (TINGKAT 2)');
     expect(message).toContain('SIAGA: tingkatkan pemantauan');
   });
 });
