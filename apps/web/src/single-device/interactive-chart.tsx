@@ -58,13 +58,13 @@ export function chartOption({
     ? [
         {
           yAxis: thresholds.watch,
-          name: `WATCH ${thresholds.watch} ${unit}`,
+          name: `WASPADA ${thresholds.watch} ${unit}`,
           lineStyle: { color: '#b45309', type: 'dashed' },
           label: { position: 'insideStartTop', color: '#92400e', fontSize: 10, fontWeight: 700 },
         },
         {
           yAxis: thresholds.danger,
-          name: `DANGER ${thresholds.danger} ${unit}`,
+          name: `SIAGA ${thresholds.danger} ${unit}`,
           lineStyle: { color: '#b91c1c', type: 'dashed' },
           label: { position: 'insideStartBottom', color: '#991b1b', fontSize: 10, fontWeight: 700 },
         },

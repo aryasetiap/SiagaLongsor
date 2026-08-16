@@ -13,6 +13,7 @@ import {
 } from './single-device-api';
 import {
   riskLabel,
+  riskLevelLabel,
   riskReasonLabel,
   type AuditResponse,
   type Diagnostics,
@@ -417,12 +418,17 @@ export function OverviewPanel({ client }: { readonly client: RequestClient }) {
                 </div>
                 <span className="risk-status-code">
                   <span aria-hidden="true" className="risk-status-dot" />
-                  {data.data.risk.status}
+                  {riskLevelLabel[data.data.risk.status]}
                 </span>
               </div>
               <p className="risk-hero-reason">
                 {data.data.risk.reasons.map(riskReasonLabel).join(', ') ||
                   'Tidak ada alasan tersedia'}
+              </p>
+              <p className="risk-standard-note">
+                Aman berada di luar tingkat peringatan. Tingkat peringatan terdiri atas Waspada
+                (Tingkat 1), Siaga (Tingkat 2), dan Awas (Tingkat 3). Ambang mengikuti profil hasil
+                kalibrasi lokasi.
               </p>
               <div className="risk-hero-meta">
                 <span>
@@ -561,10 +567,10 @@ function SensorOverviewDialog({
     effectiveCurrent === null || thresholds === undefined
       ? 'Tidak diketahui'
       : effectiveCurrent >= thresholds.danger
-        ? 'Bahaya'
+        ? 'Siaga (Tingkat 2)'
         : effectiveCurrent >= thresholds.watch
-          ? 'Waspada'
-          : 'Aman';
+          ? 'Waspada (Tingkat 1)'
+          : 'Aman (di luar tingkat peringatan)';
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -646,8 +652,14 @@ function SensorOverviewDialog({
               <span className="sensor-threshold sensor-threshold-watch">
                 Waspada ≥ {formatSensorValue(thresholds.watch)} {sensor.unit}
               </span>
-              <span className="sensor-threshold sensor-threshold-danger">
-                Bahaya ≥ {formatSensorValue(thresholds.danger)} {sensor.unit}
+              <span className="sensor-threshold sensor-threshold-warning">
+                Siaga ≥ {formatSensorValue(thresholds.danger)} {sensor.unit}
+              </span>
+              <span
+                className="sensor-threshold sensor-threshold-danger"
+                title="Awas dipicu kombinasi kemiringan dan hujan pada ambang Siaga, atau aturan hujan berdurasi."
+              >
+                Awas · kombinasi/durasi
               </span>
             </>
           )}
@@ -661,8 +673,8 @@ function SensorOverviewDialog({
           expanded
         />
         <p className="sensor-overview-note">
-          Status risiko utama tetap dihitung backend dari gabungan seluruh sensor dan kondisi
-          perangkat.
+          Awas tidak memakai satu angka sensor tersendiri. Status ini dihitung backend dari
+          kombinasi kemiringan dan hujan atau aturan hujan berdurasi.
         </p>
       </section>
     </div>
@@ -902,7 +914,9 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
       notes: String(form.get('notes') ?? '').trim() === '' ? null : String(form.get('notes')),
     };
     if (!validThresholds([body.tiltMagnitudeDeg, body.soilMoisturePct, body.rainfallMmHour])) {
-      setMessage('WATCH harus lebih rendah dari DANGER dan keduanya harus berupa angka terbatas.');
+      setMessage(
+        'Ambang WASPADA harus lebih rendah dari SIAGA dan keduanya harus berupa angka terbatas.',
+      );
       return;
     }
     if (
@@ -958,12 +972,12 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
         {fields.map(([label, key, unit, thresholds]) => (
           <fieldset key={key} className={`threshold-card threshold-${key}`}>
             <legend>{label}</legend>
-            <p>Ambang evaluasi sensor.</p>
+            <p>Di bawah ambang Waspada ditampilkan sebagai Aman.</p>
             <label>
-              <span>WATCH</span>
+              <span>WASPADA · TINGKAT 1</span>
               <span className="threshold-input">
                 <input
-                  aria-label={`${label} WATCH`}
+                  aria-label={`${label} WASPADA`}
                   name={`${key}-watch`}
                   defaultValue={thresholds.watch}
                   type="number"
@@ -973,10 +987,10 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
               </span>
             </label>
             <label>
-              <span>DANGER</span>
+              <span>SIAGA · TINGKAT 2</span>
               <span className="threshold-input">
                 <input
-                  aria-label={`${label} DANGER`}
+                  aria-label={`${label} SIAGA`}
                   name={`${key}-danger`}
                   defaultValue={thresholds.danger}
                   type="number"
@@ -988,11 +1002,39 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
           </fieldset>
         ))}
       </div>
+      <section className="profile-awas-rule" aria-labelledby="profile-awas-title">
+        <div>
+          <p>ATURAN RISIKO TERTINGGI</p>
+          <h2 id="profile-awas-title">AWAS · TINGKAT 3</h2>
+          <span>
+            Awas tidak memiliki satu input ambang sensor tersendiri. Status ini diturunkan dari
+            kombinasi sensor atau durasi hujan.
+          </span>
+        </div>
+        <div className="profile-awas-rule-items">
+          <div>
+            <span>Kombinasi sensor</span>
+            <strong>
+              Kemiringan ≥ {formatSensorValue(data.tiltMagnitudeDeg.danger)} ° + curah hujan ≥{' '}
+              {formatSensorValue(data.rainfallMmHour.danger)} mm/jam
+            </strong>
+          </div>
+          <div>
+            <span>Hujan berkelanjutan</span>
+            <strong>
+              {data.rainfallDuration.consecutiveDays} hari pada{' '}
+              {formatSensorValue(data.rainfallDuration.moderateDailyMinMm)}–
+              {formatSensorValue(data.rainfallDuration.moderateDailyMaxMm)} mm/hari, lalu hujan
+              berlanjut
+            </strong>
+          </div>
+        </div>
+      </section>
       <fieldset className="threshold-card threshold-rain-duration">
         <legend>Durasi curah hujan</legend>
         <p>
           Jika hujan harian berada dalam rentang ini selama beberapa hari, hujan berikutnya memicu
-          DANGER.
+          Awas (Tingkat 3).
         </p>
         <label>
           <span>Minimum hujan sedang</span>
@@ -1051,7 +1093,8 @@ export function ProfilePanel({ client }: { readonly client: RequestClient }) {
         <textarea name="notes" defaultValue={data.notes ?? ''} />
       </label>
       <p className="profile-calibration-note">
-        Threshold harus mengikuti keputusan kalibrasi lapangan yang tervalidasi.
+        Ambang harus ditentukan dari investigasi dan kalibrasi lokasi yang tervalidasi. SNI tidak
+        dipakai sebagai sumber angka universal untuk semua lereng.
       </p>
       <div className="profile-form-footer">
         <button className="dashboard-button dashboard-button-dark">Simpan</button>
@@ -1148,6 +1191,7 @@ function auditTone(status: Overview['data']['risk']['status']): string {
   return {
     SAFE: 'audit-safe',
     WATCH: 'audit-watch',
+    WARNING: 'audit-warning',
     DANGER: 'audit-danger',
     UNKNOWN: 'audit-unknown',
   }[status];

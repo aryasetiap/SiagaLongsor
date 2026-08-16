@@ -159,7 +159,7 @@ describe('R4 simulator single-device HTTP acceptance', () => {
     await app?.close();
   });
 
-  it('drives simulator telemetry through SAFE, WATCH, DANGER, UNKNOWN, and recovery', async () => {
+  it('drives simulator telemetry through SAFE, WATCH, WARNING, DANGER, UNKNOWN, and recovery', async () => {
     const http = request(baseUrl.replace('/api/v1', ''));
     const authorization = `Bearer ${token}`;
     const get = (path: string) => http.get(`/api/v1${path}`).set('Authorization', authorization);
@@ -225,12 +225,29 @@ describe('R4 simulator single-device HTTP acceptance', () => {
     });
 
     await send({ ...config.readings, tiltMagnitudeDeg: 8 });
-    expect((await get('/overview')).body.data.risk.status).toBe('DANGER');
+
+    expect((await get('/overview')).body.data.risk.status).toBe('WARNING');
     expect(await auditCount()).toBe(baseline + 2);
     expect(await notificationCount()).toBe(notificationBaseline + 2);
     expect((await get('/audit-log')).body.data[0]).toMatchObject({
       previousStatus: 'WATCH',
+      currentStatus: 'WARNING',
+      reasons: expect.arrayContaining(['WARNING_TILT']),
+    });
+
+    await send({
+      ...config.readings,
+      tiltMagnitudeDeg: 8,
+      rainfallMmHour: 30,
+    });
+
+    expect((await get('/overview')).body.data.risk.status).toBe('DANGER');
+    expect(await auditCount()).toBe(baseline + 3);
+    expect(await notificationCount()).toBe(notificationBaseline + 3);
+    expect((await get('/audit-log')).body.data[0]).toMatchObject({
+      previousStatus: 'WARNING',
       currentStatus: 'DANGER',
+      reasons: expect.arrayContaining(['DANGER_RAIN_TILT']),
     });
 
     await send(config.readings, 'missing-tilt');
@@ -243,8 +260,8 @@ describe('R4 simulator single-device HTTP acceptance', () => {
       soilMoisture: 'READABLE',
       rainfall: 'READABLE',
     });
-    expect(await auditCount()).toBe(baseline + 3);
-    expect(await notificationCount()).toBe(notificationBaseline + 3);
+    expect(await auditCount()).toBe(baseline + 4);
+    expect(await notificationCount()).toBe(notificationBaseline + 4);
     expect((await get('/audit-log')).body.data[0]).toMatchObject({
       previousStatus: 'DANGER',
       currentStatus: 'UNKNOWN',
@@ -263,8 +280,8 @@ describe('R4 simulator single-device HTTP acceptance', () => {
       soilMoisture: 'READABLE',
       rainfall: 'READABLE',
     });
-    expect(await auditCount()).toBe(baseline + 4);
-    expect(await notificationCount()).toBe(notificationBaseline + 4);
+    expect(await auditCount()).toBe(baseline + 5);
+    expect(await notificationCount()).toBe(notificationBaseline + 5);
     expect((await get('/audit-log')).body.data[0]).toMatchObject({
       previousStatus: 'UNKNOWN',
       currentStatus: 'SAFE',

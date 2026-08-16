@@ -3,6 +3,8 @@
 ## Start here
 
 - [Repository overview](../README.md)
+- [Panduan lengkap proyek dan penggunaan alat](31_PROJECT_AND_DEVICE_USAGE_GUIDE.md) - draf mandiri untuk onboarding, operasi, dan konteks GPT yang sudah disanitasi.
+- [Pemetaan status SNI 9021 dan tingkat peringatan](32_SNI_9021_STATUS_ALIGNMENT.md)
 - [Production deployment and operations](28_PRODUCTION_DEPLOYMENT_OPERATIONS.md) — current operational guide; not a scientific-calibration or HA claim.
 - [Final single-device scope](20_SCOPE_RESET_SINGLE_DEVICE.md)
 - [R10 final acceptance report](27_R10_FINAL_ACCEPTANCE_REPORT.md)

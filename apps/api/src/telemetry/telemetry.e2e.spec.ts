@@ -197,6 +197,75 @@ describe('Telemetry ingestion API', () => {
     expect(assessment.reasons).toContain('DEVICE_SERVER_MISMATCH');
   });
 
+  it('does not compare physical-device-style payloads that omit deviceAssessment', async () => {
+    const safePayload: Record<string, unknown> = {
+      ...validPayload({ firmwareVersion: 'r9b1-esp32' }),
+    };
+    delete safePayload.deviceAssessment;
+    const warningPayload: Record<string, unknown> = {
+      ...validPayload({ firmwareVersion: 'r9b1-esp32' }),
+      readings: {
+        ...(safePayload.readings as Record<string, unknown>),
+        tiltMagnitudeDeg: 8,
+      },
+    };
+    delete warningPayload.deviceAssessment;
+
+    const [safeResponse, warningResponse] = await Promise.all([
+      ingest(safePayload),
+      ingest(warningPayload),
+    ]);
+    const [safeAssessment, warningAssessment] = await Promise.all([
+      prisma.riskAssessment.findUniqueOrThrow({
+        where: { telemetryId: safeResponse.body.telemetryId },
+      }),
+      prisma.riskAssessment.findUniqueOrThrow({
+        where: { telemetryId: warningResponse.body.telemetryId },
+      }),
+    ]);
+
+    expect(safeResponse.status).toBe(201);
+    expect(warningResponse.status).toBe(201);
+    expect(safeAssessment.serverRisk).toBe('SAFE');
+    expect(safeAssessment.reasons).not.toContain('DEVICE_SERVER_MISMATCH');
+    expect(warningAssessment.serverRisk).toBe('WARNING');
+    expect(warningAssessment.reasons).toContain('WARNING_TILT');
+    expect(warningAssessment.reasons).not.toContain('DEVICE_SERVER_MISMATCH');
+  });
+
+  it('distinguishes explicit firmware UNKNOWN from an omitted assessment', async () => {
+    const explicitUnknown = validPayload();
+    const safeResponse = await ingest({
+      ...explicitUnknown,
+      deviceAssessment: {
+        ...explicitUnknown.deviceAssessment,
+        riskLevel: FirmwareRiskLevel.UNKNOWN,
+      },
+    });
+    const unknownPayload = validPayload();
+    const unknownResponse = await ingest({
+      ...unknownPayload,
+      readings: { ...unknownPayload.readings, tiltMagnitudeDeg: null },
+      deviceAssessment: {
+        ...unknownPayload.deviceAssessment,
+        riskLevel: FirmwareRiskLevel.UNKNOWN,
+      },
+    });
+    const [safeAssessment, unknownAssessment] = await Promise.all([
+      prisma.riskAssessment.findUniqueOrThrow({
+        where: { telemetryId: safeResponse.body.telemetryId },
+      }),
+      prisma.riskAssessment.findUniqueOrThrow({
+        where: { telemetryId: unknownResponse.body.telemetryId },
+      }),
+    ]);
+
+    expect(safeAssessment.serverRisk).toBe('SAFE');
+    expect(safeAssessment.reasons).toContain('DEVICE_SERVER_MISMATCH');
+    expect(unknownAssessment.serverRisk).toBe('UNKNOWN');
+    expect(unknownAssessment.reasons).not.toContain('DEVICE_SERVER_MISMATCH');
+  });
+
   it('supports an omitted network object and persists nullable network state', async () => {
     const payload = validPayload();
     const withoutNetwork: Record<string, unknown> = { ...payload };

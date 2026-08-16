@@ -91,7 +91,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["riskLevel", "sirenActive"],
-      "description": "Firmware-reported comparison and audit data. It is not serverRisk and is not a server-authoritative safety decision.",
+      "description": "Optional firmware-reported comparison and audit data. Omission means firmware comparison is unavailable, not that firmware assessed UNKNOWN. An explicit UNKNOWN remains comparison data. This field is not serverRisk and is not a server-authoritative safety decision.",
       "properties": {
         "riskLevel": {
           "type": "string",

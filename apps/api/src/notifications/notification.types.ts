@@ -69,7 +69,13 @@ function isString(value: unknown): value is string {
 }
 
 function isRisk(value: unknown): value is ServerRisk {
-  return value === 'SAFE' || value === 'WATCH' || value === 'DANGER' || value === 'UNKNOWN';
+  return (
+    value === 'SAFE' ||
+    value === 'WATCH' ||
+    value === 'WARNING' ||
+    value === 'DANGER' ||
+    value === 'UNKNOWN'
+  );
 }
 
 function isStringArray(value: unknown): value is string[] {

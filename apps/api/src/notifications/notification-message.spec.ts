@@ -44,10 +44,13 @@ describe('formatTelegramRiskMessage', () => {
   it('formats an Indonesian danger notification with its authoritative context', () => {
     const message = formatTelegramRiskMessage(payload(), config);
 
-    expect(message).toContain('SIAGALONGSOR — BAHAYA');
-    expect(message).toContain('Status: WASPADA → BAHAYA');
+    expect(message).toContain('SIAGALONGSOR — AWAS (TINGKAT 3)');
+    expect(message).toContain('Status: WASPADA (TINGKAT 1) → AWAS (TINGKAT 3)');
+    expect(message).toContain(
+      'Skema: Aman → Waspada (Tingkat 1) → Siaga (Tingkat 2) → Awas (Tingkat 3)',
+    );
     expect(message).toContain('SMAN 17 Bandar Lampung / Lereng Utama');
-    expect(message).toContain('Kemiringan mencapai ambang bahaya');
+    expect(message).toContain('Kemiringan mencapai ambang Awas (Tingkat 3)');
     expect(message).toContain('Durasi hujan sedang: 3 hari berturut-turut');
     expect(message).toContain('https://siagalongsor.example/overview');
     expect(message).toContain('ID kejadian: audit-1');
@@ -71,5 +74,30 @@ describe('formatTelegramRiskMessage', () => {
     expect(message).toContain('TIDAK DIKETAHUI');
     expect(message).toContain('Status ini bukan kondisi aman');
     expect(message).toContain('Kemiringan: tidak tersedia');
+  });
+
+  it('uses Aman outside the three warning levels', () => {
+    const message = formatTelegramRiskMessage(
+      payload({ previousStatus: 'WATCH', currentStatus: 'SAFE', reasons: ['SAFE_THRESHOLDS_MET'] }),
+      config,
+    );
+
+    expect(message).toContain('SIAGALONGSOR — AMAN');
+    expect(message).toContain('AMAN: pembacaan berada di bawah ambang Waspada');
+    expect(message).not.toContain('kembali aman');
+  });
+
+  it('formats WARNING as Siaga Tingkat 2', () => {
+    const message = formatTelegramRiskMessage(
+      payload({
+        previousStatus: 'WATCH',
+        currentStatus: 'WARNING',
+        reasons: ['WARNING_TILT'],
+      }),
+      config,
+    );
+
+    expect(message).toContain('SIAGALONGSOR — SIAGA (TINGKAT 2)');
+    expect(message).toContain('SIAGA: tingkatkan pemantauan');
   });
 });

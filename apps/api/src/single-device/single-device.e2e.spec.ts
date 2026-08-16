@@ -140,18 +140,44 @@ describe('R2 single-device facade', () => {
       rainfallMmHour: 1,
       batteryVoltage: 2,
     });
+
     await ingest({
       tiltMagnitudeDeg: 9,
       soilMoisturePct: 10,
       rainfallMmHour: 1,
       batteryVoltage: 3,
     });
+
+    const warningAudits = await get('/audit-log?limit=1');
+    expect(warningAudits.body.data[0]).toEqual(
+      expect.objectContaining({
+        previousStatus: 'WATCH',
+        currentStatus: 'WARNING',
+        reasons: expect.arrayContaining(['WARNING_TILT']),
+        sensorSnapshot: expect.objectContaining({
+          tiltMagnitudeDeg: 9,
+          rainfallMmHour: 1,
+        }),
+      }),
+    );
+
+    await ingest({
+      tiltMagnitudeDeg: 9,
+      soilMoisturePct: 10,
+      rainfallMmHour: 30,
+      batteryVoltage: 3,
+    });
+
     const audits = await get('/audit-log?limit=1');
     expect(audits.body.data[0]).toEqual(
       expect.objectContaining({
-        previousStatus: 'WATCH',
+        previousStatus: 'WARNING',
         currentStatus: 'DANGER',
-        sensorSnapshot: expect.objectContaining({ tiltMagnitudeDeg: 9 }),
+        reasons: expect.arrayContaining(['DANGER_RAIN_TILT']),
+        sensorSnapshot: expect.objectContaining({
+          tiltMagnitudeDeg: 9,
+          rainfallMmHour: 30,
+        }),
       }),
     );
     expect(audits.body.page).toMatchObject({ hasMore: true, nextCursor: expect.any(String) });

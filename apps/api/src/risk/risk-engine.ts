@@ -1,5 +1,6 @@
 import type {
   EvaluateRiskInput,
+  FirmwareRisk,
   RiskEngineProfile,
   RiskEngineResult,
   RiskEngineState,
@@ -29,7 +30,9 @@ export function evaluateRisk(input: EvaluateRiskInput): RiskEngineResult {
 
   // R2 final-product path intentionally applies direct boundary semantics; legacy fields remain persisted for compatibility.
 
-  const mismatch = input.telemetry.firmwareRisk !== effectiveRisk;
+  const mismatch =
+    input.telemetry.firmwareRisk !== null &&
+    !isFirmwareRiskCompatible(input.telemetry.firmwareRisk, effectiveRisk);
   const mismatchCount = mismatch ? (baseline?.mismatchCount ?? 0) + 1 : 0;
   if (mismatch) reasons.push('DEVICE_SERVER_MISMATCH');
 
@@ -60,6 +63,16 @@ export function evaluateRisk(input: EvaluateRiskInput): RiskEngineResult {
   };
 }
 
+export function isFirmwareRiskCompatible(
+  firmwareRisk: FirmwareRisk,
+  serverRisk: ServerRisk,
+): boolean {
+  if (firmwareRisk === 'DANGER') {
+    return serverRisk === 'WARNING' || serverRisk === 'DANGER';
+  }
+  return firmwareRisk === serverRisk;
+}
+
 function classify(input: EvaluateRiskInput): {
   risk: ServerRisk;
   reasons: RiskReason[];
@@ -82,23 +95,32 @@ function classify(input: EvaluateRiskInput): {
     return { risk: 'UNKNOWN', reasons: ['REQUIRED_SENSOR_INVALID'] };
   }
 
-  const dangerReasons: RiskReason[] = [];
-  if (tiltMagnitudeDeg >= input.profile.danger.tiltMagnitudeDegGt) {
-    dangerReasons.push('DANGER_TILT');
-  }
-  if (rainfallMmHour >= input.profile.danger.rainfallMmHourGt) {
-    dangerReasons.push('DANGER_RAINFALL');
-  }
-  if (
+  const prolongedRainfall =
     (input.rainfallHistory?.consecutiveModerateDays ?? 0) >=
       input.profile.rainfallDuration.consecutiveDays &&
-    rainfallMmHour > input.profile.rainfallDuration.continuationRainfallMmHourGt
-  ) {
+    rainfallMmHour > input.profile.rainfallDuration.continuationRainfallMmHourGt;
+  const combinedRainAndTilt =
+    tiltMagnitudeDeg >= input.profile.danger.tiltMagnitudeDegGt &&
+    rainfallMmHour >= input.profile.danger.rainfallMmHourGt;
+
+  const dangerReasons: RiskReason[] = [];
+  if (combinedRainAndTilt) dangerReasons.push('DANGER_RAIN_TILT');
+  if (prolongedRainfall) {
     dangerReasons.push('DANGER_PROLONGED_RAINFALL');
   }
-  if (soilMoisturePct >= input.profile.danger.soilMoisturePctGt)
-    dangerReasons.push('DANGER_SOIL_MOISTURE');
   if (dangerReasons.length > 0) return { risk: 'DANGER', reasons: dangerReasons };
+
+  const warningReasons: RiskReason[] = [];
+  if (tiltMagnitudeDeg >= input.profile.danger.tiltMagnitudeDegGt) {
+    warningReasons.push('WARNING_TILT');
+  }
+  if (rainfallMmHour >= input.profile.danger.rainfallMmHourGt) {
+    warningReasons.push('WARNING_RAINFALL');
+  }
+  if (soilMoisturePct >= input.profile.danger.soilMoisturePctGt) {
+    warningReasons.push('WARNING_SOIL_MOISTURE');
+  }
+  if (warningReasons.length > 0) return { risk: 'WARNING', reasons: warningReasons };
 
   if (
     tiltMagnitudeDeg < input.profile.safe.tiltMagnitudeDegLt &&
@@ -142,7 +164,9 @@ function result(
   nextState: RiskEngineState | null,
   mismatchCount: number,
 ): RiskEngineResult {
-  const mismatch = input.telemetry.firmwareRisk !== effectiveRisk;
+  const mismatch =
+    input.telemetry.firmwareRisk !== null &&
+    !isFirmwareRiskCompatible(input.telemetry.firmwareRisk, effectiveRisk);
   return {
     candidateRisk,
     effectiveServerRisk: effectiveRisk,

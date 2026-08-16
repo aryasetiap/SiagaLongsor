@@ -405,6 +405,9 @@ a {
 .risk-watch {
   --risk-accent: #fbbf24;
 }
+.risk-warning {
+  --risk-accent: #fb923c;
+}
 .risk-danger {
   --risk-accent: #fb7185;
 }
@@ -458,6 +461,14 @@ a {
   color: #e6ece9;
   font-size: 0.9rem;
   line-height: 1.5;
+}
+.risk-standard-note {
+  margin: 0.8rem 0 0;
+  border-left: 2px solid var(--risk-accent);
+  color: #c5d0cc;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  padding-left: 0.7rem;
 }
 .risk-hero-meta {
   display: flex;
@@ -769,6 +780,11 @@ a {
 .sensor-overview-thresholds .sensor-threshold-watch {
   background: #fff7db;
   color: #8a5b00;
+  font-weight: 800;
+}
+.sensor-overview-thresholds .sensor-threshold-warning {
+  background: #ffedd5;
+  color: #9a3412;
   font-weight: 800;
 }
 .sensor-overview-thresholds .sensor-threshold-danger {
@@ -1360,6 +1376,65 @@ a {
 .threshold-rain {
   background: #e1f2f8;
 }
+.profile-awas-rule {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
+  gap: 1rem;
+  border: 1px solid #fecaca;
+  border-radius: 1.45rem;
+  background: linear-gradient(135deg, #fff1f2, #fff7ed);
+  padding: 1.25rem;
+  box-shadow: 0 9px 23px rgb(15 23 42 / 6%);
+}
+.profile-awas-rule p,
+.profile-awas-rule h2,
+.profile-awas-rule span {
+  margin: 0;
+}
+.profile-awas-rule p {
+  color: #b42336;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+.profile-awas-rule h2 {
+  margin-top: 0.25rem;
+  color: #991b1b;
+  font-size: 1.05rem;
+}
+.profile-awas-rule > div:first-child > span {
+  display: block;
+  margin-top: 0.5rem;
+  color: #6b4b49;
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+.profile-awas-rule-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.profile-awas-rule-items > div {
+  border: 1px solid rgb(153 27 27 / 12%);
+  border-radius: 1rem;
+  background: rgb(255 255 255 / 72%);
+  padding: 0.85rem;
+}
+.profile-awas-rule-items span,
+.profile-awas-rule-items strong {
+  display: block;
+}
+.profile-awas-rule-items span {
+  color: #9f5a52;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+.profile-awas-rule-items strong {
+  margin-top: 0.35rem;
+  color: #5f1d1d;
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
 .profile-notes {
   display: grid;
   gap: 0.5rem;
@@ -1460,6 +1535,9 @@ a {
 .audit-watch {
   --audit-accent: #fbbf24;
 }
+.audit-warning {
+  --audit-accent: #fb923c;
+}
 .audit-danger {
   --audit-accent: #fb7185;
 }
@@ -1482,6 +1560,8 @@ a {
   .device-diagnostics-grid,
   .profile-summary,
   .threshold-card-grid,
+  .profile-awas-rule,
+  .profile-awas-rule-items,
   .sensor-health-grid {
     grid-template-columns: 1fr;
   }
