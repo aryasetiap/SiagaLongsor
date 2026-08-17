@@ -19,6 +19,8 @@ struct TiltReference {
 float mapSoilAdcToPercent(int raw, int dry, int wet);
 bool soilCalibrationValid(int dry, int wet);
 TiltReading tiltFromAccelerometer(float ax, float ay, float az, const TiltReference& reference);
+float shortestSignedAngleDifference(float readingDeg, float referenceDeg);
+TiltReading applyTiltReference(const TiltReading& rawReading, const TiltReference& reference);
 float rainfallMmPerHour(uint32_t tips, float mmPerTip, uint32_t intervalMs);
 uint32_t retryDelayMs(uint8_t attempt, bool rateLimited, uint32_t entropy);
 

@@ -50,9 +50,7 @@ bool Mpu6050::readRawOrientation(TiltReading& reading) {
 
 bool Mpu6050::read(TiltReading& reading) {
   if (!reference_.calibrated || !readRawOrientation(reading)) return false;
-  reading.xDeg -= reference_.xDeg;
-  reading.yDeg -= reference_.yDeg;
-  reading.magnitudeDeg = sqrtf(reading.xDeg * reading.xDeg + reading.yDeg * reading.yDeg);
+  reading = applyTiltReference(reading, reference_);
   return true;
 }
 
