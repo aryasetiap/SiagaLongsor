@@ -28,6 +28,7 @@ Inject secrets outside source control. Server environment names are:
 ```text
 NODE_ENV=production
 API_PORT
+API_HOST
 API_TRUST_PROXY_HOPS
 WEB_URL
 DATABASE_URL
@@ -90,7 +91,12 @@ corepack pnpm --filter @siagalongsor/api start
 corepack pnpm --filter @siagalongsor/web start
 ```
 
-The web development default is normally port 3000. API port is `API_PORT` (development default 3001). Process supervision or container orchestration is a deployment-environment responsibility unless implemented later.
+The web development default is normally port 3000. API port is `API_PORT` (development default 3001).
+`API_HOST` defaults to `0.0.0.0` for development compatibility. For a production reverse proxy on
+the same VPS/host, set `API_HOST=127.0.0.1` so the NestJS listener is reachable only locally;
+the reverse proxy remains the public HTTPS boundary. Use a different explicit bind address only
+when the deployment topology requires it. Process supervision or container orchestration is a
+deployment-environment responsibility unless implemented later.
 
 ## 8. TLS and trust proxy
 

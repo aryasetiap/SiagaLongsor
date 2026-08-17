@@ -12,6 +12,7 @@ describe('parseAppConfig', () => {
     const config = parseAppConfig(requiredEnvironment);
 
     expect(config.port).toBe(3001);
+    expect(config.host).toBe('0.0.0.0');
     expect(config.publicDashboard.hardwareId).toBeNull();
     expect(config.auth.accessTokenTtlSeconds).toBe(900);
     expect(config.auth.refreshTokenTtlSeconds).toBe(2_592_000);
@@ -26,6 +27,15 @@ describe('parseAppConfig', () => {
       messageThreadId: null,
       dashboardUrl: 'http://localhost:3000/overview',
     });
+  });
+
+  it('uses an explicit API host when configured', () => {
+    const config = parseAppConfig({
+      ...requiredEnvironment,
+      API_HOST: '127.0.0.1',
+    });
+
+    expect(config.host).toBe('127.0.0.1');
   });
 
   it('requires Telegram credentials only when delivery is enabled', () => {

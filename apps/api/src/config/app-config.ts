@@ -15,6 +15,7 @@ const environmentSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     API_PORT: z.coerce.number().int().min(1).max(65_535).default(3001),
+    API_HOST: z.string().trim().min(1).max(255).default('0.0.0.0'),
     API_TRUST_PROXY_HOPS: z.coerce.number().int().min(0).max(2).default(0),
     WEB_URL: z.url().default('http://localhost:3000'),
     DATABASE_URL: z.string().min(1),
@@ -65,6 +66,7 @@ const environmentSchema = z
 export interface AppConfig {
   readonly nodeEnv: 'development' | 'test' | 'production';
   readonly port: number;
+  readonly host: string;
   readonly trustProxyHops: number;
   readonly webUrl: string;
   readonly databaseUrl: string;
@@ -109,6 +111,7 @@ export function parseAppConfig(environment: NodeJS.ProcessEnv): AppConfig {
   return Object.freeze({
     nodeEnv: value.NODE_ENV,
     port: value.API_PORT,
+    host: value.API_HOST,
     trustProxyHops: value.API_TRUST_PROXY_HOPS,
     webUrl: value.WEB_URL,
     databaseUrl: value.DATABASE_URL,
