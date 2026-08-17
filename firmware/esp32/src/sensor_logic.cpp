@@ -24,6 +24,19 @@ TiltReading tiltFromAccelerometer(float ax, float ay, float az, const TiltRefere
   return {x, y, sqrtf(x * x + y * y)};
 }
 
+float shortestSignedAngleDifference(float readingDeg, float referenceDeg) {
+  float difference = fmodf(readingDeg - referenceDeg, 360.0F);
+  if (difference < -180.0F) return difference + 360.0F;
+  if (difference >= 180.0F) return difference - 360.0F;
+  return difference;
+}
+
+TiltReading applyTiltReference(const TiltReading& rawReading, const TiltReference& reference) {
+  const float x = shortestSignedAngleDifference(rawReading.xDeg, reference.xDeg);
+  const float y = shortestSignedAngleDifference(rawReading.yDeg, reference.yDeg);
+  return {x, y, sqrtf(x * x + y * y)};
+}
+
 float rainfallMmPerHour(uint32_t tips, float mmPerTip, uint32_t intervalMs) {
   if (intervalMs == 0 || mmPerTip < 0.0F) return NAN;
   return static_cast<float>(tips) * mmPerTip * (3600000.0F / static_cast<float>(intervalMs));
