@@ -21,6 +21,7 @@
     "prisma:validate": "corepack pnpm --filter @siagalongsor/api prisma:validate",
     "prisma:migrate:deploy": "corepack pnpm --filter @siagalongsor/api prisma:migrate:deploy",
     "prisma:seed": "corepack pnpm --filter @siagalongsor/api prisma:seed",
+    "field:reset": "corepack pnpm --filter @siagalongsor/api exec tsx scripts/field-deployment-reset.ts",
     "presentation:setup": "node scripts/presentation/runner.mjs setup",
     "presentation:start": "node scripts/presentation/runner.mjs start",
     "presentation:stop": "node scripts/presentation/runner.mjs stop",

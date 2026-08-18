@@ -136,6 +136,10 @@ Soil percentage calibration and final IMU mounting/reference calibration are def
 
 Use the deployment environment's controlled service shutdown procedure. Presentation commands are not production operation commands.
 
+For the one-time bench-to-field operational cleanup, use the dedicated
+[field deployment reset procedure](32_FIELD_DEPLOYMENT_RESET.md). It is not a Prisma reset and
+must not be replaced by `prisma migrate reset`, schema deletion, or development seeding.
+
 ## 17. Teknila public hostname and legacy redirect
 
 The canonical production public origin is `https://teknila.siagalongsor.net`. Set deployed
